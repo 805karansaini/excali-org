@@ -1,19 +1,132 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { resolve } from 'path'
 
-// https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
+
   build: {
-    emptyOutDir: false,
-    target: "esnext",
+    target: 'esnext',
+    outDir: 'dist',
+    emptyOutDir: false, // Don't clear dist as other builds also use it
+
     rollupOptions: {
       input: {
-        content: "./content_script/unified-entry.ts",
+        // Unified content script entry point
+        'content-unified': './content_script/unified-entry.ts'
       },
+
       output: {
-        entryFileNames: "assets/[name].js"
-      }
+        // Place in assets directory for Chrome extension
+        entryFileNames: 'assets/[name].js',
+        chunkFileNames: 'assets/[name]-[hash].js',
+        assetFileNames: 'assets/[name]-[hash].[ext]',
+
+        // Configure code splitting for optimal loading
+        manualChunks: {
+          // React and related libraries
+          'react-vendor': ['react', 'react-dom'],
+
+          // Redux and state management
+          'redux-vendor': ['@reduxjs/toolkit', 'react-redux'],
+
+          // UI components and styling (will be added when needed)
+          // 'ui-vendor': ['lucide-react', 'clsx'],
+
+          // Database and utilities
+          'db-vendor': ['dexie'],
+
+          // Shared utilities will be automatically chunked
+        }
+      },
+
+      // External dependencies that should not be bundled
+      external: [
+        // Chrome APIs are provided by the browser
+        'chrome'
+      ]
     },
+
+    // Optimization settings
+    minify: 'esbuild', // Fast minification
+    sourcemap: process.env.NODE_ENV === 'development', // Source maps for development
+
+    // CSS handling
+    cssCodeSplit: false, // Inline CSS for content script
+
+    // Bundle size limits
+    chunkSizeWarningLimit: 1000, // Warn if chunks exceed 1MB
+
+    // Build performance
+    reportCompressedSize: false, // Skip gzip reporting for faster builds
   },
+
+  // Development server config (for HMR during development)
+  server: {
+    port: 3001,
+    strictPort: true
+  },
+
+  // CSS preprocessing
+  css: {
+    modules: {
+      // CSS modules configuration for component isolation
+      localsConvention: 'camelCase',
+      generateScopedName: '[name]__[local]___[hash:base64:5]'
+    },
+
+    // PostCSS configuration for CSS optimization
+    postcss: {
+      plugins: [
+        // Add autoprefixer and other PostCSS plugins as needed
+      ]
+    }
+  },
+
+  // Resolve configuration
+  resolve: {
+    alias: {
+      // Path aliases for cleaner imports
+      '@': resolve(__dirname, './content_script'),
+      '@shared': resolve(__dirname, './shared'),
+      '@project': resolve(__dirname, './project/src'),
+      '@components': resolve(__dirname, './project/src/components'),
+      '@context': resolve(__dirname, './project/src/context'),
+      '@types': resolve(__dirname, './project/src/types'),
+      '@utils': resolve(__dirname, './project/src/utils')
+    }
+  },
+
+  // Define global constants
+  define: {
+    // Environment variables
+    __DEV__: process.env.NODE_ENV === 'development',
+    __VERSION__: JSON.stringify(process.env.npm_package_version || '0.0.0'),
+
+    // Feature flags
+    __ENABLE_DEV_TOOLS__: process.env.NODE_ENV === 'development',
+    __ENABLE_LOGGING__: process.env.NODE_ENV === 'development'
+  },
+
+  // Dependency optimization
+  optimizeDeps: {
+    include: [
+      'react',
+      'react-dom',
+      '@reduxjs/toolkit',
+      'react-redux',
+      'dexie'
+    ],
+
+    // Force optimization of specific dependencies
+    force: process.env.NODE_ENV === 'development'
+  },
+
+  // Build-specific environment variables
+  envPrefix: ['VITE_', 'EXCALIDRAW_'],
+
+  // Worker configuration for potential future use
+  worker: {
+    format: 'es'
+  }
 })

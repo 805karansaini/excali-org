@@ -10,12 +10,10 @@
   },
   "content_scripts": [
     {
-      "js": [
-        "assets/content.js"
-      ],
-      "matches": [
-        "https://excalidraw.com/*"
-      ],
+      "js": ["assets/content-unified.js"],
+      "matches": ["https://excalidraw.com/*"],
+      "run_at": "document_end",
+      "all_frames": false
     }
   ],
   "background": {
