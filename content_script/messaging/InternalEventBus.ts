@@ -1,0 +1,333 @@
+/**
+ * Internal Event Bus for Content Script Communication
+ * Replaces Chrome messaging API with direct internal communication
+ */
+
+import { UnifiedCanvas, UnifiedProject } from '../../shared/types';
+
+// Event types for internal communication
+export enum InternalEventTypes {
+  // Canvas operations
+  CANVAS_CREATED = 'CANVAS_CREATED',
+  CANVAS_UPDATED = 'CANVAS_UPDATED',
+  CANVAS_DELETED = 'CANVAS_DELETED',
+  CANVAS_SELECTED = 'CANVAS_SELECTED',
+  CANVAS_LOADED = 'CANVAS_LOADED',
+  
+  // Project operations
+  PROJECT_CREATED = 'PROJECT_CREATED',
+  PROJECT_UPDATED = 'PROJECT_UPDATED',
+  PROJECT_DELETED = 'PROJECT_DELETED',
+  
+  // Excalidraw integration
+  LOAD_CANVAS_TO_EXCALIDRAW = 'LOAD_CANVAS_TO_EXCALIDRAW',
+  SAVE_EXCALIDRAW_DATA = 'SAVE_EXCALIDRAW_DATA',
+  UPDATE_FILE_NAME_DISPLAY = 'UPDATE_FILE_NAME_DISPLAY',
+  SYNC_EXCALIDRAW_DATA = 'SYNC_EXCALIDRAW_DATA',
+  
+  // Panel operations
+  PANEL_VISIBILITY_CHANGED = 'PANEL_VISIBILITY_CHANGED',
+  PANEL_PINNED_CHANGED = 'PANEL_PINNED_CHANGED',
+  PANEL_WIDTH_CHANGED = 'PANEL_WIDTH_CHANGED',
+  
+  // UI operations
+  SHOW_SEARCH_MODAL = 'SHOW_SEARCH_MODAL',
+  HIDE_SEARCH_MODAL = 'HIDE_SEARCH_MODAL',
+  SHOW_PROJECT_MODAL = 'SHOW_PROJECT_MODAL',
+  HIDE_PROJECT_MODAL = 'HIDE_PROJECT_MODAL',
+  SHOW_CONTEXT_MENU = 'SHOW_CONTEXT_MENU',
+  HIDE_CONTEXT_MENU = 'HIDE_CONTEXT_MENU',
+  
+  // System operations
+  ERROR_OCCURRED = 'ERROR_OCCURRED',
+  LOADING_STATE_CHANGED = 'LOADING_STATE_CHANGED',
+  THEME_CHANGED = 'THEME_CHANGED',
+}
+
+// Event payload types
+export interface EventPayloads {
+  [InternalEventTypes.CANVAS_CREATED]: { canvas: UnifiedCanvas };
+  [InternalEventTypes.CANVAS_UPDATED]: { canvas: UnifiedCanvas };
+  [InternalEventTypes.CANVAS_DELETED]: { canvasId: string };
+  [InternalEventTypes.CANVAS_SELECTED]: { canvas: UnifiedCanvas };
+  [InternalEventTypes.CANVAS_LOADED]: { canvas: UnifiedCanvas };
+  
+  [InternalEventTypes.PROJECT_CREATED]: { project: UnifiedProject };
+  [InternalEventTypes.PROJECT_UPDATED]: { project: UnifiedProject };
+  [InternalEventTypes.PROJECT_DELETED]: { projectId: string };
+  
+  [InternalEventTypes.LOAD_CANVAS_TO_EXCALIDRAW]: { canvas: UnifiedCanvas };
+  [InternalEventTypes.SAVE_EXCALIDRAW_DATA]: { canvasId: string; elements: any[]; appState: any };
+  [InternalEventTypes.UPDATE_FILE_NAME_DISPLAY]: { fileName: string };
+  [InternalEventTypes.SYNC_EXCALIDRAW_DATA]: { elements: any[]; appState: any };
+  
+  [InternalEventTypes.PANEL_VISIBILITY_CHANGED]: { isVisible: boolean };
+  [InternalEventTypes.PANEL_PINNED_CHANGED]: { isPinned: boolean };
+  [InternalEventTypes.PANEL_WIDTH_CHANGED]: { width: number };
+  
+  [InternalEventTypes.SHOW_SEARCH_MODAL]: {};
+  [InternalEventTypes.HIDE_SEARCH_MODAL]: {};
+  [InternalEventTypes.SHOW_PROJECT_MODAL]: {};
+  [InternalEventTypes.HIDE_PROJECT_MODAL]: {};
+  [InternalEventTypes.SHOW_CONTEXT_MENU]: { x: number; y: number; canvas: UnifiedCanvas };
+  [InternalEventTypes.HIDE_CONTEXT_MENU]: {};
+  
+  [InternalEventTypes.ERROR_OCCURRED]: { error: string; details?: any };
+  [InternalEventTypes.LOADING_STATE_CHANGED]: { isLoading: boolean };
+  [InternalEventTypes.THEME_CHANGED]: { theme: 'light' | 'dark' };
+}
+
+// Event handler type
+type EventHandler<T extends InternalEventTypes> = (payload: EventPayloads[T]) => void | Promise<void>;
+
+/**
+ * Internal Event Bus for content script communication
+ * Provides type-safe event emission and subscription
+ */
+export class InternalEventBus {
+  private listeners: Map<string, Set<Function>> = new Map();
+  private onceListeners: Map<string, Set<Function>> = new Map();
+  private debugMode: boolean = false;
+
+  constructor(debug: boolean = false) {
+    this.debugMode = debug;
+  }
+
+  /**
+   * Subscribe to an event
+   */
+  on<T extends InternalEventTypes>(
+    eventType: T,
+    handler: EventHandler<T>
+  ): () => void {
+    const handlers = this.listeners.get(eventType) || new Set();
+    handlers.add(handler);
+    this.listeners.set(eventType, handlers);
+
+    if (this.debugMode) {
+      console.log(`[EventBus] Subscribed to ${eventType}`);
+    }
+
+    // Return unsubscribe function
+    return () => this.off(eventType, handler);
+  }
+
+  /**
+   * Subscribe to an event once (auto-unsubscribe after first call)
+   */
+  once<T extends InternalEventTypes>(
+    eventType: T,
+    handler: EventHandler<T>
+  ): () => void {
+    const handlers = this.onceListeners.get(eventType) || new Set();
+    handlers.add(handler);
+    this.onceListeners.set(eventType, handlers);
+
+    if (this.debugMode) {
+      console.log(`[EventBus] Subscribed once to ${eventType}`);
+    }
+
+    // Return unsubscribe function
+    return () => {
+      const onceHandlers = this.onceListeners.get(eventType);
+      if (onceHandlers) {
+        onceHandlers.delete(handler);
+      }
+    };
+  }
+
+  /**
+   * Unsubscribe from an event
+   */
+  off<T extends InternalEventTypes>(
+    eventType: T,
+    handler: EventHandler<T>
+  ): void {
+    const handlers = this.listeners.get(eventType);
+    if (handlers) {
+      handlers.delete(handler);
+      if (handlers.size === 0) {
+        this.listeners.delete(eventType);
+      }
+    }
+
+    const onceHandlers = this.onceListeners.get(eventType);
+    if (onceHandlers) {
+      onceHandlers.delete(handler);
+      if (onceHandlers.size === 0) {
+        this.onceListeners.delete(eventType);
+      }
+    }
+
+    if (this.debugMode) {
+      console.log(`[EventBus] Unsubscribed from ${eventType}`);
+    }
+  }
+
+  /**
+   * Emit an event to all subscribers
+   */
+  async emit<T extends InternalEventTypes>(
+    eventType: T,
+    payload: EventPayloads[T]
+  ): Promise<void> {
+    if (this.debugMode) {
+      console.log(`[EventBus] Emitting ${eventType}`, payload);
+    }
+
+    // Handle regular listeners
+    const handlers = this.listeners.get(eventType);
+    if (handlers) {
+      const promises: Promise<void>[] = [];
+      handlers.forEach(handler => {
+        try {
+          const result = handler(payload);
+          if (result instanceof Promise) {
+            promises.push(result);
+          }
+        } catch (error) {
+          console.error(`[EventBus] Error in ${eventType} handler:`, error);
+        }
+      });
+      
+      if (promises.length > 0) {
+        await Promise.allSettled(promises);
+      }
+    }
+
+    // Handle once listeners
+    const onceHandlers = this.onceListeners.get(eventType);
+    if (onceHandlers) {
+      const promises: Promise<void>[] = [];
+      const handlersToRemove = Array.from(onceHandlers);
+      
+      handlersToRemove.forEach(handler => {
+        try {
+          const result = handler(payload);
+          if (result instanceof Promise) {
+            promises.push(result);
+          }
+        } catch (error) {
+          console.error(`[EventBus] Error in ${eventType} once handler:`, error);
+        }
+      });
+
+      // Remove once handlers
+      this.onceListeners.delete(eventType);
+      
+      if (promises.length > 0) {
+        await Promise.allSettled(promises);
+      }
+    }
+  }
+
+  /**
+   * Remove all listeners for a specific event type
+   */
+  removeAllListeners(eventType?: InternalEventTypes): void {
+    if (eventType) {
+      this.listeners.delete(eventType);
+      this.onceListeners.delete(eventType);
+      if (this.debugMode) {
+        console.log(`[EventBus] Removed all listeners for ${eventType}`);
+      }
+    } else {
+      this.listeners.clear();
+      this.onceListeners.clear();
+      if (this.debugMode) {
+        console.log('[EventBus] Removed all listeners');
+      }
+    }
+  }
+
+  /**
+   * Get number of listeners for an event
+   */
+  listenerCount(eventType: InternalEventTypes): number {
+    const regular = this.listeners.get(eventType)?.size || 0;
+    const once = this.onceListeners.get(eventType)?.size || 0;
+    return regular + once;
+  }
+
+  /**
+   * Get all event types that have listeners
+   */
+  eventNames(): InternalEventTypes[] {
+    const allTypes = new Set<InternalEventTypes>();
+    
+    this.listeners.forEach((_, eventType) => {
+      allTypes.add(eventType as InternalEventTypes);
+    });
+    
+    this.onceListeners.forEach((_, eventType) => {
+      allTypes.add(eventType as InternalEventTypes);
+    });
+    
+    return Array.from(allTypes);
+  }
+
+  /**
+   * Enable or disable debug mode
+   */
+  setDebugMode(enabled: boolean): void {
+    this.debugMode = enabled;
+  }
+
+  /**
+   * Create a namespaced event bus for specific components
+   */
+  createNamespace(namespace: string): NamespacedEventBus {
+    return new NamespacedEventBus(this, namespace);
+  }
+}
+
+/**
+ * Namespaced Event Bus for component-specific events
+ */
+export class NamespacedEventBus {
+  constructor(
+    private parentBus: InternalEventBus,
+    private namespace: string
+  ) {}
+
+  on<T extends InternalEventTypes>(
+    eventType: T,
+    handler: EventHandler<T>
+  ): () => void {
+    const namespacedType = `${this.namespace}:${eventType}` as T;
+    return this.parentBus.on(namespacedType, handler);
+  }
+
+  once<T extends InternalEventTypes>(
+    eventType: T,
+    handler: EventHandler<T>
+  ): () => void {
+    const namespacedType = `${this.namespace}:${eventType}` as T;
+    return this.parentBus.once(namespacedType, handler);
+  }
+
+  off<T extends InternalEventTypes>(
+    eventType: T,
+    handler: EventHandler<T>
+  ): void {
+    const namespacedType = `${this.namespace}:${eventType}` as T;
+    this.parentBus.off(namespacedType, handler);
+  }
+
+  async emit<T extends InternalEventTypes>(
+    eventType: T,
+    payload: EventPayloads[T]
+  ): Promise<void> {
+    const namespacedType = `${this.namespace}:${eventType}` as T;
+    return this.parentBus.emit(namespacedType, payload);
+  }
+}
+
+// Singleton instance for global use
+export const globalEventBus = new InternalEventBus(
+  // Enable debug mode in development
+  typeof window !== 'undefined' && window.location.hostname === 'localhost'
+);
+
+// Export convenience functions
+export const { on, once, off, emit, removeAllListeners } = globalEventBus;

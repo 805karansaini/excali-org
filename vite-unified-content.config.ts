@@ -24,7 +24,6 @@ export default defineConfig({
 
         // Configure code splitting for optimal loading
         manualChunks: {
-          // React and related libraries
           'react-vendor': ['react', 'react-dom'],
 
           // Redux and state management

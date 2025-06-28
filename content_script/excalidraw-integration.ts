@@ -383,6 +383,47 @@ export class ExcalidrawIntegration {
   }
 
   /**
+   * Set panel visibility programmatically
+   */
+  setPanelVisibility(isVisible: boolean): void {
+    if (!this.panelContainer) return;
+    
+    try {
+      this.panelContainer.style.transform = isVisible ? 'translateX(0)' : 'translateX(-100%)';
+    } catch (error) {
+      console.error('Failed to set panel visibility:', error);
+    }
+  }
+
+  /**
+   * Get the panel container element
+   */
+  getPanelContainer(): HTMLElement | null {
+    return this.panelContainer;
+  }
+
+  /**
+   * Get integration statistics for debugging
+   */
+  getStats(): {
+    isInitialized: boolean;
+    hasPanelContainer: boolean;
+    hasTriggerZone: boolean;
+    theme: 'light' | 'dark';
+    hasConflicts: boolean;
+    canvasDataExists: boolean;
+  } {
+    return {
+      isInitialized: this.isInitialized,
+      hasPanelContainer: this.panelContainer !== null,
+      hasTriggerZone: this.triggerZone !== null,
+      theme: this.detectExcalidrawTheme(),
+      hasConflicts: this.checkForConflicts(),
+      canvasDataExists: this.getCanvasData() !== null
+    };
+  }
+
+  /**
    * Check if integration is properly initialized
    */
   isReady(): boolean {

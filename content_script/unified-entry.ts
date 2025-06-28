@@ -1,9 +1,15 @@
-/// <reference types="chrome"/>
+/**
+ * Unified Content Script Entry Point
+ * Integrates the file manager panel directly into Excalidraw with full state management
+ */
 
 import React from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { initializeDatabase } from '../shared/unified-db';
 import { ExcalidrawIntegration } from './excalidraw-integration';
+import { ExcalidrawDataBridge } from './bridges/ExcalidrawDataBridge';
+import { UnifiedStateProvider } from './context/UnifiedStateProvider';
+import { globalEventBus, InternalEventTypes } from './messaging/InternalEventBus';
 
 // Import the panel application
 import { UnifiedPanelApp } from './components/UnifiedPanelApp';
@@ -11,6 +17,7 @@ import { UnifiedPanelApp } from './components/UnifiedPanelApp';
 // Global state for the application
 let panelRoot: Root | null = null;
 let excalidrawIntegration: ExcalidrawIntegration | null = null;
+let dataBridge: ExcalidrawDataBridge | null = null;
 
 /**
  * Initialize the unified content script application
@@ -18,6 +25,9 @@ let excalidrawIntegration: ExcalidrawIntegration | null = null;
 async function initializeUnifiedApp(): Promise<void> {
   try {
     console.log('Initializing Excalidraw File Manager Unified Extension...');
+
+    // Emit loading state
+    await globalEventBus.emit(InternalEventTypes.LOADING_STATE_CHANGED, { isLoading: true });
 
     // 1. Initialize the database
     await initializeDatabase();
@@ -27,27 +37,90 @@ async function initializeUnifiedApp(): Promise<void> {
     await waitForExcalidrawReady();
     console.log('Excalidraw detected');
 
-    // 3. Initialize Excalidraw integration
+    // 3. Initialize data bridge
+    dataBridge = new ExcalidrawDataBridge({
+      autoSave: true,
+      syncInterval: 5000,
+      debounceDelay: 1000
+    });
+    dataBridge.initialize();
+    console.log('Data bridge initialized');
+
+    // 4. Initialize Excalidraw integration
     excalidrawIntegration = new ExcalidrawIntegration();
     await excalidrawIntegration.initialize();
     console.log('Excalidraw integration initialized');
 
-    // 4. Create and mount the panel
+    // 5. Setup event handlers
+    setupEventHandlers();
+    console.log('Event handlers setup');
+
+    // 6. Create and mount the panel with state provider
     await createAndMountPanel();
     console.log('Panel mounted successfully');
 
-    // 5. Setup cleanup handlers
+    // 7. Setup cleanup handlers
     setupCleanupHandlers();
     console.log('Cleanup handlers registered');
 
-    console.log('✅ Excalidraw File Manager extension loaded successfully');
+    // Emit completion
+    await globalEventBus.emit(InternalEventTypes.LOADING_STATE_CHANGED, { isLoading: false });
+
+    console.log('Excalidraw File Manager extension loaded successfully');
 
   } catch (error) {
     console.error('Failed to initialize unified app:', error);
 
+    // Emit error state
+    await globalEventBus.emit(InternalEventTypes.ERROR_OCCURRED, {
+      error: 'Initialization failed',
+      details: error
+    });
+
     // Attempt recovery or fallback
     await handleInitializationError(error);
   }
+}
+
+/**
+ * Setup event handlers for the application
+ */
+function setupEventHandlers(): void {
+  // Handle canvas selection events
+  globalEventBus.on(InternalEventTypes.CANVAS_SELECTED, async ({ canvas }) => {
+    try {
+      console.log('Canvas selected:', canvas.name);
+      if (dataBridge) {
+        await dataBridge.loadCanvasToExcalidraw(canvas);
+      }
+    } catch (error) {
+      console.error('Failed to load canvas:', error);
+      await globalEventBus.emit(InternalEventTypes.ERROR_OCCURRED, {
+        error: 'Failed to load canvas',
+        details: error
+      });
+    }
+  });
+
+  // Handle panel visibility changes
+  globalEventBus.on(InternalEventTypes.PANEL_VISIBILITY_CHANGED, ({ isVisible }) => {
+    if (excalidrawIntegration) {
+      excalidrawIntegration.setPanelVisibility(isVisible);
+    }
+  });
+
+  // Handle theme changes
+  globalEventBus.on(InternalEventTypes.THEME_CHANGED, ({ theme }) => {
+    document.documentElement.setAttribute('data-file-manager-theme', theme);
+  });
+
+  // Handle error reporting
+  globalEventBus.on(InternalEventTypes.ERROR_OCCURRED, ({ error, details }) => {
+    console.error('Error reported:', error, details);
+    showErrorNotification(error);
+  });
+
+  console.log('Event handlers setup complete');
 }
 
 /**
@@ -104,22 +177,18 @@ async function createAndMountPanel(): Promise<void> {
     panelRoot = createRoot(panelContainer);
 
     // Mount the unified panel application
-    const panelApp = React.createElement(UnifiedPanelApp, {
-      onCanvasSelect: (canvas) => {
-        console.log('Canvas selected:', canvas.name);
-        if (excalidrawIntegration) {
-          excalidrawIntegration.updateFileNameDisplay(canvas.name);
-        }
-      },
-      onNewCanvas: () => {
-        console.log('New canvas requested');
-        if (excalidrawIntegration) {
-          excalidrawIntegration.updateFileNameDisplay('New Canvas');
-        }
-      }
-    });
+    const panelApp = React.createElement(UnifiedPanelApp);
 
     panelRoot.render(panelApp);
+
+
+    // Mount the unified panel application with state provider
+    const app = React.createElement(
+      UnifiedStateProvider,
+      { children: React.createElement(UnifiedPanelApp) }
+    );
+
+    panelRoot.render(app);
 
   } catch (error) {
     console.error('Failed to create and mount panel:', error);
@@ -171,10 +240,19 @@ function setupCleanupHandlers(): void {
  */
 function cleanup(): void {
   try {
+    console.log('Starting extension cleanup...');
+
     // Unmount React application
     if (panelRoot) {
       panelRoot.unmount();
       panelRoot = null;
+    }
+
+
+    // Clean up data bridge
+    if (dataBridge) {
+      dataBridge.destroy();
+      dataBridge = null;
     }
 
     // Clean up Excalidraw integration
@@ -183,9 +261,68 @@ function cleanup(): void {
       excalidrawIntegration = null;
     }
 
+
+    // Clear event listeners
+    globalEventBus.removeAllListeners();
+
     console.log('Extension cleanup completed');
   } catch (error) {
     console.error('Error during cleanup:', error);
+  }
+}
+
+/**
+ * Show error notification to the user
+ */
+function showErrorNotification(message: string): void {
+  try {
+    const notification = document.createElement('div');
+    notification.style.cssText = `
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: #ff4444;
+      color: white;
+      padding: 12px 16px;
+      border-radius: 4px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 14px;
+      z-index: 999999;
+      max-width: 300px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      animation: slideIn 0.3s ease-out;
+    `;
+
+    // Add slide-in animation
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes slideIn {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+      }
+    `;
+    document.head.appendChild(style);
+
+    notification.textContent = message;
+    document.body.appendChild(notification);
+
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+      if (notification.parentNode) {
+        notification.style.animation = 'slideIn 0.3s ease-out reverse';
+        setTimeout(() => {
+          if (notification.parentNode) {
+            notification.parentNode.removeChild(notification);
+          }
+        }, 300);
+      }
+      if (style.parentNode) {
+        style.parentNode.removeChild(style);
+      }
+    }, 5000);
+
+  } catch (error) {
+    console.error('Failed to show error notification:', error);
   }
 }
 
@@ -256,9 +393,20 @@ function isValidExcalidrawPage(): boolean {
 
 // Export for potential external access (development/debugging)
 if (typeof window !== 'undefined') {
-  (window as any).__excalidrawFileManager = {
+  (window as any).__excaliOrganizer = {
     cleanup,
     panelRoot,
-    excalidrawIntegration
+    excalidrawIntegration,
+    dataBridge,
+    eventBus: globalEventBus,
+    getStats: () => ({
+      isInitialized: panelRoot !== null,
+      integration: excalidrawIntegration?.getStats() || null,
+      dataBridge: dataBridge?.getStats() || null,
+      eventBus: {
+        listeners: globalEventBus.eventNames().length,
+        events: globalEventBus.eventNames()
+      }
+    })
   };
 }

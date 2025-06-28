@@ -1,5 +1,4 @@
 export enum STORAGE_KEYS {
-  // Legacy keys removed: FILE, COLLECTION, IS_INDEXEDDB_MIGRATED
   CURRENT_WORKING_FILE_ID = "current-working-file-id",
 }
 
@@ -67,12 +66,10 @@ export interface UnifiedProject {
   createdAt: Date;
   updatedAt?: Date;
 
-  // Migration compatibility fields - supporting both old Collection and new Project formats
-  canvasIds: string[]; // New Project format - primary
-  fileIds?: string[]; // Old Collection format - migration compatibility
+  canvasIds: string[];
+  fileIds?: string[];
 }
 
-// Search and UI types
 export interface SearchResult {
   type: 'canvas' | 'project';
   item: UnifiedCanvas | UnifiedProject;
@@ -85,8 +82,7 @@ export interface ContextMenuData {
   canvas: UnifiedCanvas;
 }
 
-// Legacy type aliases for backward compatibility during migration
-export type File = UnifiedCanvas; // Old popup type alias
-export type Collection = UnifiedProject; // Old popup type alias
-export type Canvas = UnifiedCanvas; // Project type alias
-export type Project = UnifiedProject; // Project type alias
+export type File = UnifiedCanvas;
+export type Collection = UnifiedProject;
+export type Canvas = UnifiedCanvas;
+export type Project = UnifiedProject;
