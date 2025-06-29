@@ -12,7 +12,7 @@ interface Props {
 }
 
 const projectColors = [
-  '#6366f1', '#8b5cf6', '#06b6d4', '#10b981', 
+  '#6366f1', '#8b5cf6', '#06b6d4', '#10b981',
   '#f59e0b', '#ef4444', '#ec4899', '#84cc16',
   '#f97316', '#3b82f6', '#8b5cf6', '#14b8a6'
 ];
@@ -27,7 +27,7 @@ export function ProjectModal({ onClose }: Props) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Validate name
     if (!name.trim()) {
       setError('Project name is required');
@@ -43,14 +43,14 @@ export function ProjectModal({ onClose }: Props) {
     const existingProject = state.projects.find(
       project => project.name.toLowerCase() === name.trim().toLowerCase()
     );
-    
+
     if (existingProject) {
       setError('A project with this name already exists');
       return;
     }
 
     setIsLoading(true);
-    
+
     try {
       // Create new project
       const newProject: UnifiedProject = {
@@ -66,10 +66,10 @@ export function ProjectModal({ onClose }: Props) {
 
       // Emit project creation event
       eventBus.emit(InternalEventTypes.PROJECT_CREATED, newProject);
-      
+
       // Update state
       dispatch({ type: 'ADD_PROJECT', payload: newProject });
-      
+
       onClose();
     } catch (err) {
       setError('Failed to create project. Please try again.');
@@ -107,12 +107,8 @@ export function ProjectModal({ onClose }: Props) {
   const modalStyles: React.CSSProperties = {
     width: '100%',
     maxWidth: '500px',
-    background: state.theme === 'light' 
-      ? 'linear-gradient(145deg, #ffffff 0%, #f8fafc 100%)'
-      : 'linear-gradient(145deg, #1a1b23 0%, #16171d 100%)',
-    border: state.theme === 'light' 
-      ? '1px solid rgba(0, 0, 0, 0.1)'
-      : '1px solid rgba(255, 255, 255, 0.1)',
+    background: 'var(--theme-bg-primary)',
+    border: '1px solid var(--theme-border-primary)',
     borderRadius: '16px',
     boxShadow: '0 20px 40px rgba(0, 0, 0, 0.4)',
     overflow: 'hidden',
@@ -121,22 +117,16 @@ export function ProjectModal({ onClose }: Props) {
 
   const headerStyles: React.CSSProperties = {
     padding: '24px 24px 20px',
-    borderBottom: state.theme === 'light' 
-      ? '1px solid rgba(0, 0, 0, 0.08)'
-      : '1px solid rgba(255, 255, 255, 0.08)'
+    borderBottom: '1px solid var(--theme-border-secondary)'
   };
 
   const inputStyles: React.CSSProperties = {
     width: '100%',
     padding: '12px 16px',
-    background: state.theme === 'light' 
-      ? 'rgba(0, 0, 0, 0.02)'
-      : 'rgba(255, 255, 255, 0.05)',
-    border: state.theme === 'light' 
-      ? '1px solid rgba(0, 0, 0, 0.1)'
-      : '1px solid rgba(255, 255, 255, 0.1)',
+    background: 'var(--theme-bg-tertiary)',
+    border: '1px solid var(--theme-border-primary)',
     borderRadius: '8px',
-    color: state.theme === 'light' ? '#1f2937' : '#f3f4f6',
+    color: 'var(--theme-text-primary)',
     fontSize: '14px',
     outline: 'none',
     transition: 'border-color 0.2s ease'
@@ -173,7 +163,7 @@ export function ProjectModal({ onClose }: Props) {
             <h2 style={{
               fontSize: '20px',
               fontWeight: 600,
-              color: state.theme === 'light' ? '#1f2937' : '#f3f4f6',
+              color: 'var(--theme-text-primary)',
               margin: 0
             }}>
               Create New Project
@@ -183,7 +173,7 @@ export function ProjectModal({ onClose }: Props) {
               style={{
                 background: 'none',
                 border: 'none',
-                color: state.theme === 'light' ? '#6b7280' : '#9ca3af',
+                color: 'var(--theme-text-secondary)',
                 cursor: 'pointer',
                 padding: '4px',
                 borderRadius: '4px',
@@ -198,7 +188,7 @@ export function ProjectModal({ onClose }: Props) {
           </div>
           <p style={{
             fontSize: '14px',
-            color: state.theme === 'light' ? '#6b7280' : '#9ca3af',
+            color: 'var(--theme-text-secondary)',
             margin: 0,
             lineHeight: 1.5
           }}>
@@ -213,7 +203,7 @@ export function ProjectModal({ onClose }: Props) {
                 display: 'block',
                 fontSize: '14px',
                 fontWeight: 500,
-                color: state.theme === 'light' ? '#374151' : '#d1d5db',
+                color: 'var(--theme-text-primary)',
                 marginBottom: '8px'
               }}>
                 Project Name *
@@ -222,11 +212,11 @@ export function ProjectModal({ onClose }: Props) {
                 type="text"
                 style={{
                   ...inputStyles,
-                  borderColor: error && !name.trim() 
-                    ? '#ef4444' 
-                    : name.trim() 
-                    ? (state.theme === 'light' ? '#10b981' : '#34d399')
-                    : undefined
+                  borderColor: error && !name.trim()
+                    ? '#ef4444'
+                    : name.trim()
+                      ? (state.theme === 'light' ? '#10b981' : '#34d399')
+                      : undefined
                 }}
                 placeholder="Enter project name..."
                 value={name}
@@ -237,7 +227,7 @@ export function ProjectModal({ onClose }: Props) {
               />
               <div style={{
                 fontSize: '12px',
-                color: state.theme === 'light' ? '#6b7280' : '#9ca3af',
+                color: 'var(--theme-text-secondary)',
                 marginTop: '4px',
                 display: 'flex',
                 justifyContent: 'space-between'
@@ -252,7 +242,7 @@ export function ProjectModal({ onClose }: Props) {
                 display: 'block',
                 fontSize: '14px',
                 fontWeight: 500,
-                color: state.theme === 'light' ? '#374151' : '#d1d5db',
+                color: 'var(--theme-text-primary)',
                 marginBottom: '8px'
               }}>
                 Description (Optional)
@@ -267,7 +257,7 @@ export function ProjectModal({ onClose }: Props) {
               />
               <div style={{
                 fontSize: '12px',
-                color: state.theme === 'light' ? '#6b7280' : '#9ca3af',
+                color: 'var(--theme-text-secondary)',
                 marginTop: '4px',
                 textAlign: 'right'
               }}>
@@ -280,7 +270,7 @@ export function ProjectModal({ onClose }: Props) {
                 display: 'block',
                 fontSize: '14px',
                 fontWeight: 500,
-                color: state.theme === 'light' ? '#374151' : '#d1d5db',
+                color: 'var(--theme-text-primary)',
                 marginBottom: '12px'
               }}>
                 Project Color
@@ -300,8 +290,8 @@ export function ProjectModal({ onClose }: Props) {
                       height: '28px',
                       borderRadius: '6px',
                       backgroundColor: color,
-                      border: selectedColor === color 
-                        ? `3px solid ${state.theme === 'light' ? '#374151' : '#f3f4f6'}`
+                      border: selectedColor === color
+                        ? `3px solid var(--theme-text-primary)`
                         : '2px solid transparent',
                       cursor: 'pointer',
                       transition: 'all 0.2s ease',
@@ -332,9 +322,7 @@ export function ProjectModal({ onClose }: Props) {
 
           <div style={{
             padding: '20px 24px',
-            borderTop: state.theme === 'light' 
-              ? '1px solid rgba(0, 0, 0, 0.08)'
-              : '1px solid rgba(255, 255, 255, 0.08)',
+            borderTop: '1px solid var(--theme-border-secondary)',
             display: 'flex',
             gap: '12px',
             justifyContent: 'flex-end'
@@ -346,11 +334,9 @@ export function ProjectModal({ onClose }: Props) {
               style={{
                 padding: '10px 20px',
                 background: 'transparent',
-                border: state.theme === 'light' 
-                  ? '1px solid rgba(0, 0, 0, 0.1)'
-                  : '1px solid rgba(255, 255, 255, 0.1)',
+                border: '1px solid var(--theme-border-primary)',
                 borderRadius: '6px',
-                color: state.theme === 'light' ? '#6b7280' : '#9ca3af',
+                color: 'var(--theme-text-secondary)',
                 fontSize: '14px',
                 fontWeight: 500,
                 cursor: isLoading ? 'not-allowed' : 'pointer',
@@ -365,13 +351,13 @@ export function ProjectModal({ onClose }: Props) {
               disabled={!name.trim() || isLoading}
               style={{
                 padding: '10px 20px',
-                background: !name.trim() || isLoading 
-                  ? (state.theme === 'light' ? '#e5e7eb' : '#374151')
-                  : 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                background: !name.trim() || isLoading
+                  ? 'var(--theme-bg-tertiary)'
+                  : 'linear-gradient(135deg, var(--theme-accent-primary), var(--theme-accent-secondary))',
                 border: 'none',
                 borderRadius: '6px',
-                color: !name.trim() || isLoading 
-                  ? (state.theme === 'light' ? '#9ca3af' : '#6b7280')
+                color: !name.trim() || isLoading
+                  ? 'var(--theme-text-secondary)'
                   : 'white',
                 fontSize: '14px',
                 fontWeight: 500,
@@ -401,7 +387,7 @@ export function ProjectModal({ onClose }: Props) {
           </div>
         </form>
       </motion.div>
-      
+
       <style>{`
         @keyframes spin {
           to { transform: rotate(360deg); }

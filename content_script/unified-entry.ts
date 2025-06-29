@@ -3,6 +3,7 @@
  * Integrates the file manager panel directly into Excalidraw with full state management
  */
 
+import './styles/theme-variables.css';
 import React from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { initializeDatabase } from '../shared/unified-db';

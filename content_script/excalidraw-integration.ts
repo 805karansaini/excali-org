@@ -1,6 +1,3 @@
-// TODO: Phase 1.4 - ExcalidrawIntegration Class
-// This class handles DOM injection and integration with Excalidraw's interface
-
 export class ExcalidrawIntegration {
   private panelContainer: HTMLElement | null = null;
   private triggerZone: HTMLElement | null = null;
@@ -13,16 +10,16 @@ export class ExcalidrawIntegration {
   async initialize(): Promise<void> {
     try {
       console.log('Initializing Excalidraw integration...');
-      
+
       // Wait for Excalidraw to be fully ready
       await this.waitForExcalidrawReady();
-      
+
       // Setup mutation observer to detect Excalidraw changes
       this.setupExcalidrawObserver();
-      
+
       this.isInitialized = true;
       console.log('Excalidraw integration initialized successfully');
-      
+
     } catch (error) {
       console.error('Failed to initialize Excalidraw integration:', error);
       throw error;
@@ -36,10 +33,10 @@ export class ExcalidrawIntegration {
     return new Promise((resolve, reject) => {
       const maxAttempts = 60; // 30 seconds max wait
       let attempts = 0;
-      
+
       const checkReady = () => {
         attempts++;
-        
+
         // Check for multiple Excalidraw indicators
         const indicators = [
           document.querySelector('.App-menu'),
@@ -47,23 +44,23 @@ export class ExcalidrawIntegration {
           document.querySelector('[data-testid="canvas"]'),
           document.querySelector('.excalidraw')
         ];
-        
+
         const hasValidIndicators = indicators.some(indicator => indicator !== null);
         const isCorrectDomain = window.location.href.includes('excalidraw.com');
-        
+
         if (hasValidIndicators && isCorrectDomain) {
           resolve();
           return;
         }
-        
+
         if (attempts >= maxAttempts) {
           reject(new Error('Excalidraw not ready - timeout reached'));
           return;
         }
-        
+
         setTimeout(checkReady, 500);
       };
-      
+
       checkReady();
     });
   }
@@ -75,12 +72,12 @@ export class ExcalidrawIntegration {
     try {
       // Clean up any existing panels first
       this.cleanup();
-      
+
       if (this.panelContainer) {
         // Return existing container
         return this.panelContainer;
       }
-      
+
       // Create simple container for React to mount into
       // EnhancedAutoHidePanel will handle all styling and behavior
       const container = document.createElement('div');
@@ -92,15 +89,15 @@ export class ExcalidrawIntegration {
         z-index: 999999;
         pointer-events: none;
       `;
-      
+
       // Inject into DOM
       document.body.appendChild(container);
-      
+
       this.panelContainer = container;
-      
+
       console.log('Panel container created successfully');
       return container;
-      
+
     } catch (error) {
       console.error('Failed to create panel container:', error);
       return null;
@@ -120,10 +117,10 @@ export class ExcalidrawIntegration {
         }
       }
     });
-    
+
     // Observe the main Excalidraw container
     const excalidrawRoot = document.querySelector('#root, .App') || document.body;
-    
+
     this.mutationObserver.observe(excalidrawRoot, {
       childList: true,
       subtree: true
@@ -139,7 +136,7 @@ export class ExcalidrawIntegration {
       console.log('Panel container removed, re-injecting...');
       document.body.appendChild(this.panelContainer);
     }
-    
+
     // Trigger zone handling moved to EnhancedAutoHidePanel
   }
 
@@ -153,7 +150,7 @@ export class ExcalidrawIntegration {
       if (existingDisplay) {
         existingDisplay.remove();
       }
-      
+
       // Create new file name display
       const fileNameDisplay = document.createElement('div');
       fileNameDisplay.className = 'excalidraw-file-name-display';
@@ -173,7 +170,7 @@ export class ExcalidrawIntegration {
         backdrop-filter: blur(4px);
         border: 1px solid rgba(255, 255, 255, 0.1);
       `;
-      
+
       // Find appropriate container and inject
       const appMenu = document.querySelector('.App-menu');
       if (appMenu) {
@@ -181,7 +178,7 @@ export class ExcalidrawIntegration {
       } else {
         document.body.appendChild(fileNameDisplay);
       }
-      
+
     } catch (error) {
       console.error('Failed to update file name display:', error);
     }
@@ -195,14 +192,14 @@ export class ExcalidrawIntegration {
       // Check for Excalidraw's theme indicators
       const html = document.documentElement;
       const body = document.body;
-      
+
       // Look for theme classes or attributes
-      if (html.classList.contains('theme-dark') || 
-          body.classList.contains('theme-dark') ||
-          html.getAttribute('data-theme') === 'dark') {
+      if (html.classList.contains('theme-dark') ||
+        body.classList.contains('theme-dark') ||
+        html.getAttribute('data-theme') === 'dark') {
         return 'dark';
       }
-      
+
       // Check computed styles
       const backgroundColor = window.getComputedStyle(body).backgroundColor;
       if (backgroundColor.includes('rgb(')) {
@@ -213,13 +210,13 @@ export class ExcalidrawIntegration {
           return brightness < 128 ? 'dark' : 'light';
         }
       }
-      
-      // Default to dark theme
-      return 'dark';
-      
+
+      // Default to light theme
+      return 'light';
+
     } catch (error) {
       console.error('Failed to detect Excalidraw theme:', error);
-      return 'dark';
+      return 'light';
     }
   }
 
@@ -234,16 +231,16 @@ export class ExcalidrawIntegration {
         '#another-excalidraw-extension',
         '[data-extension="conflicting"]'
       ];
-      
+
       for (const selector of conflictingSelectors) {
         if (document.querySelector(selector)) {
           console.warn(`Potential conflict detected: ${selector}`);
           return true;
         }
       }
-      
+
       return false;
-      
+
     } catch (error) {
       console.error('Failed to check for conflicts:', error);
       return false;
@@ -258,7 +255,7 @@ export class ExcalidrawIntegration {
       // Try to access Excalidraw's data from localStorage
       const excalidrawData = localStorage.getItem('excalidraw');
       return excalidrawData ? JSON.parse(excalidrawData) : null;
-      
+
     } catch (error) {
       console.error('Failed to get canvas data:', error);
       return null;
@@ -271,12 +268,12 @@ export class ExcalidrawIntegration {
   setCanvasData(data: any): boolean {
     try {
       localStorage.setItem('excalidraw', JSON.stringify(data));
-      
+
       // Trigger Excalidraw to reload the data
       window.dispatchEvent(new Event('storage'));
-      
+
       return true;
-      
+
     } catch (error) {
       console.error('Failed to set canvas data:', error);
       return false;
@@ -295,33 +292,33 @@ export class ExcalidrawIntegration {
           panel.parentNode.removeChild(panel);
         }
       });
-      
+
       // No trigger zone cleanup needed - EnhancedAutoHidePanel handles it
-      
+
       // Remove DOM elements
       if (this.panelContainer && this.panelContainer.parentNode) {
         this.panelContainer.parentNode.removeChild(this.panelContainer);
         this.panelContainer = null;
       }
-      
+
       // No triggerZone cleanup needed - handled by EnhancedAutoHidePanel
-      
+
       // Disconnect mutation observer
       if (this.mutationObserver) {
         this.mutationObserver.disconnect();
         this.mutationObserver = null;
       }
-      
+
       // Remove file name display
       const fileNameDisplay = document.querySelector('.excalidraw-file-name-display');
       if (fileNameDisplay && fileNameDisplay.parentNode) {
         fileNameDisplay.parentNode.removeChild(fileNameDisplay);
       }
-      
+
       this.isInitialized = false;
-      
+
       console.log('Excalidraw integration cleanup completed');
-      
+
     } catch (error) {
       console.error('Error during Excalidraw integration cleanup:', error);
     }
@@ -332,7 +329,7 @@ export class ExcalidrawIntegration {
    */
   setPanelVisibility(isVisible: boolean): void {
     if (!this.panelContainer) return;
-    
+
     try {
       this.panelContainer.style.transform = isVisible ? 'translateX(0)' : 'translateX(-100%)';
     } catch (error) {

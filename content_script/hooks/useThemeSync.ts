@@ -14,74 +14,55 @@ export function useThemeSync() {
     let intervalId: number | null = null;
 
     const detectExcalidrawTheme = (): 'light' | 'dark' => {
-      // Method 1: Check for theme class on body or html
-      const body = document.body;
-      const html = document.documentElement;
-      
-      if (body.classList.contains('theme-dark') || html.classList.contains('theme-dark')) {
-        return 'dark';
-      }
-      
-      if (body.classList.contains('theme-light') || html.classList.contains('theme-light')) {
-        return 'light';
-      }
-
-      // Method 2: Check for Excalidraw's theme attribute
-      const excalidrawRoot = document.querySelector('.excalidraw') as HTMLElement;
-      if (excalidrawRoot) {
-        const themeAttr = excalidrawRoot.dataset.theme;
-        if (themeAttr === 'dark') return 'dark';
-        if (themeAttr === 'light') return 'light';
-      }
-
-      // Method 3: Check computed background color of Excalidraw elements
-      const appMenu = document.querySelector('.App-menu') as HTMLElement;
-      const appCenter = document.querySelector('.App-center') as HTMLElement;
-      const targetElement = appMenu || appCenter || body;
-
-      if (targetElement) {
-        const computedStyle = window.getComputedStyle(targetElement);
-        const backgroundColor = computedStyle.backgroundColor;
-        
-        // Parse RGB values to determine if it's dark or light
-        const rgbMatch = backgroundColor.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
-        if (rgbMatch) {
-          const [, r, g, b] = rgbMatch.map(Number);
-          const brightness = (r * 299 + g * 587 + b * 114) / 1000;
-          return brightness < 128 ? 'dark' : 'light';
+      try {
+        // Method 1: Official Excalidraw theme storage
+        const excalidrawState = localStorage.getItem('excalidraw-state');
+        if (excalidrawState) {
+          const state = JSON.parse(excalidrawState);
+          if (state.theme === 'dark' || state.theme === 'light') {
+            return state.theme;
+          }
         }
-      }
 
-      // Method 4: Check for CSS custom properties
-      const rootStyle = getComputedStyle(document.documentElement);
-      const primaryColor = rootStyle.getPropertyValue('--color-primary');
-      const backgroundColor = rootStyle.getPropertyValue('--color-background');
-      
-      if (primaryColor || backgroundColor) {
-        // If we can detect custom properties, try to determine theme
-        return backgroundColor && backgroundColor.includes('rgb(22') ? 'dark' : 'light';
-      }
+        // Method 2: Check appState in localStorage
+        const excalidrawData = localStorage.getItem('excalidraw');
+        if (excalidrawData) {
+          const data = JSON.parse(excalidrawData);
+          if (data.appState?.theme) {
+            return data.appState.theme;
+          }
+        }
 
-      // Method 5: Check system preference as fallback
-      if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-        return 'dark';
-      }
+        // Method 3: System preference fallback
+        if (window.matchMedia?.('(prefers-color-scheme: dark)').matches) {
+          return 'dark';
+        }
 
-      return 'light'; // Default fallback
+        // Default to light (matches Excalidraw.com)
+        return 'light';
+      } catch (error) {
+        console.error('Theme detection failed:', error);
+        return 'light'; // Safe fallback
+      }
     };
 
     const updateTheme = () => {
       if (isDetecting) return;
-      
+
       setIsDetecting(true);
-      
+
       try {
         const detectedTheme = detectExcalidrawTheme();
-        
+
         if (detectedTheme !== state.theme) {
           console.log(`Theme change detected: ${state.theme} → ${detectedTheme}`);
           dispatch({ type: 'SET_THEME', payload: detectedTheme });
           eventBus.emit(InternalEventTypes.THEME_CHANGED, detectedTheme);
+          // Set data-theme attribute on our root for CSS variables
+          const panelRoot = document.getElementById('excalidraw-file-manager-panel');
+          if (panelRoot) {
+            panelRoot.setAttribute('data-theme', detectedTheme);
+          }
         }
       } catch (error) {
         console.error('Error detecting theme:', error);
@@ -96,7 +77,7 @@ export function useThemeSync() {
     // Method 1: Use MutationObserver to watch for class changes
     themeObserver = new MutationObserver((mutations) => {
       let shouldUpdate = false;
-      
+
       mutations.forEach((mutation) => {
         if (mutation.type === 'attributes') {
           const attributeName = mutation.attributeName;
@@ -140,7 +121,7 @@ export function useThemeSync() {
     const handleSystemThemeChange = () => {
       setTimeout(updateTheme, 100);
     };
-    
+
     if (mediaQuery.addEventListener) {
       mediaQuery.addEventListener('change', handleSystemThemeChange);
     } else {
@@ -150,11 +131,11 @@ export function useThemeSync() {
 
     // Method 4: Listen for storage events (in case theme is stored)
     const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'excalidraw-theme' || e.key === 'theme') {
+      if (e.key === 'excalidraw-theme' || e.key === 'theme' || e.key === 'excalidraw-state') {
         setTimeout(updateTheme, 100);
       }
     };
-    
+
     window.addEventListener('storage', handleStorageChange);
 
     // Method 5: Listen for custom events that might indicate theme change
@@ -170,17 +151,17 @@ export function useThemeSync() {
       if (themeObserver) {
         themeObserver.disconnect();
       }
-      
+
       if (intervalId) {
         clearInterval(intervalId);
       }
-      
+
       if (mediaQuery.removeEventListener) {
         mediaQuery.removeEventListener('change', handleSystemThemeChange);
       } else {
         mediaQuery.removeListener(handleSystemThemeChange);
       }
-      
+
       window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('theme-changed', handleCustomThemeEvent);
       window.removeEventListener('excalidraw-theme-changed', handleCustomThemeEvent);

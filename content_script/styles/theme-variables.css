@@ -1,0 +1,72 @@
+/* Light theme (default) */
+:root {
+    /* Background colors */
+    --theme-bg-primary: #ffffff;
+    --theme-bg-secondary: rgba(255, 255, 255, 0.95);
+    --theme-bg-tertiary: rgba(0, 0, 0, 0.02);
+    --theme-bg-hover: rgba(0, 0, 0, 0.03);
+    --theme-bg-active: rgba(0, 0, 0, 0.05);
+
+    /* Text colors */
+    --theme-text-primary: #1f2937;
+    --theme-text-secondary: #6b7280;
+    --theme-text-tertiary: #9ca3af;
+
+    /* Border colors */
+    --theme-border-primary: rgba(0, 0, 0, 0.1);
+    --theme-border-secondary: rgba(0, 0, 0, 0.08);
+    --theme-border-tertiary: rgba(0, 0, 0, 0.06);
+
+    /* Accent colors */
+    --theme-accent-primary: #6366f1;
+    --theme-accent-secondary: #8b5cf6;
+
+    /* Status colors */
+    --theme-success: #10b981;
+    --theme-error: #ef4444;
+    --theme-warning: #f59e0b;
+}
+
+/* Add smooth transitions for theme changes */
+* {
+    transition:
+        background-color 0.2s ease,
+        border-color 0.2s ease,
+        color 0.2s ease;
+}
+
+/* Reduce motion for accessibility */
+@media (prefers-reduced-motion: reduce) {
+    * {
+        transition: none;
+    }
+}
+
+/* Dark theme */
+[data-theme="dark"] {
+    /* Background colors */
+    --theme-bg-primary: #1a1b23;
+    --theme-bg-secondary: rgba(35, 35, 41, 0.95);
+    --theme-bg-tertiary: rgba(255, 255, 255, 0.02);
+    --theme-bg-hover: rgba(255, 255, 255, 0.03);
+    --theme-bg-active: rgba(255, 255, 255, 0.05);
+
+    /* Text colors */
+    --theme-text-primary: #f3f4f6;
+    --theme-text-secondary: #d1d5db;
+    --theme-text-tertiary: #9ca3af;
+
+    /* Border colors */
+    --theme-border-primary: rgba(255, 255, 255, 0.1);
+    --theme-border-secondary: rgba(255, 255, 255, 0.08);
+    --theme-border-tertiary: rgba(255, 255, 255, 0.06);
+
+    /* Accent colors */
+    --theme-accent-primary: #6366f1;
+    --theme-accent-secondary: #8b5cf6;
+
+    /* Status colors */
+    --theme-success: #34d399;
+    --theme-error: #ef4444;
+    --theme-warning: #fbbf24;
+}

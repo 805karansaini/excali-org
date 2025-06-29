@@ -97,7 +97,7 @@ const initialState: UnifiedState = {
   // UI state
   selectedCanvasId: null,
   contextMenu: null,
-  theme: 'dark',
+  theme: 'light',
 
   // Panel state
   isPanelVisible: false,

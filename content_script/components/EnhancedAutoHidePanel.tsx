@@ -1,14 +1,12 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Plus, 
-  Search, 
-  Pin, 
-  PinOff, 
-  ChevronDown, 
-  ChevronRight, 
-  FileText, 
+import {
+  Plus,
+  Search,
+  Pin,
+  PinOff,
   Folder,
+  FileText,
   FolderPlus
 } from 'lucide-react';
 import { useUnifiedState } from '../context/UnifiedStateProvider';
@@ -34,7 +32,7 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
   const [isResizing, setIsResizing] = useState(false);
   const [showWidthIndicator, setShowWidthIndicator] = useState(false);
   const [showProjectModal, setShowProjectModal] = useState(false);
-  
+
   const panelRef = useRef<HTMLDivElement>(null);
   const timeoutRef = useRef<number>();
   const resizeStartX = useRef<number>(0);
@@ -63,7 +61,7 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
   const handleNewCanvasEnhanced = useCallback(async () => {
     try {
       console.log('Creating new canvas...');
-      
+
       const existingNames = state.canvases.map(c => c.name);
       let baseName = 'Untitled Canvas';
       let counter = 1;
@@ -133,10 +131,10 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
       // Emit events
       eventBus.emit(InternalEventTypes.CANVAS_CREATED, newCanvas);
       eventBus.emit(InternalEventTypes.LOAD_CANVAS_TO_EXCALIDRAW, newCanvas);
-      
+
       // Call the original handler for any additional logic
       onNewCanvas();
-      
+
       console.log('Canvas creation completed successfully');
     } catch (error) {
       console.error('Error creating new canvas:', error);
@@ -164,7 +162,7 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!state.isPanelVisible || !state.isPanelPinned) return;
-      
+
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
         return;
       }
@@ -204,12 +202,12 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
     const newPinned = !state.isPanelPinned;
     dispatch({ type: 'SET_PANEL_PINNED', payload: newPinned });
     updatePanelSettings({ isPinned: newPinned });
-    
+
     if (newPinned) {
       dispatch({ type: 'SET_PANEL_VISIBLE', payload: true });
       eventBus.emit(InternalEventTypes.PANEL_VISIBILITY_CHANGED, { isVisible: true });
     }
-    
+
     eventBus.emit(InternalEventTypes.PANEL_PINNED_CHANGED, { isPinned: newPinned });
   };
 
@@ -220,14 +218,14 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
     setShowWidthIndicator(true);
     resizeStartX.current = e.clientX;
     resizeStartWidth.current = state.panelWidth;
-    
+
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
   }, [state.panelWidth]);
 
   const handleResizeMove = useCallback((e: MouseEvent) => {
     if (!isResizing) return;
-    
+
     const deltaX = e.clientX - resizeStartX.current;
     const newWidth = Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, resizeStartWidth.current + deltaX));
     dispatch({ type: 'SET_PANEL_WIDTH', payload: newWidth });
@@ -237,7 +235,7 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
     setIsResizing(false);
     document.body.style.cursor = '';
     document.body.style.userSelect = '';
-    
+
     updatePanelSettings({ width: state.panelWidth });
     setTimeout(() => setShowWidthIndicator(false), 1000);
     eventBus.emit(InternalEventTypes.PANEL_WIDTH_CHANGED, { width: state.panelWidth });
@@ -255,7 +253,7 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
 
   const handleTouchMove = useCallback((e: TouchEvent) => {
     if (!isResizing) return;
-    
+
     e.preventDefault();
     const touch = e.touches[0];
     const deltaX = touch.clientX - resizeStartX.current;
@@ -303,17 +301,17 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
   const handleCanvasSelect = async (canvas: UnifiedCanvas) => {
     try {
       console.log('Selecting canvas:', canvas.name);
-      
+
       dispatch({ type: 'SET_SELECTED_CANVAS', payload: canvas.id });
       dispatch({ type: 'SET_CURRENT_WORKING_CANVAS', payload: canvas.id });
-      
+
       // Emit events
       eventBus.emit(InternalEventTypes.CANVAS_SELECTED, canvas);
       eventBus.emit(InternalEventTypes.LOAD_CANVAS_TO_EXCALIDRAW, canvas);
-      
+
       // Call callback
       onCanvasSelect(canvas);
-      
+
       console.log('Canvas selection completed');
     } catch (error) {
       console.error('Error selecting canvas:', error);
@@ -325,7 +323,7 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-    
+
     if (diffDays === 0) return 'Today';
     if (diffDays === 1) return 'Yesterday';
     if (diffDays < 7) return `${diffDays}d ago`;
@@ -356,14 +354,10 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
     position: 'relative',
     width: `${state.panelWidth}px`,
     height: '100vh',
-    background: state.theme === 'light' 
-      ? 'rgba(255, 255, 255, 0.95)' 
-      : 'rgba(35, 35, 41, 0.95)',
+    background: 'var(--theme-bg-secondary)',
     backdropFilter: 'blur(8px)',
-    borderRight: `1px solid ${state.theme === 'light' 
-      ? 'rgba(0, 0, 0, 0.1)' 
-      : 'rgba(255, 255, 255, 0.1)'}`,
-    color: state.theme === 'light' ? '#1e1e1e' : '#ffffff',
+    borderRight: `1px solid var(--theme-border-primary)`,
+    color: 'var(--theme-text-primary)',
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
     fontSize: '14px',
     display: 'flex',
@@ -387,10 +381,8 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
     top: '50%',
     right: '10px',
     transform: 'translateY(-50%)',
-    background: state.theme === 'light' 
-      ? 'rgba(0, 0, 0, 0.8)' 
-      : 'rgba(255, 255, 255, 0.8)',
-    color: state.theme === 'light' ? '#ffffff' : '#000000',
+    background: 'var(--theme-bg-tertiary)',
+    color: 'var(--theme-text-primary)',
     padding: '4px 8px',
     borderRadius: '4px',
     fontSize: '12px',
@@ -404,7 +396,7 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
     <>
       <div style={containerStyle}>
         {/* Trigger area */}
-        <div 
+        <div
           style={triggerStyle}
           onMouseEnter={handleMouseEnter}
         />
@@ -437,9 +429,7 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
               {/* Header */}
               <div style={{
                 padding: '16px',
-                borderBottom: `1px solid ${state.theme === 'light' 
-                  ? 'rgba(0, 0, 0, 0.1)' 
-                  : 'rgba(255, 255, 255, 0.1)'}`,
+                borderBottom: `1px solid var(--theme-border-primary)`,
                 flexShrink: 0
               }}>
                 <div style={{
@@ -452,15 +442,15 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
                     fontSize: '16px',
                     fontWeight: '600',
                     margin: 0,
-                    color: state.theme === 'light' ? '#1f2937' : '#f3f4f6'
+                    color: 'var(--theme-text-primary)'
                   }}>
                     Excalidraw
                   </h2>
-                  <button 
+                  <button
                     style={{
                       background: 'transparent',
                       border: 'none',
-                      color: state.theme === 'light' ? '#6b7280' : '#9ca3af',
+                      color: 'var(--theme-text-secondary)',
                       cursor: 'pointer',
                       padding: '4px',
                       borderRadius: '4px',
@@ -475,8 +465,8 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
                     {state.isPanelPinned ? <Pin size={16} /> : <PinOff size={16} />}
                   </button>
                 </div>
-                
-                <button 
+
+                <button
                   style={{
                     background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
                     color: '#ffffff',
@@ -507,15 +497,11 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
                   <span>New Canvas</span>
                 </button>
 
-                <button 
+                <button
                   style={{
-                    background: state.theme === 'light' 
-                      ? 'rgba(0, 0, 0, 0.05)' 
-                      : 'rgba(255, 255, 255, 0.05)',
-                    color: state.theme === 'light' ? '#374151' : '#d1d5db',
-                    border: state.theme === 'light' 
-                      ? '1px solid rgba(0, 0, 0, 0.1)' 
-                      : '1px solid rgba(255, 255, 255, 0.1)',
+                    background: 'var(--theme-bg-active)',
+                    color: 'var(--theme-text-secondary)',
+                    border: `1px solid var(--theme-border-primary)`,
                     padding: '8px 12px',
                     borderRadius: '6px',
                     fontSize: '14px',
@@ -529,29 +515,21 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
                   }}
                   onClick={() => setShowProjectModal(true)}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.background = state.theme === 'light' 
-                      ? 'rgba(0, 0, 0, 0.08)' 
-                      : 'rgba(255, 255, 255, 0.08)';
+                    e.currentTarget.style.background = 'var(--theme-bg-hover)';
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.background = state.theme === 'light' 
-                      ? 'rgba(0, 0, 0, 0.05)' 
-                      : 'rgba(255, 255, 255, 0.05)';
+                    e.currentTarget.style.background = 'var(--theme-bg-active)';
                   }}
                 >
                   <FolderPlus size={16} />
                   <span>New Project</span>
                 </button>
-                
-                <button 
+
+                <button
                   style={{
-                    background: state.theme === 'light' 
-                      ? 'rgba(0, 0, 0, 0.05)' 
-                      : 'rgba(255, 255, 255, 0.05)',
-                    color: state.theme === 'light' ? '#374151' : '#d1d5db',
-                    border: state.theme === 'light' 
-                      ? '1px solid rgba(0, 0, 0, 0.1)' 
-                      : '1px solid rgba(255, 255, 255, 0.1)',
+                    background: 'var(--theme-bg-active)',
+                    color: 'var(--theme-text-secondary)',
+                    border: `1px solid var(--theme-border-primary)`,
                     padding: '8px 12px',
                     borderRadius: '6px',
                     fontSize: '14px',
@@ -564,21 +542,17 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
                   }}
                   onClick={() => dispatch({ type: 'SET_SEARCH_MODAL_OPEN', payload: true })}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.background = state.theme === 'light' 
-                      ? 'rgba(0, 0, 0, 0.08)' 
-                      : 'rgba(255, 255, 255, 0.08)';
+                    e.currentTarget.style.background = 'var(--theme-bg-hover)';
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.background = state.theme === 'light' 
-                      ? 'rgba(0, 0, 0, 0.05)' 
-                      : 'rgba(255, 255, 255, 0.05)';
+                    e.currentTarget.style.background = 'var(--theme-bg-active)';
                   }}
                 >
                   <Search size={16} />
                   <span>Search canvases...</span>
-                  <span style={{ 
-                    marginLeft: 'auto', 
-                    fontSize: '12px', 
+                  <span style={{
+                    marginLeft: 'auto',
+                    fontSize: '12px',
                     opacity: 0.7,
                     fontFamily: 'monospace'
                   }}>⌘P</span>
@@ -598,20 +572,20 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
                       fontSize: '12px',
                       fontWeight: '600',
                       textTransform: 'uppercase',
-                      color: state.theme === 'light' ? '#6b7280' : '#9ca3af',
+                      color: 'var(--theme-text-secondary)',
                       marginBottom: '8px',
                       letterSpacing: '0.5px'
                     }}>
                       Projects
                     </div>
-                    
+
                     {state.projects.map(project => {
                       const projectCanvases = getCanvasesForProject(project.id);
                       const isCollapsed = state.collapsedProjects.has(project.id);
-                      
+
                       return (
                         <div key={project.id} style={{ marginBottom: '8px' }}>
-                          <div 
+                          <div
                             style={{
                               display: 'flex',
                               alignItems: 'center',
@@ -623,15 +597,12 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
                             }}
                             onClick={() => toggleProject(project.id)}
                             onMouseEnter={(e) => {
-                              e.currentTarget.style.background = state.theme === 'light' 
-                                ? 'rgba(0, 0, 0, 0.03)' 
-                                : 'rgba(255, 255, 255, 0.03)';
+                              e.currentTarget.style.background = 'var(--theme-bg-hover)';
                             }}
                             onMouseLeave={(e) => {
                               e.currentTarget.style.background = 'transparent';
                             }}
                           >
-                            {isCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
                             <div style={{
                               width: '12px',
                               height: '12px',
@@ -651,13 +622,13 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
                             </span>
                             <span style={{
                               fontSize: '12px',
-                              color: state.theme === 'light' ? '#6b7280' : '#9ca3af',
+                              color: 'var(--theme-text-secondary)',
                               flexShrink: 0
                             }}>
                               {projectCanvases.length}
                             </span>
                           </div>
-                          
+
                           <AnimatePresence>
                             {!isCollapsed && (
                               <motion.div
@@ -679,19 +650,15 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
                                       borderRadius: '4px',
                                       cursor: 'pointer',
                                       transition: 'background-color 0.2s ease',
-                                      backgroundColor: state.selectedCanvasId === canvas.id 
-                                        ? (state.theme === 'light' 
-                                          ? 'rgba(99, 102, 241, 0.1)' 
-                                          : 'rgba(99, 102, 241, 0.2)')
+                                      backgroundColor: state.selectedCanvasId === canvas.id
+                                        ? 'var(--theme-bg-active)'
                                         : 'transparent'
                                     }}
                                     onClick={() => handleCanvasSelect(canvas)}
                                     onContextMenu={(e) => handleCanvasRightClick(e, canvas)}
                                     onMouseEnter={(e) => {
                                       if (state.selectedCanvasId !== canvas.id) {
-                                        e.currentTarget.style.background = state.theme === 'light' 
-                                          ? 'rgba(0, 0, 0, 0.03)' 
-                                          : 'rgba(255, 255, 255, 0.03)';
+                                        e.currentTarget.style.background = 'var(--theme-bg-hover)';
                                       }
                                     }}
                                     onMouseLeave={(e) => {
@@ -712,7 +679,7 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
                                     </span>
                                     <span style={{
                                       fontSize: '11px',
-                                      color: state.theme === 'light' ? '#6b7280' : '#9ca3af',
+                                      color: 'var(--theme-text-secondary)',
                                       flexShrink: 0
                                     }}>
                                       {formatDate(canvas.updatedAt || canvas.createdAt)}
@@ -734,17 +701,17 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
                     fontSize: '12px',
                     fontWeight: '600',
                     textTransform: 'uppercase',
-                    color: state.theme === 'light' ? '#6b7280' : '#9ca3af',
+                    color: 'var(--theme-text-secondary)',
                     marginBottom: '8px',
                     letterSpacing: '0.5px'
                   }}>
                     Recent
                   </div>
-                  
+
                   {getUnorganizedCanvases().length > 0 ? (
                     getUnorganizedCanvases()
-                      .sort((a, b) => new Date(b.updatedAt || b.createdAt).getTime() - 
-                                     new Date(a.updatedAt || a.createdAt).getTime())
+                      .sort((a, b) => new Date(b.updatedAt || b.createdAt).getTime() -
+                        new Date(a.updatedAt || a.createdAt).getTime())
                       .map(canvas => (
                         <div
                           key={canvas.id}
@@ -756,19 +723,15 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
                             borderRadius: '6px',
                             cursor: 'pointer',
                             transition: 'background-color 0.2s ease',
-                            backgroundColor: state.selectedCanvasId === canvas.id 
-                              ? (state.theme === 'light' 
-                                ? 'rgba(99, 102, 241, 0.1)' 
-                                : 'rgba(99, 102, 241, 0.2)')
+                            backgroundColor: state.selectedCanvasId === canvas.id
+                              ? 'var(--theme-bg-active)'
                               : 'transparent'
                           }}
                           onClick={() => handleCanvasSelect(canvas)}
                           onContextMenu={(e) => handleCanvasRightClick(e, canvas)}
                           onMouseEnter={(e) => {
                             if (state.selectedCanvasId !== canvas.id) {
-                              e.currentTarget.style.background = state.theme === 'light' 
-                                ? 'rgba(0, 0, 0, 0.03)' 
-                                : 'rgba(255, 255, 255, 0.03)';
+                              e.currentTarget.style.background = 'var(--theme-bg-hover)';
                             }
                           }}
                           onMouseLeave={(e) => {
@@ -789,7 +752,7 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
                           </span>
                           <span style={{
                             fontSize: '12px',
-                            color: state.theme === 'light' ? '#6b7280' : '#9ca3af',
+                            color: 'var(--theme-text-secondary)',
                             flexShrink: 0
                           }}>
                             {formatDate(canvas.updatedAt || canvas.createdAt)}
@@ -800,7 +763,7 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
                     <div style={{
                       textAlign: 'center',
                       padding: '32px 16px',
-                      color: state.theme === 'light' ? '#6b7280' : '#9ca3af'
+                      color: 'var(--theme-text-secondary)'
                     }}>
                       <FileText size={48} style={{ opacity: 0.5, marginBottom: '12px' }} />
                       <div style={{ fontWeight: '500', marginBottom: '4px' }}>

@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Edit3, 
-  Trash2, 
-  Copy, 
-  FolderPlus, 
-  Download, 
+import {
+  Edit3,
+  Trash2,
+  Copy,
+  FolderPlus,
+  Download,
   ChevronRight,
   Move
 } from 'lucide-react';
@@ -87,12 +87,12 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
   const handleRename = () => {
     const newName = prompt('Enter new name:', canvas.name);
     if (newName && newName.trim() !== canvas.name) {
-      const updatedCanvas = { 
-        ...canvas, 
-        name: newName.trim(), 
-        updatedAt: new Date() 
+      const updatedCanvas = {
+        ...canvas,
+        name: newName.trim(),
+        updatedAt: new Date()
       };
-      
+
       eventBus.emit(InternalEventTypes.CANVAS_UPDATED, updatedCanvas);
       dispatch({ type: 'UPDATE_CANVAS', payload: updatedCanvas });
     }
@@ -108,7 +108,7 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
       updatedAt: new Date(),
       projectId: undefined // Remove from project on duplicate
     };
-    
+
     eventBus.emit(InternalEventTypes.CANVAS_CREATED, newCanvas);
     dispatch({ type: 'ADD_CANVAS', payload: newCanvas });
     onClose();
@@ -118,7 +118,7 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
     if (confirm(`Are you sure you want to delete "${canvas.name}"?\n\nThis action cannot be undone.`)) {
       eventBus.emit(InternalEventTypes.CANVAS_DELETED, canvas);
       dispatch({ type: 'DELETE_CANVAS', payload: canvas.id });
-      
+
       // If this was the selected canvas, clear selection
       if (state.selectedCanvasId === canvas.id) {
         dispatch({ type: 'SET_SELECTED_CANVAS', payload: null });
@@ -148,10 +148,10 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
 
     eventBus.emit(InternalEventTypes.PROJECT_UPDATED, updatedProject);
     eventBus.emit(InternalEventTypes.CANVAS_UPDATED, updatedCanvas);
-    
+
     dispatch({ type: 'UPDATE_PROJECT', payload: updatedProject });
     dispatch({ type: 'UPDATE_CANVAS', payload: updatedCanvas });
-    
+
     onClose();
   };
 
@@ -169,7 +169,7 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
           fileIds: (currentProject.fileIds || []).filter(id => id !== canvas.id),
           updatedAt: new Date()
         };
-        
+
         eventBus.emit(InternalEventTypes.PROJECT_UPDATED, updatedCurrentProject);
         dispatch({ type: 'UPDATE_PROJECT', payload: updatedCurrentProject });
       }
@@ -191,10 +191,10 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
 
     eventBus.emit(InternalEventTypes.PROJECT_UPDATED, updatedTargetProject);
     eventBus.emit(InternalEventTypes.CANVAS_UPDATED, updatedCanvas);
-    
+
     dispatch({ type: 'UPDATE_PROJECT', payload: updatedTargetProject });
     dispatch({ type: 'UPDATE_CANVAS', payload: updatedCanvas });
-    
+
     onClose();
   };
 
@@ -219,10 +219,10 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
 
     eventBus.emit(InternalEventTypes.PROJECT_UPDATED, updatedProject);
     eventBus.emit(InternalEventTypes.CANVAS_UPDATED, updatedCanvas);
-    
+
     dispatch({ type: 'UPDATE_PROJECT', payload: updatedProject });
     dispatch({ type: 'UPDATE_CANVAS', payload: updatedCanvas });
-    
+
     onClose();
   };
 
@@ -240,10 +240,10 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
         }
       };
 
-      const blob = new Blob([JSON.stringify(exportData, null, 2)], { 
-        type: 'application/json' 
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+        type: 'application/json'
       });
-      
+
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -265,16 +265,16 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
   };
 
   // Get available projects for adding/moving
-  const availableProjectsForAdd = state.projects.filter(project => 
-    !(project.canvasIds || []).includes(canvas.id) && 
+  const availableProjectsForAdd = state.projects.filter(project =>
+    !(project.canvasIds || []).includes(canvas.id) &&
     !(project.fileIds || []).includes(canvas.id)
   );
 
-  const availableProjectsForMove = state.projects.filter(project => 
+  const availableProjectsForMove = state.projects.filter(project =>
     project.id !== canvas.projectId
   );
 
-  const currentProject = canvas.projectId 
+  const currentProject = canvas.projectId
     ? state.projects.find(p => p.id === canvas.projectId)
     : null;
 
@@ -282,13 +282,9 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
     position: 'fixed',
     left: position.x,
     top: position.y,
-    background: state.theme === 'light' 
-      ? 'rgba(255, 255, 255, 0.95)'
-      : 'rgba(26, 27, 35, 0.95)',
+    background: 'var(--theme-bg-secondary)',
     backdropFilter: 'blur(12px)',
-    border: state.theme === 'light' 
-      ? '1px solid rgba(0, 0, 0, 0.1)'
-      : '1px solid rgba(255, 255, 255, 0.1)',
+    border: '1px solid var(--theme-border-primary)',
     borderRadius: '8px',
     boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
     minWidth: '200px',
@@ -307,7 +303,7 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
     width: '100%',
     textAlign: 'left',
     fontSize: '14px',
-    color: state.theme === 'light' ? '#374151' : '#d1d5db',
+    color: 'var(--theme-text-primary)',
     cursor: 'pointer',
     transition: 'background-color 0.15s ease'
   };
@@ -316,13 +312,9 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
     position: 'absolute',
     left: '100%',
     top: 0,
-    background: state.theme === 'light' 
-      ? 'rgba(255, 255, 255, 0.95)'
-      : 'rgba(26, 27, 35, 0.95)',
+    background: 'var(--theme-bg-secondary)',
     backdropFilter: 'blur(12px)',
-    border: state.theme === 'light' 
-      ? '1px solid rgba(0, 0, 0, 0.1)'
-      : '1px solid rgba(255, 255, 255, 0.1)',
+    border: '1px solid var(--theme-border-primary)',
     borderRadius: '8px',
     boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
     minWidth: '180px',
@@ -339,13 +331,11 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
       exit={{ opacity: 0, scale: 0.9 }}
       transition={{ duration: 0.15 }}
     >
-      <button 
+      <button
         style={menuItemStyles}
         onClick={handleLoadCanvas}
         onMouseEnter={(e) => {
-          e.currentTarget.style.background = state.theme === 'light' 
-            ? 'rgba(0, 0, 0, 0.05)' 
-            : 'rgba(255, 255, 255, 0.05)';
+          e.currentTarget.style.background = 'var(--theme-bg-hover)';
         }}
         onMouseLeave={(e) => {
           e.currentTarget.style.background = 'none';
@@ -357,19 +347,15 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
 
       <div style={{
         height: '1px',
-        background: state.theme === 'light' 
-          ? 'rgba(0, 0, 0, 0.08)'
-          : 'rgba(255, 255, 255, 0.08)',
+        background: 'var(--theme-border-secondary)',
         margin: '4px 0'
       }} />
 
-      <button 
+      <button
         style={menuItemStyles}
         onClick={handleRename}
         onMouseEnter={(e) => {
-          e.currentTarget.style.background = state.theme === 'light' 
-            ? 'rgba(0, 0, 0, 0.05)' 
-            : 'rgba(255, 255, 255, 0.05)';
+          e.currentTarget.style.background = 'var(--theme-bg-hover)';
         }}
         onMouseLeave={(e) => {
           e.currentTarget.style.background = 'none';
@@ -380,17 +366,15 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
         <span style={{
           marginLeft: 'auto',
           fontSize: '12px',
-          color: state.theme === 'light' ? '#9ca3af' : '#6b7280'
+          color: 'var(--theme-text-secondary)'
         }}>F2</span>
       </button>
 
-      <button 
+      <button
         style={menuItemStyles}
         onClick={handleDuplicate}
         onMouseEnter={(e) => {
-          e.currentTarget.style.background = state.theme === 'light' 
-            ? 'rgba(0, 0, 0, 0.05)' 
-            : 'rgba(255, 255, 255, 0.05)';
+          e.currentTarget.style.background = 'var(--theme-bg-hover)';
         }}
         onMouseLeave={(e) => {
           e.currentTarget.style.background = 'none';
@@ -401,15 +385,13 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
         <span style={{
           marginLeft: 'auto',
           fontSize: '12px',
-          color: state.theme === 'light' ? '#9ca3af' : '#6b7280'
+          color: 'var(--theme-text-secondary)'
         }}>⌘D</span>
       </button>
 
       <div style={{
         height: '1px',
-        background: state.theme === 'light' 
-          ? 'rgba(0, 0, 0, 0.08)'
-          : 'rgba(255, 255, 255, 0.08)',
+        background: 'var(--theme-border-secondary)',
         margin: '4px 0'
       }} />
 
@@ -444,9 +426,7 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
                     }}
                     onClick={() => handleAddToProject(project.id)}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.background = state.theme === 'light' 
-                        ? 'rgba(0, 0, 0, 0.05)' 
-                        : 'rgba(255, 255, 255, 0.05)';
+                      e.currentTarget.style.background = 'var(--theme-bg-hover)';
                     }}
                     onMouseLeave={(e) => {
                       e.currentTarget.style.background = 'none';
@@ -505,9 +485,7 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
                     }}
                     onClick={() => handleMoveToProject(project.id)}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.background = state.theme === 'light' 
-                        ? 'rgba(0, 0, 0, 0.05)' 
-                        : 'rgba(255, 255, 255, 0.05)';
+                      e.currentTarget.style.background = 'var(--theme-bg-hover)';
                     }}
                     onMouseLeave={(e) => {
                       e.currentTarget.style.background = 'none';
@@ -537,13 +515,11 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
 
       {/* Remove from current project */}
       {currentProject && (
-        <button 
+        <button
           style={menuItemStyles}
           onClick={handleRemoveFromProject}
           onMouseEnter={(e) => {
-            e.currentTarget.style.background = state.theme === 'light' 
-              ? 'rgba(0, 0, 0, 0.05)' 
-              : 'rgba(255, 255, 255, 0.05)';
+            e.currentTarget.style.background = 'var(--theme-bg-hover)';
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.background = 'none';
@@ -556,19 +532,15 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
 
       <div style={{
         height: '1px',
-        background: state.theme === 'light' 
-          ? 'rgba(0, 0, 0, 0.08)'
-          : 'rgba(255, 255, 255, 0.08)',
+        background: 'var(--theme-border-secondary)',
         margin: '4px 0'
       }} />
 
-      <button 
+      <button
         style={menuItemStyles}
         onClick={handleDownload}
         onMouseEnter={(e) => {
-          e.currentTarget.style.background = state.theme === 'light' 
-            ? 'rgba(0, 0, 0, 0.05)' 
-            : 'rgba(255, 255, 255, 0.05)';
+          e.currentTarget.style.background = 'var(--theme-bg-hover)';
         }}
         onMouseLeave={(e) => {
           e.currentTarget.style.background = 'none';
@@ -579,22 +551,20 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
         <span style={{
           marginLeft: 'auto',
           fontSize: '12px',
-          color: state.theme === 'light' ? '#9ca3af' : '#6b7280'
+          color: 'var(--theme-text-secondary)'
         }}>⌘S</span>
       </button>
 
       <div style={{
         height: '1px',
-        background: state.theme === 'light' 
-          ? 'rgba(0, 0, 0, 0.08)'
-          : 'rgba(255, 255, 255, 0.08)',
+        background: 'var(--theme-border-secondary)',
         margin: '4px 0'
       }} />
 
-      <button 
+      <button
         style={{
           ...menuItemStyles,
-          color: '#ef4444'
+          color: 'var(--theme-error)'
         }}
         onClick={handleDelete}
         onMouseEnter={(e) => {

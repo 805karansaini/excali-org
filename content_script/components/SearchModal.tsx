@@ -22,24 +22,24 @@ export function SearchModal() {
   // Fuzzy search implementation
   const fuzzyMatch = (text: string, query: string): { score: number; matches: boolean } => {
     if (!query.trim()) return { score: 0, matches: false };
-    
+
     const lowerText = text.toLowerCase();
     const lowerQuery = query.toLowerCase();
-    
+
     // Exact match gets highest score
     if (lowerText === lowerQuery) return { score: 100, matches: true };
-    
+
     // Starts with gets high score
     if (lowerText.startsWith(lowerQuery)) return { score: 90, matches: true };
-    
+
     // Contains gets medium score
     if (lowerText.includes(lowerQuery)) return { score: 70, matches: true };
-    
+
     // Fuzzy matching - check if all characters of query appear in order
     let queryIndex = 0;
     let lastMatchIndex = -1;
     let score = 50;
-    
+
     for (let i = 0; i < lowerText.length && queryIndex < lowerQuery.length; i++) {
       if (lowerText[i] === lowerQuery[queryIndex]) {
         // Bonus for consecutive matches
@@ -48,14 +48,14 @@ export function SearchModal() {
         queryIndex++;
       }
     }
-    
+
     if (queryIndex === lowerQuery.length) {
       // Penalty for scattered matches
       const spread = lastMatchIndex - lowerText.indexOf(lowerQuery[0]);
       score = Math.max(20, score - spread * 2);
       return { score, matches: true };
     }
-    
+
     return { score: 0, matches: false };
   };
 
@@ -72,7 +72,7 @@ export function SearchModal() {
     // Search canvases
     state.canvases.forEach(canvas => {
       const nameMatch = fuzzyMatch(canvas.name, searchQuery);
-      
+
       if (nameMatch.matches) {
         searchResults.push({
           type: 'canvas',
@@ -87,13 +87,13 @@ export function SearchModal() {
     state.projects.forEach(project => {
       const nameMatch = fuzzyMatch(project.name, searchQuery);
       const descMatch = project.description ? fuzzyMatch(project.description, searchQuery) : { score: 0, matches: false };
-      
+
       const bestMatch = Math.max(nameMatch.score, descMatch.score);
       const matches: string[] = [];
-      
+
       if (nameMatch.matches) matches.push('name');
       if (descMatch.matches) matches.push('description');
-      
+
       if (matches.length > 0) {
         searchResults.push({
           type: 'project',
@@ -156,21 +156,21 @@ export function SearchModal() {
       // Focus on project in the panel
       eventBus.emit(InternalEventTypes.PROJECT_SELECTED, project);
     }
-    
+
     dispatch({ type: 'SET_SEARCH_MODAL_OPEN', payload: false });
   };
 
   const highlightMatch = (text: string, query: string) => {
     if (!query.trim()) return text;
-    
+
     const lowerText = text.toLowerCase();
     const lowerQuery = query.toLowerCase();
-    
+
     // For exact and prefix matches, highlight the matching part
     if (lowerText.includes(lowerQuery)) {
       const startIndex = lowerText.indexOf(lowerQuery);
       const endIndex = startIndex + lowerQuery.length;
-      
+
       return (
         <>
           {text.slice(0, startIndex)}
@@ -185,12 +185,12 @@ export function SearchModal() {
         </>
       );
     }
-    
+
     // For fuzzy matches, highlight individual characters
     const parts: React.ReactNode[] = [];
     const queryChars = lowerQuery.split('');
     let queryIndex = 0;
-    
+
     for (let i = 0; i < text.length && queryIndex < queryChars.length; i++) {
       const char = text[i];
       if (lowerText[i] === queryChars[queryIndex]) {
@@ -208,7 +208,7 @@ export function SearchModal() {
         parts.push(char);
       }
     }
-    
+
     return <>{parts}</>;
   };
 
@@ -216,7 +216,7 @@ export function SearchModal() {
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-    
+
     if (diffDays === 0) return 'Today';
     if (diffDays === 1) return 'Yesterday';
     if (diffDays < 7) return `${diffDays}d ago`;
@@ -224,7 +224,7 @@ export function SearchModal() {
   };
 
   const getProjectCanvasCount = (project: UnifiedProject): number => {
-    return state.canvases.filter(canvas => 
+    return state.canvases.filter(canvas =>
       project.canvasIds?.includes(canvas.id) || project.fileIds?.includes(canvas.id)
     ).length;
   };
@@ -248,12 +248,8 @@ export function SearchModal() {
   const modalStyles: React.CSSProperties = {
     width: '100%',
     maxWidth: '600px',
-    background: state.theme === 'light' 
-      ? 'linear-gradient(145deg, #ffffff 0%, #f8fafc 100%)'
-      : 'linear-gradient(145deg, #1a1b23 0%, #16171d 100%)',
-    border: state.theme === 'light' 
-      ? '1px solid rgba(0, 0, 0, 0.1)'
-      : '1px solid rgba(255, 255, 255, 0.1)',
+    background: 'var(--theme-bg-primary)',
+    border: '1px solid var(--theme-border-primary)',
     borderRadius: '16px',
     boxShadow: '0 20px 40px rgba(0, 0, 0, 0.4)',
     overflow: 'hidden',
@@ -265,7 +261,7 @@ export function SearchModal() {
     padding: '0',
     background: 'transparent',
     border: 'none',
-    color: state.theme === 'light' ? '#1f2937' : '#f3f4f6',
+    color: 'var(--theme-text-primary)',
     fontSize: '18px',
     outline: 'none'
   };
@@ -277,7 +273,7 @@ export function SearchModal() {
     alignItems: 'center',
     gap: '12px',
     transition: 'all 0.2s ease',
-    color: state.theme === 'light' ? '#4b5563' : '#d1d5db'
+    color: 'var(--theme-text-secondary)'
   };
 
   return createPortal(
@@ -314,9 +310,7 @@ export function SearchModal() {
           maxHeight: '400px',
           overflowY: 'auto',
           padding: '8px 0',
-          borderTop: state.theme === 'light' 
-            ? '1px solid rgba(0, 0, 0, 0.1)'
-            : '1px solid rgba(255, 255, 255, 0.1)'
+          borderTop: '1px solid var(--theme-border-primary)'
         }}>
           {results.length > 0 ? (
             results.map((result, index) => (
@@ -324,12 +318,12 @@ export function SearchModal() {
                 key={`${result.type}-${result.item.id}`}
                 style={{
                   ...resultItemStyles,
-                  background: index === selectedIndex 
-                    ? (state.theme === 'light' ? 'rgba(99, 102, 241, 0.08)' : 'rgba(99, 102, 241, 0.1)')
+                  background: index === selectedIndex
+                    ? 'var(--theme-bg-active)'
                     : 'transparent',
                   color: index === selectedIndex
-                    ? (state.theme === 'light' ? '#4338ca' : '#c7d2fe')
-                    : (state.theme === 'light' ? '#4b5563' : '#d1d5db')
+                    ? 'var(--theme-accent-primary)'
+                    : 'var(--theme-text-secondary)'
                 }}
                 onClick={() => handleSelect(result)}
                 onMouseEnter={() => setSelectedIndex(index)}
@@ -338,7 +332,7 @@ export function SearchModal() {
                   width: '32px',
                   height: '32px',
                   borderRadius: '8px',
-                  background: result.type === 'canvas' 
+                  background: result.type === 'canvas'
                     ? 'linear-gradient(135deg, #6366f1, #8b5cf6)'
                     : `linear-gradient(135deg, ${(result.item as UnifiedProject).color || '#6366f1'}, #8b5cf6)`,
                   display: 'flex',
@@ -353,7 +347,7 @@ export function SearchModal() {
                     <Folder size={16} />
                   )}
                 </div>
-                
+
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{
                     fontSize: '14px',
@@ -385,7 +379,7 @@ export function SearchModal() {
                     )}
                   </div>
                 </div>
-                
+
                 <div style={{
                   fontSize: '12px',
                   color: state.theme === 'light' ? '#9ca3af' : '#6b7280',
@@ -399,7 +393,7 @@ export function SearchModal() {
             <div style={{
               padding: '40px 24px',
               textAlign: 'center',
-              color: state.theme === 'light' ? '#9ca3af' : '#6b7280'
+              color: 'var(--theme-text-tertiary)'
             }}>
               <Search size={48} style={{ margin: '0 auto 16px', opacity: 0.5 }} />
               <div style={{ fontSize: '16px', fontWeight: 500, marginBottom: '8px' }}>
@@ -413,7 +407,7 @@ export function SearchModal() {
             <div style={{
               padding: '40px 24px',
               textAlign: 'center',
-              color: state.theme === 'light' ? '#9ca3af' : '#6b7280'
+              color: 'var(--theme-text-tertiary)'
             }}>
               <Search size={48} style={{ margin: '0 auto 16px', opacity: 0.5 }} />
               <div style={{ fontSize: '16px', fontWeight: 500, marginBottom: '8px' }}>
@@ -428,21 +422,17 @@ export function SearchModal() {
 
         <div style={{
           padding: '12px 24px',
-          borderTop: state.theme === 'light' 
-            ? '1px solid rgba(0, 0, 0, 0.06)'
-            : '1px solid rgba(255, 255, 255, 0.06)',
-          background: state.theme === 'light' 
-            ? 'rgba(0, 0, 0, 0.02)'
-            : 'rgba(255, 255, 255, 0.02)',
+          borderTop: '1px solid var(--theme-border-tertiary)',
+          background: 'var(--theme-bg-tertiary)',
           display: 'flex',
           gap: '16px',
           fontSize: '12px',
-          color: state.theme === 'light' ? '#9ca3af' : '#6b7280'
+          color: 'var(--theme-text-tertiary)'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
             <span style={{
-              background: state.theme === 'light' ? 'rgba(0, 0, 0, 0.05)' : 'rgba(255, 255, 255, 0.1)',
-              border: state.theme === 'light' ? '1px solid rgba(0, 0, 0, 0.1)' : '1px solid rgba(255, 255, 255, 0.1)',
+              background: 'var(--theme-bg-active)',
+              border: '1px solid var(--theme-border-primary)',
               borderRadius: '4px',
               padding: '2px 6px',
               fontSize: '11px',
@@ -452,8 +442,8 @@ export function SearchModal() {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
             <span style={{
-              background: state.theme === 'light' ? 'rgba(0, 0, 0, 0.05)' : 'rgba(255, 255, 255, 0.1)',
-              border: state.theme === 'light' ? '1px solid rgba(0, 0, 0, 0.1)' : '1px solid rgba(255, 255, 255, 0.1)',
+              background: 'var(--theme-bg-active)',
+              border: '1px solid var(--theme-border-primary)',
               borderRadius: '4px',
               padding: '2px 6px',
               fontSize: '11px',
@@ -463,8 +453,8 @@ export function SearchModal() {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
             <span style={{
-              background: state.theme === 'light' ? 'rgba(0, 0, 0, 0.05)' : 'rgba(255, 255, 255, 0.1)',
-              border: state.theme === 'light' ? '1px solid rgba(0, 0, 0, 0.1)' : '1px solid rgba(255, 255, 255, 0.1)',
+              background: 'var(--theme-bg-active)',
+              border: '1px solid var(--theme-border-primary)',
               borderRadius: '4px',
               padding: '2px 6px',
               fontSize: '11px',
