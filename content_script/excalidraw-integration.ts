@@ -73,49 +73,27 @@ export class ExcalidrawIntegration {
    */
   createPanelContainer(): HTMLElement | null {
     try {
+      // Clean up any existing panels first
+      this.cleanup();
+      
       if (this.panelContainer) {
         // Return existing container
         return this.panelContainer;
       }
       
-      // Create main panel container
+      // Create simple container for React to mount into
+      // EnhancedAutoHidePanel will handle all styling and behavior
       const container = document.createElement('div');
       container.id = 'excalidraw-file-manager-panel';
       container.style.cssText = `
         position: fixed;
         top: 0;
         left: 0;
-        width: 320px;
-        height: 100vh;
-        background: rgba(35, 35, 41, 0.95);
-        backdrop-filter: blur(8px);
-        border-right: 1px solid rgba(255, 255, 255, 0.1);
         z-index: 999999;
-        transform: translateX(-100%);
-        transition: transform 0.3s ease-in-out;
-        overflow: hidden;
-        font-family: 'Roboto', 'Arial', sans-serif;
-        color: rgba(222, 222, 227);
+        pointer-events: none;
       `;
-      
-      // Create trigger zone for hover detection
-      this.triggerZone = document.createElement('div');
-      this.triggerZone.id = 'excalidraw-file-manager-trigger';
-      this.triggerZone.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 10px;
-        height: 100vh;
-        z-index: 999998;
-        background: transparent;
-      `;
-      
-      // Add hover event listeners
-      this.setupHoverListeners(container);
       
       // Inject into DOM
-      document.body.appendChild(this.triggerZone);
       document.body.appendChild(container);
       
       this.panelContainer = container;
@@ -129,43 +107,6 @@ export class ExcalidrawIntegration {
     }
   }
 
-  /**
-   * Setup hover listeners for auto-hide functionality
-   */
-  private setupHoverListeners(container: HTMLElement): void {
-    let showTimeout: number;
-    let hideTimeout: number;
-    
-    const showPanel = () => {
-      clearTimeout(hideTimeout);
-      clearTimeout(showTimeout);
-      
-      showTimeout = setTimeout(() => {
-        container.style.transform = 'translateX(0)';
-      }, 100);
-    };
-    
-    const hidePanel = () => {
-      clearTimeout(showTimeout);
-      clearTimeout(hideTimeout);
-      
-      hideTimeout = setTimeout(() => {
-        container.style.transform = 'translateX(-100%)';
-      }, 300);
-    };
-    
-    // Trigger zone hover
-    if (this.triggerZone) {
-      this.triggerZone.addEventListener('mouseenter', showPanel);
-    }
-    
-    // Panel hover
-    container.addEventListener('mouseenter', () => {
-      clearTimeout(hideTimeout);
-    });
-    
-    container.addEventListener('mouseleave', hidePanel);
-  }
 
   /**
    * Setup mutation observer to detect Excalidraw DOM changes
@@ -199,10 +140,7 @@ export class ExcalidrawIntegration {
       document.body.appendChild(this.panelContainer);
     }
     
-    if (this.triggerZone && !document.body.contains(this.triggerZone)) {
-      console.log('Trigger zone removed, re-injecting...');
-      document.body.appendChild(this.triggerZone);
-    }
+    // Trigger zone handling moved to EnhancedAutoHidePanel
   }
 
   /**
@@ -350,16 +288,23 @@ export class ExcalidrawIntegration {
    */
   cleanup(): void {
     try {
+      // Clean up any orphaned DOM elements first
+      const existingPanels = document.querySelectorAll('#excalidraw-file-manager-panel');
+      existingPanels.forEach(panel => {
+        if (panel.parentNode) {
+          panel.parentNode.removeChild(panel);
+        }
+      });
+      
+      // No trigger zone cleanup needed - EnhancedAutoHidePanel handles it
+      
       // Remove DOM elements
       if (this.panelContainer && this.panelContainer.parentNode) {
         this.panelContainer.parentNode.removeChild(this.panelContainer);
         this.panelContainer = null;
       }
       
-      if (this.triggerZone && this.triggerZone.parentNode) {
-        this.triggerZone.parentNode.removeChild(this.triggerZone);
-        this.triggerZone = null;
-      }
+      // No triggerZone cleanup needed - handled by EnhancedAutoHidePanel
       
       // Disconnect mutation observer
       if (this.mutationObserver) {

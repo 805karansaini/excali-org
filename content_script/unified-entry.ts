@@ -11,8 +11,8 @@ import { ExcalidrawDataBridge } from './bridges/ExcalidrawDataBridge';
 import { UnifiedStateProvider } from './context/UnifiedStateProvider';
 import { globalEventBus, InternalEventTypes } from './messaging/InternalEventBus';
 
-// Import the panel application
-import { UnifiedPanelApp } from './components/UnifiedPanelApp';
+// Import the enhanced panel application
+import { EnhancedAutoHidePanel } from './components/EnhancedAutoHidePanel';
 
 // Global state for the application
 let panelRoot: Root | null = null;
@@ -24,7 +24,7 @@ let dataBridge: ExcalidrawDataBridge | null = null;
  */
 async function initializeUnifiedApp(): Promise<void> {
   try {
-    console.log('Initializing Excalidraw File Manager Unified Extension...');
+    console.log('Initializing Excali Organizer Extension...');
 
     // Emit loading state
     await globalEventBus.emit(InternalEventTypes.LOADING_STATE_CHANGED, { isLoading: true });
@@ -66,7 +66,7 @@ async function initializeUnifiedApp(): Promise<void> {
     // Emit completion
     await globalEventBus.emit(InternalEventTypes.LOADING_STATE_CHANGED, { isLoading: false });
 
-    console.log('Excalidraw File Manager extension loaded successfully');
+    console.log('Excali Organizer extension loaded successfully');
 
   } catch (error) {
     console.error('Failed to initialize unified app:', error);
@@ -87,7 +87,7 @@ async function initializeUnifiedApp(): Promise<void> {
  */
 function setupEventHandlers(): void {
   // Handle canvas selection events
-  globalEventBus.on(InternalEventTypes.CANVAS_SELECTED, async ({ canvas }) => {
+  globalEventBus.on(InternalEventTypes.CANVAS_SELECTED, async (canvas) => {
     try {
       console.log('Canvas selected:', canvas.name);
       if (dataBridge) {
@@ -110,8 +110,32 @@ function setupEventHandlers(): void {
   });
 
   // Handle theme changes
-  globalEventBus.on(InternalEventTypes.THEME_CHANGED, ({ theme }) => {
+  globalEventBus.on(InternalEventTypes.THEME_CHANGED, (theme) => {
     document.documentElement.setAttribute('data-file-manager-theme', theme);
+  });
+
+  // Handle Excalidraw data sync
+  globalEventBus.on(InternalEventTypes.SYNC_EXCALIDRAW_DATA, async ({ elements }) => {
+    try {
+      console.log('🔄 Syncing current canvas data to database');
+      // We need to determine which canvas is currently active
+      // For now, let's save to current working canvas if available
+      // This will be implemented when we have proper current canvas tracking
+      console.log('Excalidraw data sync:', { elementCount: elements?.length || 0 });
+    } catch (error) {
+      console.error('Failed to sync Excalidraw data:', error);
+    }
+  });
+
+  // Handle explicit save requests
+  globalEventBus.on(InternalEventTypes.SAVE_EXCALIDRAW_DATA, async ({ canvasId, elements }) => {
+    try {
+      console.log('💾 Saving canvas data explicitly:', canvasId);
+      // This will be handled by the unified state provider
+      console.log('Save request:', { canvasId, elementCount: elements?.length || 0 });
+    } catch (error) {
+      console.error('Failed to save canvas data:', error);
+    }
   });
 
   // Handle error reporting
@@ -176,16 +200,39 @@ async function createAndMountPanel(): Promise<void> {
     // Create React root
     panelRoot = createRoot(panelContainer);
 
-    // Mount the unified panel application
-    const panelApp = React.createElement(UnifiedPanelApp);
+    // Enhanced canvas creation function
+    const handleNewCanvas = async () => {
+      try {
+        console.log('handleNewCanvas called from unified-entry');
+        await globalEventBus.emit(InternalEventTypes.LOADING_STATE_CHANGED, { isLoading: true });
 
-    panelRoot.render(panelApp);
+        // This will be handled by the enhanced panel component
+        console.log('New canvas creation delegated to enhanced panel');
 
+        await globalEventBus.emit(InternalEventTypes.LOADING_STATE_CHANGED, { isLoading: false });
+      } catch (error) {
+        console.error('Error in handleNewCanvas:', error);
+      }
+    };
 
-    // Mount the unified panel application with state provider
+    const handleCanvasSelect = async (canvas: any) => {
+      try {
+        console.log('handleCanvasSelect called from unified-entry:', canvas);
+        await globalEventBus.emit(InternalEventTypes.CANVAS_SELECTED, canvas);
+      } catch (error) {
+        console.error('Error in handleCanvasSelect:', error);
+      }
+    };
+
+    // Mount the enhanced panel application with state provider
     const app = React.createElement(
       UnifiedStateProvider,
-      { children: React.createElement(UnifiedPanelApp) }
+      {
+        children: React.createElement(EnhancedAutoHidePanel, {
+          onNewCanvas: handleNewCanvas,
+          onCanvasSelect: handleCanvasSelect
+        })
+      }
     );
 
     panelRoot.render(app);
@@ -348,7 +395,7 @@ async function handleInitializationError(error: unknown): Promise<void> {
       z-index: 10000;
       box-shadow: 0 2px 8px rgba(0,0,0,0.2);
     `;
-    errorContainer.textContent = 'Excalidraw File Manager failed to load. Please refresh the page.';
+    errorContainer.textContent = 'Excali Organizer failed to load. Please refresh the page.';
 
     document.body.appendChild(errorContainer);
 

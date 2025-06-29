@@ -58,6 +58,7 @@ type UnifiedAction =
   | { type: 'SET_SEARCH_RESULTS'; payload: SearchResult[] }
   | { type: 'TOGGLE_SEARCH_MODAL' }
   | { type: 'SET_SEARCH_MODAL'; payload: boolean }
+  | { type: 'SET_SEARCH_MODAL_OPEN'; payload: boolean }
   
   // UI operations
   | { type: 'SET_SELECTED_CANVAS'; payload: string | null }
@@ -180,6 +181,9 @@ function unifiedStateReducer(state: UnifiedState, action: UnifiedAction): Unifie
     case 'SET_SEARCH_MODAL':
       return { ...state, isSearchModalOpen: action.payload };
     
+    case 'SET_SEARCH_MODAL_OPEN':
+      return { ...state, isSearchModalOpen: action.payload };
+    
     // UI operations
     case 'SET_SELECTED_CANVAS':
       return { ...state, selectedCanvasId: action.payload };
@@ -286,23 +290,34 @@ export function UnifiedStateProvider({ children }: { children: React.ReactNode }
   // Initialize data and settings from IndexedDB
   const loadInitialData = useCallback(async () => {
     try {
+      console.log('🔧 Loading initial data from database...');
       dispatch({ type: 'SET_LOADING', payload: true });
       dispatch({ type: 'SET_ERROR', payload: null });
 
       // Check database accessibility
       const dbAccessible = await dbUtils.isAccessible();
+      console.log('🔧 Database accessible:', dbAccessible);
+      
       if (!dbAccessible) {
+        console.error('🔧 Database is not accessible');
         dispatch({ type: 'SET_DB_ERROR', payload: true });
         dispatch({ type: 'SET_ERROR', payload: 'Unable to access database. Some features may not work.' });
         return;
       }
 
       // Load data in parallel
+      console.log('🔧 Loading projects, canvases, and panel settings...');
       const [projects, canvases, panelSettings] = await Promise.all([
         projectOperations.getAllProjects(),
         canvasOperations.getAllCanvases(),
         loadPanelSettings()
       ]);
+
+      console.log('🔧 Loaded data:', {
+        projects: projects.length,
+        canvases: canvases.length,
+        panelSettings
+      });
 
       dispatch({ type: 'SET_PROJECTS', payload: projects });
       dispatch({ type: 'SET_CANVASES', payload: canvases });
@@ -315,11 +330,14 @@ export function UnifiedStateProvider({ children }: { children: React.ReactNode }
       // Load current working canvas
       const currentCanvasId = await settingsOperations.getSetting('currentWorkingCanvasId');
       if (currentCanvasId && typeof currentCanvasId === 'string') {
+        console.log('🔧 Current working canvas ID:', currentCanvasId);
         dispatch({ type: 'SET_CURRENT_WORKING_CANVAS', payload: currentCanvasId });
       }
 
+      console.log('🔧 Initial data loading completed successfully');
+
     } catch (error) {
-      console.error('Failed to load initial data:', error);
+      console.error('🔧 Failed to load initial data:', error);
       dispatch({ type: 'SET_ERROR', payload: 'Failed to load data from database.' });
     } finally {
       dispatch({ type: 'SET_LOADING', payload: false });

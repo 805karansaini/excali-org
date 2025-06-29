@@ -112,13 +112,13 @@ export class ExcalidrawDataBridge {
       // Store current canvas data for sync comparison
       this.lastSyncData = JSON.stringify(excalidrawData);
 
-      // Emit event
-      await globalEventBus.emit(InternalEventTypes.CANVAS_LOADED, { canvas });
+      // Trigger Excalidraw to load the new data without page reload
+      this.triggerExcalidrawReload();
 
-      // Reload Excalidraw to apply changes
-      setTimeout(() => {
-        window.location.reload();
-      }, 100);
+      // Emit event
+      await globalEventBus.emit(InternalEventTypes.CANVAS_LOADED, canvas);
+
+      console.log('[ExcalidrawDataBridge] Canvas loaded successfully without page reload');
 
     } catch (error) {
       console.error('[ExcalidrawDataBridge] Failed to load canvas:', error);
@@ -221,6 +221,60 @@ export class ExcalidrawDataBridge {
     } catch (error) {
       console.error('[ExcalidrawDataBridge] Failed to set Excalidraw data:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Trigger Excalidraw to reload data without full page refresh
+   */
+  private triggerExcalidrawReload(): void {
+    try {
+      // Try to trigger a storage event to make Excalidraw reload
+      const storageEvent = new StorageEvent('storage', {
+        key: 'excalidraw',
+        newValue: localStorage.getItem('excalidraw'),
+        oldValue: null,
+        storageArea: localStorage
+      });
+      
+      window.dispatchEvent(storageEvent);
+      
+      // Also try to trigger Excalidraw's internal reload mechanisms
+      setTimeout(() => {
+        // Look for Excalidraw's reload functions
+        const excalidrawApp = document.querySelector('.excalidraw');
+        if (excalidrawApp) {
+          // Trigger a custom event that Excalidraw might listen to
+          const customEvent = new CustomEvent('excalidraw-reload', {
+            detail: { source: 'file-manager' }
+          });
+          excalidrawApp.dispatchEvent(customEvent);
+        }
+        
+        // If Excalidraw doesn't respond to events, force a minimal reload
+        if (!this.hasExcalidrawLoaded()) {
+          console.log('[ExcalidrawDataBridge] Fallback: forcing page reload');
+          window.location.reload();
+        }
+      }, 500);
+      
+      console.log('[ExcalidrawDataBridge] Triggered Excalidraw reload');
+    } catch (error) {
+      console.error('[ExcalidrawDataBridge] Failed to trigger reload:', error);
+      // Fallback to page reload
+      setTimeout(() => window.location.reload(), 100);
+    }
+  }
+
+  /**
+   * Check if Excalidraw has loaded our data
+   */
+  private hasExcalidrawLoaded(): boolean {
+    try {
+      const currentData = this.getExcalidrawData();
+      return currentData !== null && currentData.elements.length > 0;
+    } catch {
+      return false;
     }
   }
 
@@ -358,7 +412,7 @@ export class ExcalidrawDataBridge {
    */
   private setupEventListeners(): void {
     // Listen for load canvas events
-    globalEventBus.on(InternalEventTypes.LOAD_CANVAS_TO_EXCALIDRAW, async ({ canvas }) => {
+    globalEventBus.on(InternalEventTypes.LOAD_CANVAS_TO_EXCALIDRAW, async (canvas) => {
       await this.loadCanvasToExcalidraw(canvas);
     });
   }

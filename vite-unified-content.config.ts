@@ -21,23 +21,20 @@ export default defineConfig({
         entryFileNames: 'assets/[name].js',
         chunkFileNames: 'assets/[name]-[hash].js',
         assetFileNames: 'assets/[name]-[hash].[ext]',
+        format: 'iife', // Use IIFE format for content scripts
+        name: 'Excali Organizer',
+        compact: false, // Ensure readable formatting
 
-        // Configure code splitting for optimal loading
-        manualChunks: {
-          'react-vendor': ['react', 'react-dom'],
-
-          // Redux and state management
-          'redux-vendor': ['@reduxjs/toolkit', 'react-redux'],
-
-          // UI components and styling (will be added when needed)
-          // 'ui-vendor': ['lucide-react', 'clsx'],
-
-          // Database and utilities
-          'db-vendor': ['dexie'],
-
-          // Shared utilities will be automatically chunked
-        }
+        // No code splitting for content scripts to avoid module import issues
+        manualChunks: undefined
       },
+
+      // External dependencies that should not be bundled
+      external: [
+        // Chrome APIs are provided by the browser
+        'chrome'
+      ]
+    },
 
       // External dependencies that should not be bundled
       external: [
@@ -88,11 +85,6 @@ export default defineConfig({
       // Path aliases for cleaner imports
       '@': resolve(__dirname, './content_script'),
       '@shared': resolve(__dirname, './shared'),
-      '@project': resolve(__dirname, './project/src'),
-      '@components': resolve(__dirname, './project/src/components'),
-      '@context': resolve(__dirname, './project/src/context'),
-      '@types': resolve(__dirname, './project/src/types'),
-      '@utils': resolve(__dirname, './project/src/utils')
     }
   },
 

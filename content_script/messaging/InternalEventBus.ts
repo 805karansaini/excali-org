@@ -18,6 +18,7 @@ export enum InternalEventTypes {
   PROJECT_CREATED = 'PROJECT_CREATED',
   PROJECT_UPDATED = 'PROJECT_UPDATED',
   PROJECT_DELETED = 'PROJECT_DELETED',
+  PROJECT_SELECTED = 'PROJECT_SELECTED',
   
   // Excalidraw integration
   LOAD_CANVAS_TO_EXCALIDRAW = 'LOAD_CANVAS_TO_EXCALIDRAW',
@@ -38,6 +39,12 @@ export enum InternalEventTypes {
   SHOW_CONTEXT_MENU = 'SHOW_CONTEXT_MENU',
   HIDE_CONTEXT_MENU = 'HIDE_CONTEXT_MENU',
   
+  // Keyboard shortcuts and actions
+  ESCAPE_PRESSED = 'ESCAPE_PRESSED',
+  SELECT_ALL_REQUEST = 'SELECT_ALL_REQUEST',
+  SHOW_HELP_OVERLAY = 'SHOW_HELP_OVERLAY',
+  REFRESH_DATA = 'REFRESH_DATA',
+  
   // System operations
   ERROR_OCCURRED = 'ERROR_OCCURRED',
   LOADING_STATE_CHANGED = 'LOADING_STATE_CHANGED',
@@ -46,17 +53,18 @@ export enum InternalEventTypes {
 
 // Event payload types
 export interface EventPayloads {
-  [InternalEventTypes.CANVAS_CREATED]: { canvas: UnifiedCanvas };
-  [InternalEventTypes.CANVAS_UPDATED]: { canvas: UnifiedCanvas };
-  [InternalEventTypes.CANVAS_DELETED]: { canvasId: string };
-  [InternalEventTypes.CANVAS_SELECTED]: { canvas: UnifiedCanvas };
-  [InternalEventTypes.CANVAS_LOADED]: { canvas: UnifiedCanvas };
+  [InternalEventTypes.CANVAS_CREATED]: UnifiedCanvas;
+  [InternalEventTypes.CANVAS_UPDATED]: UnifiedCanvas;
+  [InternalEventTypes.CANVAS_DELETED]: UnifiedCanvas;
+  [InternalEventTypes.CANVAS_SELECTED]: UnifiedCanvas;
+  [InternalEventTypes.CANVAS_LOADED]: UnifiedCanvas;
   
-  [InternalEventTypes.PROJECT_CREATED]: { project: UnifiedProject };
-  [InternalEventTypes.PROJECT_UPDATED]: { project: UnifiedProject };
-  [InternalEventTypes.PROJECT_DELETED]: { projectId: string };
+  [InternalEventTypes.PROJECT_CREATED]: UnifiedProject;
+  [InternalEventTypes.PROJECT_UPDATED]: UnifiedProject;
+  [InternalEventTypes.PROJECT_DELETED]: UnifiedProject;
+  [InternalEventTypes.PROJECT_SELECTED]: UnifiedProject;
   
-  [InternalEventTypes.LOAD_CANVAS_TO_EXCALIDRAW]: { canvas: UnifiedCanvas };
+  [InternalEventTypes.LOAD_CANVAS_TO_EXCALIDRAW]: UnifiedCanvas;
   [InternalEventTypes.SAVE_EXCALIDRAW_DATA]: { canvasId: string; elements: any[]; appState: any };
   [InternalEventTypes.UPDATE_FILE_NAME_DISPLAY]: { fileName: string };
   [InternalEventTypes.SYNC_EXCALIDRAW_DATA]: { elements: any[]; appState: any };
@@ -65,16 +73,21 @@ export interface EventPayloads {
   [InternalEventTypes.PANEL_PINNED_CHANGED]: { isPinned: boolean };
   [InternalEventTypes.PANEL_WIDTH_CHANGED]: { width: number };
   
-  [InternalEventTypes.SHOW_SEARCH_MODAL]: {};
-  [InternalEventTypes.HIDE_SEARCH_MODAL]: {};
-  [InternalEventTypes.SHOW_PROJECT_MODAL]: {};
-  [InternalEventTypes.HIDE_PROJECT_MODAL]: {};
+  [InternalEventTypes.SHOW_SEARCH_MODAL]: null;
+  [InternalEventTypes.HIDE_SEARCH_MODAL]: null;
+  [InternalEventTypes.SHOW_PROJECT_MODAL]: null;
+  [InternalEventTypes.HIDE_PROJECT_MODAL]: null;
   [InternalEventTypes.SHOW_CONTEXT_MENU]: { x: number; y: number; canvas: UnifiedCanvas };
-  [InternalEventTypes.HIDE_CONTEXT_MENU]: {};
+  [InternalEventTypes.HIDE_CONTEXT_MENU]: null;
+  
+  [InternalEventTypes.ESCAPE_PRESSED]: null;
+  [InternalEventTypes.SELECT_ALL_REQUEST]: null;
+  [InternalEventTypes.SHOW_HELP_OVERLAY]: null;
+  [InternalEventTypes.REFRESH_DATA]: null;
   
   [InternalEventTypes.ERROR_OCCURRED]: { error: string; details?: any };
   [InternalEventTypes.LOADING_STATE_CHANGED]: { isLoading: boolean };
-  [InternalEventTypes.THEME_CHANGED]: { theme: 'light' | 'dark' };
+  [InternalEventTypes.THEME_CHANGED]: 'light' | 'dark';
 }
 
 // Event handler type
@@ -324,10 +337,13 @@ export class NamespacedEventBus {
 }
 
 // Singleton instance for global use
-export const globalEventBus = new InternalEventBus(
+export const eventBus = new InternalEventBus(
   // Enable debug mode in development
   typeof window !== 'undefined' && window.location.hostname === 'localhost'
 );
 
 // Export convenience functions
-export const { on, once, off, emit, removeAllListeners } = globalEventBus;
+export const { on, once, off, emit, removeAllListeners } = eventBus;
+
+// Keep backward compatibility
+export const globalEventBus = eventBus;

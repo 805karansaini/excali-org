@@ -1,0 +1,413 @@
+import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
+import { motion } from 'framer-motion';
+import { X } from 'lucide-react';
+import { useUnifiedState } from '../context/UnifiedStateProvider';
+import { eventBus, InternalEventTypes } from '../messaging/InternalEventBus';
+import { UnifiedProject } from '../../shared/types';
+import { v4 as uuidv4 } from 'uuid';
+
+interface Props {
+  onClose: () => void;
+}
+
+const projectColors = [
+  '#6366f1', '#8b5cf6', '#06b6d4', '#10b981', 
+  '#f59e0b', '#ef4444', '#ec4899', '#84cc16',
+  '#f97316', '#3b82f6', '#8b5cf6', '#14b8a6'
+];
+
+export function ProjectModal({ onClose }: Props) {
+  const { state, dispatch } = useUnifiedState();
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [selectedColor, setSelectedColor] = useState(projectColors[0]);
+  const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // Validate name
+    if (!name.trim()) {
+      setError('Project name is required');
+      return;
+    }
+
+    if (name.trim().length > 50) {
+      setError('Project name must be 50 characters or less');
+      return;
+    }
+
+    // Check for duplicate names
+    const existingProject = state.projects.find(
+      project => project.name.toLowerCase() === name.trim().toLowerCase()
+    );
+    
+    if (existingProject) {
+      setError('A project with this name already exists');
+      return;
+    }
+
+    setIsLoading(true);
+    
+    try {
+      // Create new project
+      const newProject: UnifiedProject = {
+        id: uuidv4(),
+        name: name.trim(),
+        description: description.trim() || undefined,
+        canvasIds: [],
+        fileIds: [], // Backward compatibility
+        color: selectedColor,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+
+      // Emit project creation event
+      eventBus.emit(InternalEventTypes.PROJECT_CREATED, newProject);
+      
+      // Update state
+      dispatch({ type: 'ADD_PROJECT', payload: newProject });
+      
+      onClose();
+    } catch (err) {
+      setError('Failed to create project. Please try again.');
+      console.error('Error creating project:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setName(e.target.value);
+    if (error) setError('');
+  };
+
+  const handleDescriptionChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setDescription(e.target.value);
+    if (error && error.includes('description')) setError('');
+  };
+
+  const overlayStyles: React.CSSProperties = {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    background: 'rgba(0, 0, 0, 0.6)',
+    backdropFilter: 'blur(8px)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 9999999,
+    pointerEvents: 'auto'
+  };
+
+  const modalStyles: React.CSSProperties = {
+    width: '100%',
+    maxWidth: '500px',
+    background: state.theme === 'light' 
+      ? 'linear-gradient(145deg, #ffffff 0%, #f8fafc 100%)'
+      : 'linear-gradient(145deg, #1a1b23 0%, #16171d 100%)',
+    border: state.theme === 'light' 
+      ? '1px solid rgba(0, 0, 0, 0.1)'
+      : '1px solid rgba(255, 255, 255, 0.1)',
+    borderRadius: '16px',
+    boxShadow: '0 20px 40px rgba(0, 0, 0, 0.4)',
+    overflow: 'hidden',
+    margin: '0 16px'
+  };
+
+  const headerStyles: React.CSSProperties = {
+    padding: '24px 24px 20px',
+    borderBottom: state.theme === 'light' 
+      ? '1px solid rgba(0, 0, 0, 0.08)'
+      : '1px solid rgba(255, 255, 255, 0.08)'
+  };
+
+  const inputStyles: React.CSSProperties = {
+    width: '100%',
+    padding: '12px 16px',
+    background: state.theme === 'light' 
+      ? 'rgba(0, 0, 0, 0.02)'
+      : 'rgba(255, 255, 255, 0.05)',
+    border: state.theme === 'light' 
+      ? '1px solid rgba(0, 0, 0, 0.1)'
+      : '1px solid rgba(255, 255, 255, 0.1)',
+    borderRadius: '8px',
+    color: state.theme === 'light' ? '#1f2937' : '#f3f4f6',
+    fontSize: '14px',
+    outline: 'none',
+    transition: 'border-color 0.2s ease'
+  };
+
+  const textareaStyles: React.CSSProperties = {
+    ...inputStyles,
+    minHeight: '80px',
+    resize: 'vertical' as const,
+    fontFamily: 'inherit'
+  };
+
+  return createPortal(
+    <motion.div
+      style={overlayStyles}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <motion.div
+        style={modalStyles}
+        initial={{ scale: 0.9, y: -50 }}
+        animate={{ scale: 1, y: 0 }}
+        exit={{ scale: 0.9, y: -50 }}
+        transition={{ type: 'spring', damping: 30, stiffness: 400 }}
+      >
+        <div style={headerStyles}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+            <h2 style={{
+              fontSize: '20px',
+              fontWeight: 600,
+              color: state.theme === 'light' ? '#1f2937' : '#f3f4f6',
+              margin: 0
+            }}>
+              Create New Project
+            </h2>
+            <button
+              onClick={onClose}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: state.theme === 'light' ? '#6b7280' : '#9ca3af',
+                cursor: 'pointer',
+                padding: '4px',
+                borderRadius: '4px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+              aria-label="Close modal"
+            >
+              <X size={20} />
+            </button>
+          </div>
+          <p style={{
+            fontSize: '14px',
+            color: state.theme === 'light' ? '#6b7280' : '#9ca3af',
+            margin: 0,
+            lineHeight: 1.5
+          }}>
+            Organize your canvases into projects for better management
+          </p>
+        </div>
+
+        <form onSubmit={handleSubmit}>
+          <div style={{ padding: '24px' }}>
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{
+                display: 'block',
+                fontSize: '14px',
+                fontWeight: 500,
+                color: state.theme === 'light' ? '#374151' : '#d1d5db',
+                marginBottom: '8px'
+              }}>
+                Project Name *
+              </label>
+              <input
+                type="text"
+                style={{
+                  ...inputStyles,
+                  borderColor: error && !name.trim() 
+                    ? '#ef4444' 
+                    : name.trim() 
+                    ? (state.theme === 'light' ? '#10b981' : '#34d399')
+                    : undefined
+                }}
+                placeholder="Enter project name..."
+                value={name}
+                onChange={handleNameChange}
+                autoFocus
+                maxLength={50}
+                disabled={isLoading}
+              />
+              <div style={{
+                fontSize: '12px',
+                color: state.theme === 'light' ? '#6b7280' : '#9ca3af',
+                marginTop: '4px',
+                display: 'flex',
+                justifyContent: 'space-between'
+              }}>
+                <span>{error && error.includes('name') ? error : ''}</span>
+                <span>{name.length}/50</span>
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{
+                display: 'block',
+                fontSize: '14px',
+                fontWeight: 500,
+                color: state.theme === 'light' ? '#374151' : '#d1d5db',
+                marginBottom: '8px'
+              }}>
+                Description (Optional)
+              </label>
+              <textarea
+                style={textareaStyles}
+                placeholder="Describe your project..."
+                value={description}
+                onChange={handleDescriptionChange}
+                maxLength={200}
+                disabled={isLoading}
+              />
+              <div style={{
+                fontSize: '12px',
+                color: state.theme === 'light' ? '#6b7280' : '#9ca3af',
+                marginTop: '4px',
+                textAlign: 'right'
+              }}>
+                {description.length}/200
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{
+                display: 'block',
+                fontSize: '14px',
+                fontWeight: 500,
+                color: state.theme === 'light' ? '#374151' : '#d1d5db',
+                marginBottom: '12px'
+              }}>
+                Project Color
+              </label>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(6, 1fr)',
+                gap: '8px',
+                maxWidth: '200px'
+              }}>
+                {projectColors.map(color => (
+                  <button
+                    key={color}
+                    type="button"
+                    style={{
+                      width: '28px',
+                      height: '28px',
+                      borderRadius: '6px',
+                      backgroundColor: color,
+                      border: selectedColor === color 
+                        ? `3px solid ${state.theme === 'light' ? '#374151' : '#f3f4f6'}`
+                        : '2px solid transparent',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      boxSizing: 'border-box'
+                    }}
+                    onClick={() => setSelectedColor(color)}
+                    disabled={isLoading}
+                    aria-label={`Select color ${color}`}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {error && !error.includes('name') && !error.includes('description') && (
+              <div style={{
+                background: 'rgba(239, 68, 68, 0.1)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                borderRadius: '6px',
+                padding: '12px',
+                color: '#ef4444',
+                fontSize: '14px',
+                marginBottom: '20px'
+              }}>
+                {error}
+              </div>
+            )}
+          </div>
+
+          <div style={{
+            padding: '20px 24px',
+            borderTop: state.theme === 'light' 
+              ? '1px solid rgba(0, 0, 0, 0.08)'
+              : '1px solid rgba(255, 255, 255, 0.08)',
+            display: 'flex',
+            gap: '12px',
+            justifyContent: 'flex-end'
+          }}>
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={isLoading}
+              style={{
+                padding: '10px 20px',
+                background: 'transparent',
+                border: state.theme === 'light' 
+                  ? '1px solid rgba(0, 0, 0, 0.1)'
+                  : '1px solid rgba(255, 255, 255, 0.1)',
+                borderRadius: '6px',
+                color: state.theme === 'light' ? '#6b7280' : '#9ca3af',
+                fontSize: '14px',
+                fontWeight: 500,
+                cursor: isLoading ? 'not-allowed' : 'pointer',
+                opacity: isLoading ? 0.6 : 1,
+                transition: 'all 0.2s ease'
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={!name.trim() || isLoading}
+              style={{
+                padding: '10px 20px',
+                background: !name.trim() || isLoading 
+                  ? (state.theme === 'light' ? '#e5e7eb' : '#374151')
+                  : 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                border: 'none',
+                borderRadius: '6px',
+                color: !name.trim() || isLoading 
+                  ? (state.theme === 'light' ? '#9ca3af' : '#6b7280')
+                  : 'white',
+                fontSize: '14px',
+                fontWeight: 500,
+                cursor: !name.trim() || isLoading ? 'not-allowed' : 'pointer',
+                transition: 'all 0.2s ease',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}
+            >
+              {isLoading ? (
+                <>
+                  <div style={{
+                    width: '16px',
+                    height: '16px',
+                    border: '2px solid transparent',
+                    borderTop: '2px solid currentColor',
+                    borderRadius: '50%',
+                    animation: 'spin 1s linear infinite'
+                  }} />
+                  Creating...
+                </>
+              ) : (
+                'Create Project'
+              )}
+            </button>
+          </div>
+        </form>
+      </motion.div>
+      
+      <style>{`
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
+    </motion.div>,
+    document.body
+  );
+}
