@@ -40,11 +40,24 @@ export class ExcalidrawDataBridge {
   }
 
   /**
-   * Initialize the bridge and start monitoring
-   */
+ * Initialize the bridge and start monitoring
+ */
   initialize(): void {
     console.log('[ExcalidrawDataBridge] Initializing bridge...');
-    
+
+    // Initialize last sync data with current Excalidraw data if it exists
+    try {
+      const currentData = this.getExcalidrawData();
+      if (currentData) {
+        this.lastSyncData = JSON.stringify(currentData);
+        console.log('[ExcalidrawDataBridge] Initialized with existing Excalidraw data');
+      } else {
+        console.log('[ExcalidrawDataBridge] No existing Excalidraw data found');
+      }
+    } catch (error) {
+      console.warn('[ExcalidrawDataBridge] Failed to initialize with existing data:', error);
+    }
+
     if (this.options.autoSave) {
       this.startAutoSync();
     }
@@ -58,7 +71,7 @@ export class ExcalidrawDataBridge {
    */
   destroy(): void {
     console.log('[ExcalidrawDataBridge] Destroying bridge...');
-    
+
     if (this.syncInterval) {
       clearInterval(this.syncInterval);
       this.syncInterval = null;
@@ -79,46 +92,80 @@ export class ExcalidrawDataBridge {
   async loadCanvasToExcalidraw(canvas: UnifiedCanvas): Promise<void> {
     try {
       console.log('[ExcalidrawDataBridge] Loading canvas to Excalidraw:', canvas.name);
-      
+
       this.isLoading = true;
 
-      // Prepare Excalidraw data
+      // Prepare Excalidraw data with proper element structure
+      let elements = canvas.elements || canvas.excalidraw || [];
+
+      // Ensure all elements have required properties for Excalidraw
+      elements = elements.map((element, index) => ({
+        // Required base properties
+        id: element.id || `element_${Date.now()}_${index}`,
+        type: element.type || 'rectangle',
+        x: element.x || 0,
+        y: element.y || 0,
+        width: element.width || 100,
+        height: element.height || 100,
+        angle: element.angle || 0,
+
+        // Style properties with defaults
+        strokeColor: element.strokeColor || '#000000',
+        backgroundColor: element.backgroundColor || 'transparent',
+        fillStyle: element.fillStyle || 'hachure',
+        strokeWidth: element.strokeWidth || 1,
+        strokeStyle: element.strokeStyle || 'solid',
+        roughness: element.roughness || 1,
+        opacity: element.opacity || 100,
+
+        // Array properties
+        groupIds: element.groupIds || [],
+
+        // Object/null properties
+        frameId: element.frameId || null,
+        roundness: element.roundness || null,
+        boundElements: element.boundElements || null,
+        link: element.link || null,
+
+        // Version/state properties
+        seed: element.seed || Math.floor(Math.random() * 2147483647),
+        versionNonce: element.versionNonce || Math.floor(Math.random() * 2147483647),
+        isDeleted: element.isDeleted || false,
+        updated: element.updated || 1,
+        locked: element.locked || false,
+
+        // Preserve any other existing properties
+        ...element
+      }));
+
       const excalidrawData: ExcalidrawData = {
-        elements: canvas.elements || canvas.excalidraw || [],
-        appState: canvas.appState || {
-          viewBackgroundColor: '#ffffff',
-          currentItemFontSize: 20,
-          currentItemStrokeColor: '#000000',
-          currentItemBackgroundColor: 'transparent',
-          currentItemStrokeWidth: 1,
-          currentItemStrokeStyle: 'solid',
-          currentItemRoughness: 1,
-          currentItemOpacity: 100,
-          currentItemFontFamily: 1,
-          currentItemTextAlign: 'left',
-          currentItemArrowhead: 'arrow',
-          currentItemLinearStrokeSharpness: 'round',
-          gridSize: null,
-          colorPalette: {},
-        }
+        elements: elements,
+        appState: canvas.appState || {},
+        files: {} // Files are handled separately in Excalidraw
       };
 
       // Set Excalidraw localStorage
       this.setExcalidrawData(excalidrawData);
 
-      // Update file name display
-      await this.updateFileNameDisplay(canvas.name);
-
       // Store current canvas data for sync comparison
       this.lastSyncData = JSON.stringify(excalidrawData);
 
-      // Trigger Excalidraw to load the new data without page reload
-      this.triggerExcalidrawReload();
-
-      // Emit event
+      // Emit loading event
       await globalEventBus.emit(InternalEventTypes.CANVAS_LOADED, canvas);
 
-      console.log('[ExcalidrawDataBridge] Canvas loaded successfully without page reload');
+      // Give a small delay to ensure localStorage is written before reload
+      console.log('[ExcalidrawDataBridge] Canvas data prepared, reloading page to load canvas:', canvas.name);
+
+      setTimeout(() => {
+        // Update file name display just before reload
+        this.updateFileNameDisplay(canvas.name).then(() => {
+          // Reload page to ensure Excalidraw loads the new data reliably
+          window.location.reload();
+        }).catch(() => {
+          // Even if file name update fails, still reload
+          window.location.reload();
+        });
+      }, 100); // Small delay to ensure localStorage write completes
 
     } catch (error) {
       console.error('[ExcalidrawDataBridge] Failed to load canvas:', error);
@@ -163,31 +210,50 @@ export class ExcalidrawDataBridge {
   }
 
   /**
-   * Get current Excalidraw data from localStorage
-   */
+ * Get current Excalidraw data from localStorage
+ */
   getExcalidrawData(): ExcalidrawData | null {
     try {
-      // Try multiple localStorage keys that Excalidraw might use
-      const keys = ['excalidraw', 'excalidraw-state', 'excalidraw-app-state'];
-      
-      for (const key of keys) {
-        const data = localStorage.getItem(key);
-        if (data) {
-          try {
-            const parsed = JSON.parse(data);
-            if (parsed && (parsed.elements || parsed.type === 'excalidraw')) {
-              return {
-                elements: parsed.elements || [],
-                appState: parsed.appState || {},
-                files: parsed.files
-              };
-            }
-          } catch (parseError) {
-            console.warn(`[ExcalidrawDataBridge] Failed to parse ${key}:`, parseError);
+      // Get elements from the main excalidraw key (which is just an array)
+      const elementsData = localStorage.getItem('excalidraw');
+      let elements = [];
+
+      if (elementsData) {
+        try {
+          const parsed = JSON.parse(elementsData);
+          if (Array.isArray(parsed)) {
+            elements = parsed;
+            console.log('[ExcalidrawDataBridge] Found', elements.length, 'elements in localStorage');
+          } else {
+            console.warn('[ExcalidrawDataBridge] Excalidraw data is not an array:', typeof parsed);
           }
+        } catch (parseError) {
+          console.warn('[ExcalidrawDataBridge] Failed to parse excalidraw elements data:', parseError);
         }
       }
 
+      // Get appState from excalidraw-state key
+      let appState = {};
+      const stateData = localStorage.getItem('excalidraw-state');
+      if (stateData) {
+        try {
+          appState = JSON.parse(stateData);
+          console.log('[ExcalidrawDataBridge] Found appState in excalidraw-state');
+        } catch (parseError) {
+          console.warn('[ExcalidrawDataBridge] Failed to parse excalidraw-state:', parseError);
+        }
+      }
+
+      // Only return data if we have elements or meaningful appState
+      if (elements.length > 0 || Object.keys(appState).length > 0) {
+        return {
+          elements: elements,
+          appState: appState,
+          files: {} // Files are typically stored elsewhere
+        };
+      }
+
+      console.log('[ExcalidrawDataBridge] No valid Excalidraw data found');
       return null;
     } catch (error) {
       console.error('[ExcalidrawDataBridge] Failed to get Excalidraw data:', error);
@@ -200,83 +266,44 @@ export class ExcalidrawDataBridge {
    */
   private setExcalidrawData(data: ExcalidrawData): void {
     try {
-      // Set the main Excalidraw data
-      const excalidrawState = {
-        type: 'excalidraw',
-        version: 2,
-        source: 'excalidraw-file-manager',
-        elements: data.elements,
-        appState: data.appState,
-        files: data.files
-      };
+      console.log('[ExcalidrawDataBridge] Setting Excalidraw data with', data.elements?.length || 0, 'elements');
 
-      localStorage.setItem('excalidraw', JSON.stringify(excalidrawState));
-      
-      // Also set app state separately if needed
-      if (data.appState) {
-        localStorage.setItem('excalidraw-app-state', JSON.stringify(data.appState));
+      // CRITICAL FIX: Excalidraw expects just an array of elements, not an object
+      const elementsArray = data.elements || [];
+
+      // Set the main localStorage key with just the elements array
+      localStorage.setItem('excalidraw', JSON.stringify(elementsArray));
+
+      // Store appState separately if it exists (Excalidraw uses excalidraw-state for this)
+      if (data.appState && Object.keys(data.appState).length > 0) {
+        // Get existing state and merge with our appState
+        let existingState = {};
+        try {
+          const existing = localStorage.getItem('excalidraw-state');
+          if (existing) {
+            existingState = JSON.parse(existing);
+          }
+        } catch (e) {
+          console.warn('[ExcalidrawDataBridge] Failed to parse existing state:', e);
+        }
+
+        const mergedState = {
+          ...existingState,
+          ...data.appState
+        };
+
+        localStorage.setItem('excalidraw-state', JSON.stringify(mergedState));
+        console.log('[ExcalidrawDataBridge] Updated excalidraw-state with appState');
       }
 
-      console.log('[ExcalidrawDataBridge] Set Excalidraw data successfully');
+      console.log('[ExcalidrawDataBridge] Successfully set Excalidraw data (elements array format) with', elementsArray.length, 'elements');
     } catch (error) {
       console.error('[ExcalidrawDataBridge] Failed to set Excalidraw data:', error);
       throw error;
     }
   }
 
-  /**
-   * Trigger Excalidraw to reload data without full page refresh
-   */
-  private triggerExcalidrawReload(): void {
-    try {
-      // Try to trigger a storage event to make Excalidraw reload
-      const storageEvent = new StorageEvent('storage', {
-        key: 'excalidraw',
-        newValue: localStorage.getItem('excalidraw'),
-        oldValue: null,
-        storageArea: localStorage
-      });
-      
-      window.dispatchEvent(storageEvent);
-      
-      // Also try to trigger Excalidraw's internal reload mechanisms
-      setTimeout(() => {
-        // Look for Excalidraw's reload functions
-        const excalidrawApp = document.querySelector('.excalidraw');
-        if (excalidrawApp) {
-          // Trigger a custom event that Excalidraw might listen to
-          const customEvent = new CustomEvent('excalidraw-reload', {
-            detail: { source: 'file-manager' }
-          });
-          excalidrawApp.dispatchEvent(customEvent);
-        }
-        
-        // If Excalidraw doesn't respond to events, force a minimal reload
-        if (!this.hasExcalidrawLoaded()) {
-          console.log('[ExcalidrawDataBridge] Fallback: forcing page reload');
-          window.location.reload();
-        }
-      }, 500);
-      
-      console.log('[ExcalidrawDataBridge] Triggered Excalidraw reload');
-    } catch (error) {
-      console.error('[ExcalidrawDataBridge] Failed to trigger reload:', error);
-      // Fallback to page reload
-      setTimeout(() => window.location.reload(), 100);
-    }
-  }
 
-  /**
-   * Check if Excalidraw has loaded our data
-   */
-  private hasExcalidrawLoaded(): boolean {
-    try {
-      const currentData = this.getExcalidrawData();
-      return currentData !== null && currentData.elements.length > 0;
-    } catch {
-      return false;
-    }
-  }
 
   /**
    * Update the file name display on the Excalidraw page
@@ -293,7 +320,7 @@ export class ExcalidrawDataBridge {
       const fileNameDiv = document.createElement('div');
       fileNameDiv.classList.add('file-name-div');
       fileNameDiv.textContent = fileName;
-      
+
       // Style for dark theme integration (matches Excalidraw's theme)
       fileNameDiv.style.cssText = `
         position: absolute;
@@ -327,21 +354,53 @@ export class ExcalidrawDataBridge {
   }
 
   /**
-   * Check if current data has changed
-   */
+ * Check if current data has changed
+ */
   private hasDataChanged(): boolean {
     try {
       const currentData = this.getExcalidrawData();
-      if (!currentData) return false;
-
-      const currentDataString = JSON.stringify(currentData);
-      const hasChanged = currentDataString !== this.lastSyncData;
-      
-      if (hasChanged) {
-        console.log('[ExcalidrawDataBridge] Data change detected');
+      if (!currentData) {
+        console.log('[ExcalidrawDataBridge] No current data found for change detection');
+        return false;
       }
 
-      return hasChanged;
+      // If we have no previous data, consider it changed
+      if (!this.lastSyncData) {
+        console.log('[ExcalidrawDataBridge] No previous sync data, considering as changed');
+        return true;
+      }
+
+      // Compare elements count and IDs for more accurate change detection
+      const currentElementsCount = currentData.elements?.length || 0;
+      const currentElementIds = currentData.elements?.map((el: any) => el.id).sort() || [];
+
+      let lastElementsCount = 0;
+      let lastElementIds: string[] = [];
+
+      try {
+        const lastData = JSON.parse(this.lastSyncData);
+        lastElementsCount = lastData.elements?.length || 0;
+        lastElementIds = lastData.elements?.map((el: any) => el.id).sort() || [];
+      } catch (e) {
+        console.log('[ExcalidrawDataBridge] Failed to parse last sync data, considering as changed');
+        return true;
+      }
+
+      // Check if count changed
+      if (currentElementsCount !== lastElementsCount) {
+        console.log('[ExcalidrawDataBridge] Element count changed:', lastElementsCount, '->', currentElementsCount);
+        return true;
+      }
+
+      // Check if element IDs changed (elements added/removed/modified)
+      const idsChanged = JSON.stringify(currentElementIds) !== JSON.stringify(lastElementIds);
+      if (idsChanged) {
+        console.log('[ExcalidrawDataBridge] Element IDs changed');
+        return true;
+      }
+
+      // No significant changes detected
+      return false;
     } catch (error) {
       console.error('[ExcalidrawDataBridge] Error checking data changes:', error);
       return false;
@@ -381,7 +440,7 @@ export class ExcalidrawDataBridge {
             elements: currentData.elements,
             appState: currentData.appState
           });
-          
+
           this.lastSyncData = JSON.stringify(currentData);
         }
       } catch (error) {

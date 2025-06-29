@@ -22,19 +22,12 @@ export default defineConfig({
         chunkFileNames: 'assets/[name]-[hash].js',
         assetFileNames: 'assets/[name]-[hash].[ext]',
         format: 'iife', // Use IIFE format for content scripts
-        name: 'Excali Organizer',
+        name: 'ExcaliOrganizer',
         compact: false, // Ensure readable formatting
 
         // No code splitting for content scripts to avoid module import issues
         manualChunks: undefined
       },
-
-      // External dependencies that should not be bundled
-      external: [
-        // Chrome APIs are provided by the browser
-        'chrome'
-      ]
-    },
 
       // External dependencies that should not be bundled
       external: [

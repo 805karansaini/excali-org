@@ -1,9 +1,9 @@
 import React, { createContext, useContext, useReducer, useEffect, useCallback } from 'react';
-import { 
-  UnifiedCanvas, 
-  UnifiedProject, 
-  SearchResult, 
-  ContextMenuData 
+import {
+  UnifiedCanvas,
+  UnifiedProject,
+  SearchResult,
+  ContextMenuData
 } from '../../shared/types';
 import {
   canvasOperations,
@@ -11,6 +11,7 @@ import {
   settingsOperations,
   dbUtils
 } from '../../shared/unified-db';
+import { globalEventBus, InternalEventTypes } from '../messaging/InternalEventBus';
 
 // Enhanced state interface combining data and UI state
 interface UnifiedState {
@@ -18,25 +19,26 @@ interface UnifiedState {
   projects: UnifiedProject[];
   canvases: UnifiedCanvas[];
   currentWorkingCanvasId: string | null;
-  
+
   // Search state
   searchQuery: string;
   searchResults: SearchResult[];
   isSearchModalOpen: boolean;
-  
+
   // UI state
   selectedCanvasId: string | null;
   contextMenu: ContextMenuData | null;
   theme: 'light' | 'dark';
-  
+
   // Panel state
   isPanelVisible: boolean;
   isPanelPinned: boolean;
   panelWidth: number;
   collapsedProjects: Set<string>;
-  
+
   // Loading and error state
   isLoading: boolean;
+  loadingCanvasId: string | null;
   error: string | null;
   dbError: boolean;
 }
@@ -52,29 +54,30 @@ type UnifiedAction =
   | { type: 'UPDATE_PROJECT'; payload: UnifiedProject }
   | { type: 'DELETE_PROJECT'; payload: string }
   | { type: 'SET_CURRENT_WORKING_CANVAS'; payload: string | null }
-  
+
   // Search operations
   | { type: 'SET_SEARCH_QUERY'; payload: string }
   | { type: 'SET_SEARCH_RESULTS'; payload: SearchResult[] }
   | { type: 'TOGGLE_SEARCH_MODAL' }
   | { type: 'SET_SEARCH_MODAL'; payload: boolean }
   | { type: 'SET_SEARCH_MODAL_OPEN'; payload: boolean }
-  
+
   // UI operations
   | { type: 'SET_SELECTED_CANVAS'; payload: string | null }
   | { type: 'SET_CONTEXT_MENU'; payload: ContextMenuData | null }
   | { type: 'SET_THEME'; payload: 'light' | 'dark' }
   | { type: 'TOGGLE_THEME' }
-  
+
   // Panel operations
   | { type: 'SET_PANEL_VISIBLE'; payload: boolean }
   | { type: 'SET_PANEL_PINNED'; payload: boolean }
   | { type: 'SET_PANEL_WIDTH'; payload: number }
   | { type: 'TOGGLE_PROJECT_COLLAPSED'; payload: string }
   | { type: 'SET_COLLAPSED_PROJECTS'; payload: Set<string> }
-  
+
   // System operations
   | { type: 'SET_LOADING'; payload: boolean }
+  | { type: 'SET_LOADING_CANVAS'; payload: string | null }
   | { type: 'SET_ERROR'; payload: string | null }
   | { type: 'SET_DB_ERROR'; payload: boolean }
   | { type: 'ADD_CANVAS_TO_PROJECT'; payload: { canvasId: string; projectId: string } }
@@ -85,25 +88,26 @@ const initialState: UnifiedState = {
   projects: [],
   canvases: [],
   currentWorkingCanvasId: null,
-  
+
   // Search state
   searchQuery: '',
   searchResults: [],
   isSearchModalOpen: false,
-  
+
   // UI state
   selectedCanvasId: null,
   contextMenu: null,
   theme: 'dark',
-  
+
   // Panel state
   isPanelVisible: false,
   isPanelPinned: false,
   panelWidth: 320,
   collapsedProjects: new Set(),
-  
+
   // Loading and error state
   isLoading: false,
+  loadingCanvasId: null,
   error: null,
   dbError: false,
 };
@@ -113,17 +117,17 @@ function unifiedStateReducer(state: UnifiedState, action: UnifiedAction): Unifie
     // Data operations
     case 'SET_PROJECTS':
       return { ...state, projects: action.payload };
-    
+
     case 'SET_CANVASES':
       return { ...state, canvases: action.payload };
-    
+
     case 'ADD_CANVAS':
-      return { 
-        ...state, 
+      return {
+        ...state,
         canvases: [action.payload, ...state.canvases],
         currentWorkingCanvasId: action.payload.id
       };
-    
+
     case 'UPDATE_CANVAS':
       return {
         ...state,
@@ -131,7 +135,7 @@ function unifiedStateReducer(state: UnifiedState, action: UnifiedAction): Unifie
           canvas.id === action.payload.id ? action.payload : canvas
         ),
       };
-    
+
     case 'DELETE_CANVAS':
       return {
         ...state,
@@ -143,10 +147,10 @@ function unifiedStateReducer(state: UnifiedState, action: UnifiedAction): Unifie
         selectedCanvasId: state.selectedCanvasId === action.payload ? null : state.selectedCanvasId,
         currentWorkingCanvasId: state.currentWorkingCanvasId === action.payload ? null : state.currentWorkingCanvasId,
       };
-    
+
     case 'ADD_PROJECT':
       return { ...state, projects: [...state.projects, action.payload] };
-    
+
     case 'UPDATE_PROJECT':
       return {
         ...state,
@@ -154,7 +158,7 @@ function unifiedStateReducer(state: UnifiedState, action: UnifiedAction): Unifie
           project.id === action.payload.id ? action.payload : project
         ),
       };
-    
+
     case 'DELETE_PROJECT':
       return {
         ...state,
@@ -164,49 +168,49 @@ function unifiedStateReducer(state: UnifiedState, action: UnifiedAction): Unifie
         ),
         collapsedProjects: new Set([...state.collapsedProjects].filter(id => id !== action.payload)),
       };
-    
+
     case 'SET_CURRENT_WORKING_CANVAS':
       return { ...state, currentWorkingCanvasId: action.payload };
-    
+
     // Search operations
     case 'SET_SEARCH_QUERY':
       return { ...state, searchQuery: action.payload };
-    
+
     case 'SET_SEARCH_RESULTS':
       return { ...state, searchResults: action.payload };
-    
+
     case 'TOGGLE_SEARCH_MODAL':
       return { ...state, isSearchModalOpen: !state.isSearchModalOpen };
-    
+
     case 'SET_SEARCH_MODAL':
       return { ...state, isSearchModalOpen: action.payload };
-    
+
     case 'SET_SEARCH_MODAL_OPEN':
       return { ...state, isSearchModalOpen: action.payload };
-    
+
     // UI operations
     case 'SET_SELECTED_CANVAS':
       return { ...state, selectedCanvasId: action.payload };
-    
+
     case 'SET_CONTEXT_MENU':
       return { ...state, contextMenu: action.payload };
-    
+
     case 'SET_THEME':
       return { ...state, theme: action.payload };
-    
+
     case 'TOGGLE_THEME':
       return { ...state, theme: state.theme === 'light' ? 'dark' : 'light' };
-    
+
     // Panel operations
     case 'SET_PANEL_VISIBLE':
       return { ...state, isPanelVisible: action.payload };
-    
+
     case 'SET_PANEL_PINNED':
       return { ...state, isPanelPinned: action.payload };
-    
+
     case 'SET_PANEL_WIDTH':
       return { ...state, panelWidth: action.payload };
-    
+
     case 'TOGGLE_PROJECT_COLLAPSED':
       const newCollapsed = new Set(state.collapsedProjects);
       if (newCollapsed.has(action.payload)) {
@@ -215,20 +219,23 @@ function unifiedStateReducer(state: UnifiedState, action: UnifiedAction): Unifie
         newCollapsed.add(action.payload);
       }
       return { ...state, collapsedProjects: newCollapsed };
-    
+
     case 'SET_COLLAPSED_PROJECTS':
       return { ...state, collapsedProjects: action.payload };
-    
+
     // System operations
     case 'SET_LOADING':
       return { ...state, isLoading: action.payload };
-    
+
+    case 'SET_LOADING_CANVAS':
+      return { ...state, loadingCanvasId: action.payload };
+
     case 'SET_ERROR':
       return { ...state, error: action.payload };
-    
+
     case 'SET_DB_ERROR':
       return { ...state, dbError: action.payload };
-    
+
     case 'ADD_CANVAS_TO_PROJECT':
       return {
         ...state,
@@ -243,7 +250,7 @@ function unifiedStateReducer(state: UnifiedState, action: UnifiedAction): Unifie
             : project
         ),
       };
-    
+
     case 'REMOVE_CANVAS_FROM_PROJECT':
       return {
         ...state,
@@ -258,7 +265,7 @@ function unifiedStateReducer(state: UnifiedState, action: UnifiedAction): Unifie
             : project
         ),
       };
-    
+
     default:
       return state;
   }
@@ -290,30 +297,30 @@ export function UnifiedStateProvider({ children }: { children: React.ReactNode }
   // Initialize data and settings from IndexedDB
   const loadInitialData = useCallback(async () => {
     try {
-      console.log('🔧 Loading initial data from database...');
+      console.log('Loading initial data from database...');
       dispatch({ type: 'SET_LOADING', payload: true });
       dispatch({ type: 'SET_ERROR', payload: null });
 
       // Check database accessibility
       const dbAccessible = await dbUtils.isAccessible();
-      console.log('🔧 Database accessible:', dbAccessible);
-      
+      console.log('Database accessible:', dbAccessible);
+
       if (!dbAccessible) {
-        console.error('🔧 Database is not accessible');
+        console.error('Database is not accessible');
         dispatch({ type: 'SET_DB_ERROR', payload: true });
         dispatch({ type: 'SET_ERROR', payload: 'Unable to access database. Some features may not work.' });
         return;
       }
 
       // Load data in parallel
-      console.log('🔧 Loading projects, canvases, and panel settings...');
+      console.log('Loading projects, canvases, and panel settings...');
       const [projects, canvases, panelSettings] = await Promise.all([
         projectOperations.getAllProjects(),
         canvasOperations.getAllCanvases(),
         loadPanelSettings()
       ]);
 
-      console.log('🔧 Loaded data:', {
+      console.log('Loaded data:', {
         projects: projects.length,
         canvases: canvases.length,
         panelSettings
@@ -321,7 +328,7 @@ export function UnifiedStateProvider({ children }: { children: React.ReactNode }
 
       dispatch({ type: 'SET_PROJECTS', payload: projects });
       dispatch({ type: 'SET_CANVASES', payload: canvases });
-      
+
       // Apply panel settings
       dispatch({ type: 'SET_PANEL_PINNED', payload: panelSettings.isPinned });
       dispatch({ type: 'SET_PANEL_WIDTH', payload: panelSettings.width });
@@ -330,14 +337,14 @@ export function UnifiedStateProvider({ children }: { children: React.ReactNode }
       // Load current working canvas
       const currentCanvasId = await settingsOperations.getSetting('currentWorkingCanvasId');
       if (currentCanvasId && typeof currentCanvasId === 'string') {
-        console.log('🔧 Current working canvas ID:', currentCanvasId);
+        console.log('Current working canvas ID:', currentCanvasId);
         dispatch({ type: 'SET_CURRENT_WORKING_CANVAS', payload: currentCanvasId });
       }
 
-      console.log('🔧 Initial data loading completed successfully');
+      console.log('Initial data loading completed successfully');
 
     } catch (error) {
-      console.error('🔧 Failed to load initial data:', error);
+      console.error('Failed to load initial data:', error);
       dispatch({ type: 'SET_ERROR', payload: 'Failed to load data from database.' });
     } finally {
       dispatch({ type: 'SET_LOADING', payload: false });
@@ -378,12 +385,12 @@ export function UnifiedStateProvider({ children }: { children: React.ReactNode }
       const canvas: UnifiedCanvas = {
         ...canvasData,
         id: `canvas_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        createdAt: now,  
+        createdAt: now,
         updatedAt: now,
         lastModified: now.toISOString(),
         excalidraw: canvasData.elements || [], // Backward compatibility
       };
-      
+
       await canvasOperations.addCanvas(canvas);
       dispatch({ type: 'ADD_CANVAS', payload: canvas });
       return canvas;
@@ -428,7 +435,7 @@ export function UnifiedStateProvider({ children }: { children: React.ReactNode }
         canvasIds: projectData.canvasIds || [],
         fileIds: projectData.canvasIds || [], // Backward compatibility
       };
-      
+
       await projectOperations.addProject(project);
       dispatch({ type: 'ADD_PROJECT', payload: project });
       return project;
@@ -455,22 +462,22 @@ export function UnifiedStateProvider({ children }: { children: React.ReactNode }
   const updatePanelSettings = useCallback(async (settings: Partial<{ isPinned: boolean; width: number; collapsedProjects: string[] }>) => {
     try {
       const promises: Promise<void>[] = [];
-      
+
       if (settings.isPinned !== undefined) {
         promises.push(settingsOperations.setSetting('panelIsPinned', settings.isPinned));
         dispatch({ type: 'SET_PANEL_PINNED', payload: settings.isPinned });
       }
-      
+
       if (settings.width !== undefined) {
         promises.push(settingsOperations.setSetting('panelWidth', settings.width));
         dispatch({ type: 'SET_PANEL_WIDTH', payload: settings.width });
       }
-      
+
       if (settings.collapsedProjects !== undefined) {
         promises.push(settingsOperations.setSetting('collapsedProjects', settings.collapsedProjects));
         dispatch({ type: 'SET_COLLAPSED_PROJECTS', payload: new Set(settings.collapsedProjects) });
       }
-      
+
       await Promise.all(promises);
     } catch (error) {
       console.error('Failed to save panel settings:', error);
@@ -492,6 +499,91 @@ export function UnifiedStateProvider({ children }: { children: React.ReactNode }
       settingsOperations.setSetting('currentWorkingCanvasId', state.currentWorkingCanvasId).catch(console.error);
     }
   }, [state.currentWorkingCanvasId]);
+
+  // Setup event listener for canvas data sync
+  useEffect(() => {
+    const handleSyncExcalidrawData = async ({ elements, appState }: { elements: any[]; appState: any }) => {
+      try {
+        console.log('Handling SYNC_EXCALIDRAW_DATA event with', elements?.length || 0, 'elements');
+
+        // Only save if we have a current working canvas
+        if (!state.currentWorkingCanvasId) {
+          console.log('No current working canvas - skipping auto-save');
+          return;
+        }
+
+        // Find the current canvas
+        const currentCanvas = state.canvases.find(canvas => canvas.id === state.currentWorkingCanvasId);
+        if (!currentCanvas) {
+          console.log('Current working canvas not found in canvases array - skipping auto-save');
+          console.log('Available canvas IDs:', state.canvases.map(c => c.id));
+          return;
+        }
+
+        // Check if there are actually changes to save
+        const hasElements = elements && Array.isArray(elements) && elements.length > 0;
+        const existingElements = currentCanvas.elements || currentCanvas.excalidraw || [];
+
+        if (!hasElements && existingElements.length === 0) {
+          console.log('No elements to save and no existing elements - skipping auto-save');
+          return;
+        }
+
+        // Create updated canvas with new data
+        const updatedCanvas: UnifiedCanvas = {
+          ...currentCanvas,
+          elements: elements || [],
+          appState: appState || currentCanvas.appState || {},
+          excalidraw: elements || [], // Backward compatibility
+          updatedAt: new Date(),
+          lastModified: new Date().toISOString(),
+        };
+
+        // Save to database
+        console.log('Auto-saving canvas:', currentCanvas.name, 'with', elements?.length || 0, 'elements');
+        await canvasOperations.updateCanvas(updatedCanvas);
+
+        // Update state
+        dispatch({ type: 'UPDATE_CANVAS', payload: updatedCanvas });
+
+        console.log('Canvas auto-saved successfully:', updatedCanvas.name);
+      } catch (error) {
+        console.error('Failed to auto-save canvas:', error);
+        dispatch({ type: 'SET_ERROR', payload: 'Failed to auto-save canvas changes.' });
+      }
+    };
+
+    // Subscribe to the event
+    const unsubscribe = globalEventBus.on(InternalEventTypes.SYNC_EXCALIDRAW_DATA, handleSyncExcalidrawData);
+
+    // Return cleanup function
+    return unsubscribe;
+  }, [state.currentWorkingCanvasId, state.canvases]);
+
+  // Setup event listener for canvas selection
+  useEffect(() => {
+    const handleCanvasSelected = async (canvas: UnifiedCanvas) => {
+      try {
+        console.log('Canvas selected:', canvas.name);
+
+        // Set as current working canvas
+        dispatch({ type: 'SET_CURRENT_WORKING_CANVAS', payload: canvas.id });
+
+        // Save to settings for persistence across reloads
+        await settingsOperations.setSetting('currentWorkingCanvasId', canvas.id);
+
+        console.log('Current working canvas updated to:', canvas.id);
+      } catch (error) {
+        console.error('Failed to set current working canvas:', error);
+      }
+    };
+
+    // Subscribe to canvas selection events
+    const unsubscribe = globalEventBus.on(InternalEventTypes.CANVAS_SELECTED, handleCanvasSelected);
+
+    // Return cleanup function
+    return unsubscribe;
+  }, []);
 
   // Load initial data on mount
   useEffect(() => {
