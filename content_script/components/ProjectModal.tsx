@@ -95,8 +95,7 @@ export function ProjectModal({ onClose }: Props) {
     left: 0,
     right: 0,
     bottom: 0,
-    background: 'rgba(0, 0, 0, 0.6)',
-    backdropFilter: 'blur(8px)',
+    background: 'var(--theme-bg-primary, #ffffff)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -107,10 +106,10 @@ export function ProjectModal({ onClose }: Props) {
   const modalStyles: React.CSSProperties = {
     width: '100%',
     maxWidth: '500px',
-    background: 'var(--theme-bg-primary)',
-    border: '1px solid var(--theme-border-primary)',
+    background: 'var(--theme-bg-primary, #ffffff)',
+    border: '1px solid var(--theme-border-primary, rgba(0, 0, 0, 0.1))',
     borderRadius: '16px',
-    boxShadow: '0 20px 40px rgba(0, 0, 0, 0.4)',
+    boxShadow: 'var(--theme-shadow-lg, 0 20px 40px rgba(0, 0, 0, 0.1))',
     overflow: 'hidden',
     margin: '0 16px'
   };
@@ -213,9 +212,9 @@ export function ProjectModal({ onClose }: Props) {
                 style={{
                   ...inputStyles,
                   borderColor: error && !name.trim()
-                    ? '#ef4444'
+                    ? 'var(--theme-error, #ef4444)'
                     : name.trim()
-                      ? (state.theme === 'light' ? '#10b981' : '#34d399')
+                      ? 'var(--theme-success, #10b981)'
                       : undefined
                 }}
                 placeholder="Enter project name..."
@@ -307,11 +306,11 @@ export function ProjectModal({ onClose }: Props) {
 
             {error && !error.includes('name') && !error.includes('description') && (
               <div style={{
-                background: 'rgba(239, 68, 68, 0.1)',
-                border: '1px solid rgba(239, 68, 68, 0.3)',
+                background: 'var(--theme-error-bg, rgba(239, 68, 68, 0.1))',
+                border: '1px solid var(--theme-error-border, rgba(239, 68, 68, 0.3))',
                 borderRadius: '6px',
                 padding: '12px',
-                color: '#ef4444',
+                color: 'var(--theme-error, #ef4444)',
                 fontSize: '14px',
                 marginBottom: '20px'
               }}>

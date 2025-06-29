@@ -19,7 +19,7 @@ export class UnifiedDexie extends Dexie {
   settings!: Table<AppSettings>;
 
   constructor() {
-    super('ExcalidrawFileManagerUnifiedDB');
+    super('ExcaliOrgUnifiedDB');
     
     this.version(1).stores({
       // Canvases table with indexes for performance

@@ -1,9 +1,43 @@
 /**
  * Unified Content Script Entry Point
- * Integrates the file manager panel directly into Excalidraw with full state management
+ * Integrates the Excali Organizer panel directly into Excalidraw with full state management
  */
 
 import './styles/theme-variables.css';
+
+// Inject critical CSS inline as fallback
+const injectFallbackCSS = () => {
+  const style = document.createElement('style');
+  style.id = 'excali-org-fallback-css';
+  style.textContent = `
+    /* Fallback theme variables - critical for preventing translucency */
+    /* Light theme - only when NOT in dark mode */
+    html:not([data-theme="dark"]) {
+      --theme-bg-primary: #ffffff !important;
+      --theme-bg-secondary: #ffffff !important;
+      --theme-bg-tertiary: #f8f9fa !important;
+      --theme-bg-hover: #f1f3f4 !important;
+      --theme-bg-active: #e8eaed !important;
+      --theme-text-primary: #1f2937 !important;
+      --theme-text-secondary: #6b7280 !important;
+      --theme-border-primary: rgba(0, 0, 0, 0.1) !important;
+    }
+
+    /* Dark theme - only when data-theme="dark" */
+    html[data-theme="dark"] {
+      --theme-bg-primary: #1a1b23 !important;
+      --theme-bg-secondary: #232329 !important;
+      --theme-bg-tertiary: #2a2b31 !important;
+      --theme-bg-hover: #34353b !important;
+      --theme-bg-active: #3e3f45 !important;
+      --theme-text-primary: #f3f4f6 !important;
+      --theme-text-secondary: #d1d5db !important;
+      --theme-border-primary: rgba(255, 255, 255, 0.1) !important;
+    }
+  `;
+  document.head.appendChild(style);
+  console.log('Conditional fallback CSS injected to prevent translucency');
+};
 import React from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { initializeDatabase } from '../shared/unified-db';
@@ -27,6 +61,9 @@ async function initializeUnifiedApp(): Promise<void> {
   try {
 
     console.log('Initializing Excali Organizer Extension...');
+
+    // Inject fallback CSS immediately to prevent any translucency
+    injectFallbackCSS();
 
     // Emit loading state
     await globalEventBus.emit(InternalEventTypes.LOADING_STATE_CHANGED, { isLoading: true });
@@ -120,9 +157,24 @@ function setupEventHandlers(): void {
     }
   });
 
-  // Handle theme changes
+  // Handle theme changes - theme attribute is now set in useThemeSync hook
   globalEventBus.on(InternalEventTypes.THEME_CHANGED, (theme) => {
-    document.documentElement.setAttribute('data-file-manager-theme', theme);
+    console.log(`Theme changed globally: ${theme}`);
+
+    // Debug: Check if CSS variables are properly applied
+    const debugElement = document.createElement('div');
+    debugElement.style.background = 'var(--theme-bg-primary)';
+    document.body.appendChild(debugElement);
+    const computedStyle = window.getComputedStyle(debugElement);
+    const bgColor = computedStyle.backgroundColor;
+    document.body.removeChild(debugElement);
+
+    console.log(`Theme Debug - ${theme} mode:`, {
+      'data-theme': document.documentElement.getAttribute('data-theme'),
+      '--theme-bg-primary': bgColor,
+      'Expected (light)': theme === 'light' ? 'rgb(255, 255, 255)' : 'should not match',
+      'Expected (dark)': theme === 'dark' ? 'rgb(26, 27, 35)' : 'should not match'
+    });
   });
 
   globalEventBus.on(InternalEventTypes.SYNC_EXCALIDRAW_DATA, async ({ elements }) => {
@@ -245,7 +297,7 @@ async function createAndMountPanel(): Promise<void> {
     // Mount the enhanced panel application with state provider
     const app = React.createElement(
       UnifiedStateProvider,
-      
+
       {
         children: React.createElement(EnhancedAutoHidePanel, {
           onNewCanvas: handleNewCanvas,
@@ -284,76 +336,76 @@ function setupCleanupHandlers(): void {
   const originalPushState = history.pushState;
   const originalReplaceState = history.replaceState;
 
-    history.pushState = function (...args) {
-      originalPushState.apply(history, args);
-      handlePageNavigation();
-    };
+  history.pushState = function (...args) {
+    originalPushState.apply(history, args);
+    handlePageNavigation();
+  };
 
-      history.replaceState = function (...args) {
-        originalReplaceState.apply(history, args);
-        handlePageNavigation();
-      };
-
-
-      // Handle extension context invalidation
-      chrome.runtime.onConnect.addListener((port) => {
-        port.onDisconnect.addListener(() => {
-          if (chrome.runtime.lastError) {
-            console.log('Extension context invalidated, cleaning up...');
-            cleanup();
-          }
-        });
-      });
-    }
-
-    /**
-     * Clean up resources when the extension is unloaded or page navigates
-     */
-    function cleanup(): void {
-      try {
-        console.log('Starting extension cleanup...');
+  history.replaceState = function (...args) {
+    originalReplaceState.apply(history, args);
+    handlePageNavigation();
+  };
 
 
-        // Unmount React application
-        if (panelRoot) {
-          panelRoot.unmount();
-          panelRoot = null;
-        }
-
-
-
-        // Clean up data bridge
-        if (dataBridge) {
-          dataBridge.destroy();
-          dataBridge = null;
-        }
-
-
-        // Clean up Excalidraw integration
-        if (excalidrawIntegration) {
-          excalidrawIntegration.cleanup();
-          excalidrawIntegration = null;
-        }
-
-
-
-        // Clear event listeners
-        globalEventBus.removeAllListeners();
-
-
-        console.log('Extension cleanup completed');
-      } catch (error) {
-        console.error('Error during cleanup:', error);
+  // Handle extension context invalidation
+  chrome.runtime.onConnect.addListener((port) => {
+    port.onDisconnect.addListener(() => {
+      if (chrome.runtime.lastError) {
+        console.log('Extension context invalidated, cleaning up...');
+        cleanup();
       }
+    });
+  });
+}
+
+/**
+ * Clean up resources when the extension is unloaded or page navigates
+ */
+function cleanup(): void {
+  try {
+    console.log('Starting extension cleanup...');
+
+
+    // Unmount React application
+    if (panelRoot) {
+      panelRoot.unmount();
+      panelRoot = null;
     }
 
-    /**
-     * Show error notification to the user
-     */
-    function showErrorNotification(message: string): void {
-      try {
-        const notification = document.createElement('div');
-        notification.style.cssText = `
+
+
+    // Clean up data bridge
+    if (dataBridge) {
+      dataBridge.destroy();
+      dataBridge = null;
+    }
+
+
+    // Clean up Excalidraw integration
+    if (excalidrawIntegration) {
+      excalidrawIntegration.cleanup();
+      excalidrawIntegration = null;
+    }
+
+
+
+    // Clear event listeners
+    globalEventBus.removeAllListeners();
+
+
+    console.log('Extension cleanup completed');
+  } catch (error) {
+    console.error('Error during cleanup:', error);
+  }
+}
+
+/**
+ * Show error notification to the user
+ */
+function showErrorNotification(message: string): void {
+  try {
+    const notification = document.createElement('div');
+    notification.style.cssText = `
       position: fixed;
       top: 20px;
       right: 20px;
@@ -370,52 +422,52 @@ function setupCleanupHandlers(): void {
     `;
 
 
-        // Add slide-in animation
-        const style = document.createElement('style');
-        style.textContent = `
+    // Add slide-in animation
+    const style = document.createElement('style');
+    style.textContent = `
       @keyframes slideIn {
         from { transform: translateX(100%); opacity: 0; }
         to { transform: translateX(0); opacity: 1; }
       }
     `;
-        document.head.appendChild(style);
+    document.head.appendChild(style);
 
 
-        notification.textContent = message;
-        document.body.appendChild(notification);
+    notification.textContent = message;
+    document.body.appendChild(notification);
 
-        // Auto-remove after 5 seconds
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+      if (notification.parentNode) {
+        notification.style.animation = 'slideIn 0.3s ease-out reverse';
         setTimeout(() => {
           if (notification.parentNode) {
-            notification.style.animation = 'slideIn 0.3s ease-out reverse';
-            setTimeout(() => {
-              if (notification.parentNode) {
-                notification.parentNode.removeChild(notification);
-              }
-            }, 300);
+            notification.parentNode.removeChild(notification);
           }
-          if (style.parentNode) {
-            style.parentNode.removeChild(style);
-          }
-        }, 5000);
-
-
-      } catch (error) {
-        console.error('Failed to show error notification:', error);
+        }, 300);
       }
-    }
-
-    /**
-     * Handle initialization errors with fallback strategies
-     */
-    async function handleInitializationError(error: unknown): Promise<void> {
-      console.error('Initialization error details:', error);
+      if (style.parentNode) {
+        style.parentNode.removeChild(style);
+      }
+    }, 5000);
 
 
-      // Try to show a user-friendly error message
-      try {
-        const errorContainer = document.createElement('div');
-        errorContainer.style.cssText = `
+  } catch (error) {
+    console.error('Failed to show error notification:', error);
+  }
+}
+
+/**
+ * Handle initialization errors with fallback strategies
+ */
+async function handleInitializationError(error: unknown): Promise<void> {
+  console.error('Initialization error details:', error);
+
+
+  // Try to show a user-friendly error message
+  try {
+    const errorContainer = document.createElement('div');
+    errorContainer.style.cssText = `
       position: fixed;
       top: 20px;
       right: 20px;
@@ -428,68 +480,68 @@ function setupCleanupHandlers(): void {
       z-index: 10000;
       box-shadow: 0 2px 8px rgba(0,0,0,0.2);
     `;
-        errorContainer.textContent = 'Excali Organizer failed to load. Please refresh the page.';
+    errorContainer.textContent = 'Excali Organizer failed to load. Please refresh the page.';
 
-        document.body.appendChild(errorContainer);
-
-
-        // Auto-remove after 5 seconds
-        setTimeout(() => {
-          if (errorContainer.parentNode) {
-            errorContainer.parentNode.removeChild(errorContainer);
-          }
-        }, 5000);
+    document.body.appendChild(errorContainer);
 
 
-      } catch (fallbackError) {
-        console.error('Failed to show error message:', fallbackError);
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+      if (errorContainer.parentNode) {
+        errorContainer.parentNode.removeChild(errorContainer);
       }
-    }
+    }, 5000);
 
-    /**
-     * Check if we're on a valid Excalidraw page
-     */
-    function isValidExcalidrawPage(): boolean {
-      const url = window.location.href;
-      return url.includes('excalidraw.com') && !url.includes('excalidraw.com/whiteboard');
-    }
 
-    /**
-     * Main entry point - start the application
-     */
-    (async function main() {
-      // Check if we're on a valid Excalidraw page
-      if (!isValidExcalidrawPage()) {
-        console.log('Not on a valid Excalidraw page, skipping extension initialization');
-        return;
+  } catch (fallbackError) {
+    console.error('Failed to show error message:', fallbackError);
+  }
+}
+
+/**
+ * Check if we're on a valid Excalidraw page
+ */
+function isValidExcalidrawPage(): boolean {
+  const url = window.location.href;
+  return url.includes('excalidraw.com') && !url.includes('excalidraw.com/whiteboard');
+}
+
+/**
+ * Main entry point - start the application
+ */
+(async function main() {
+  // Check if we're on a valid Excalidraw page
+  if (!isValidExcalidrawPage()) {
+    console.log('Not on a valid Excalidraw page, skipping extension initialization');
+    return;
+  }
+
+
+  // Wait for DOM to be ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeUnifiedApp);
+  } else {
+    // DOM is already ready
+    await initializeUnifiedApp();
+  }
+})();
+
+// Export for potential external access (development/debugging)
+if (typeof window !== 'undefined') {
+  (window as any).__excaliOrganizer = {
+    cleanup,
+    panelRoot,
+    excalidrawIntegration,
+    dataBridge,
+    eventBus: globalEventBus,
+    getStats: () => ({
+      isInitialized: panelRoot !== null,
+      integration: excalidrawIntegration?.getStats() || null,
+      dataBridge: dataBridge?.getStats() || null,
+      eventBus: {
+        listeners: globalEventBus.eventNames().length,
+        events: globalEventBus.eventNames()
       }
-
-
-      // Wait for DOM to be ready
-      if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initializeUnifiedApp);
-      } else {
-        // DOM is already ready
-        await initializeUnifiedApp();
-      }
-    })();
-
-    // Export for potential external access (development/debugging)
-    if (typeof window !== 'undefined') {
-      (window as any).__excaliOrganizer = {
-        cleanup,
-        panelRoot,
-        excalidrawIntegration,
-        dataBridge,
-        eventBus: globalEventBus,
-        getStats: () => ({
-          isInitialized: panelRoot !== null,
-          integration: excalidrawIntegration?.getStats() || null,
-          dataBridge: dataBridge?.getStats() || null,
-          eventBus: {
-            listeners: globalEventBus.eventNames().length,
-            events: globalEventBus.eventNames()
-          }
-        })
-      };
-    }
+    })
+  };
+}

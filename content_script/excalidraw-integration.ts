@@ -81,7 +81,7 @@ export class ExcalidrawIntegration {
       // Create simple container for React to mount into
       // EnhancedAutoHidePanel will handle all styling and behavior
       const container = document.createElement('div');
-      container.id = 'excalidraw-file-manager-panel';
+      container.id = 'excali-org-panel';
       container.style.cssText = `
         position: fixed;
         top: 0;
@@ -286,7 +286,7 @@ export class ExcalidrawIntegration {
   cleanup(): void {
     try {
       // Clean up any orphaned DOM elements first
-      const existingPanels = document.querySelectorAll('#excalidraw-file-manager-panel');
+      const existingPanels = document.querySelectorAll('#excali-org-panel');
       existingPanels.forEach(panel => {
         if (panel.parentNode) {
           panel.parentNode.removeChild(panel);

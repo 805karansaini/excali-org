@@ -354,15 +354,15 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
     position: 'relative',
     width: `${state.panelWidth}px`,
     height: '100vh',
-    background: 'var(--theme-bg-secondary)',
-    backdropFilter: 'blur(8px)',
-    borderRight: `1px solid var(--theme-border-primary)`,
-    color: 'var(--theme-text-primary)',
+    background: 'var(--theme-bg-primary, #ffffff)',
+    borderRight: `1px solid var(--theme-border-primary, rgba(0, 0, 0, 0.1))`,
+    color: 'var(--theme-text-primary, #1f2937)',
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
     fontSize: '14px',
     display: 'flex',
     flexDirection: 'column',
-    pointerEvents: 'all'
+    pointerEvents: 'all',
+    boxShadow: 'var(--theme-shadow-md, 0 0 20px rgba(0, 0, 0, 0.1))'
   };
 
   const resizeHandleStyle: React.CSSProperties = {
@@ -468,8 +468,8 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
 
                 <button
                   style={{
-                    background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-                    color: '#ffffff',
+                    background: 'linear-gradient(135deg, var(--theme-accent-primary, #6366f1), var(--theme-accent-secondary, #8b5cf6))',
+                    color: 'var(--theme-text-on-accent, #ffffff)',
                     border: 'none',
                     padding: '8px 12px',
                     borderRadius: '6px',

@@ -282,11 +282,10 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
     position: 'fixed',
     left: position.x,
     top: position.y,
-    background: 'var(--theme-bg-secondary)',
-    backdropFilter: 'blur(12px)',
-    border: '1px solid var(--theme-border-primary)',
+    background: 'var(--theme-bg-primary, #ffffff)',
+    border: '1px solid var(--theme-border-primary, rgba(0, 0, 0, 0.1))',
     borderRadius: '8px',
-    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
+    boxShadow: 'var(--theme-shadow-lg, 0 8px 32px rgba(0, 0, 0, 0.1))',
     minWidth: '200px',
     padding: '8px 0',
     zIndex: 9999999,
@@ -312,11 +311,10 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
     position: 'absolute',
     left: '100%',
     top: 0,
-    background: 'var(--theme-bg-secondary)',
-    backdropFilter: 'blur(12px)',
-    border: '1px solid var(--theme-border-primary)',
+    background: 'var(--theme-bg-primary, #ffffff)',
+    border: '1px solid var(--theme-border-primary, rgba(0, 0, 0, 0.1))',
     borderRadius: '8px',
-    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
+    boxShadow: 'var(--theme-shadow-lg, 0 8px 32px rgba(0, 0, 0, 0.1))',
     minWidth: '180px',
     padding: '8px 0',
     marginLeft: '4px'
@@ -568,7 +566,7 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
         }}
         onClick={handleDelete}
         onMouseEnter={(e) => {
-          e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)';
+          e.currentTarget.style.background = 'var(--theme-error-bg, rgba(239, 68, 68, 0.1))';
         }}
         onMouseLeave={(e) => {
           e.currentTarget.style.background = 'none';

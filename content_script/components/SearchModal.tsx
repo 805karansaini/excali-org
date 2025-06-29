@@ -175,7 +175,7 @@ export function SearchModal() {
         <>
           {text.slice(0, startIndex)}
           <span style={{
-            background: state.theme === 'light' ? 'rgba(255, 255, 0, 0.2)' : 'rgba(255, 255, 0, 0.3)',
+            background: 'var(--theme-highlight-bg, rgba(255, 255, 0, 0.2))',
             borderRadius: '2px',
             padding: '0 2px'
           }}>
@@ -196,7 +196,7 @@ export function SearchModal() {
       if (lowerText[i] === queryChars[queryIndex]) {
         parts.push(
           <span key={i} style={{
-            background: state.theme === 'light' ? 'rgba(255, 255, 0, 0.2)' : 'rgba(255, 255, 0, 0.3)',
+            background: 'var(--theme-highlight-bg, rgba(255, 255, 0, 0.2))',
             borderRadius: '2px',
             padding: '0 1px'
           }}>
@@ -235,8 +235,7 @@ export function SearchModal() {
     left: 0,
     right: 0,
     bottom: 0,
-    background: 'rgba(0, 0, 0, 0.6)',
-    backdropFilter: 'blur(8px)',
+    background: 'var(--theme-bg-primary, #ffffff)',
     display: 'flex',
     alignItems: 'flex-start',
     justifyContent: 'center',
@@ -248,10 +247,10 @@ export function SearchModal() {
   const modalStyles: React.CSSProperties = {
     width: '100%',
     maxWidth: '600px',
-    background: 'var(--theme-bg-primary)',
-    border: '1px solid var(--theme-border-primary)',
+    background: 'var(--theme-bg-primary, #ffffff)',
+    border: '1px solid var(--theme-border-primary, rgba(0, 0, 0, 0.1))',
     borderRadius: '16px',
-    boxShadow: '0 20px 40px rgba(0, 0, 0, 0.4)',
+    boxShadow: 'var(--theme-shadow-lg, 0 20px 40px rgba(0, 0, 0, 0.1))',
     overflow: 'hidden',
     margin: '0 16px'
   };
@@ -296,7 +295,7 @@ export function SearchModal() {
         transition={{ type: 'spring', damping: 30, stiffness: 400 }}
       >
         <div style={{ display: 'flex', alignItems: 'center', padding: '20px 24px' }}>
-          <Search size={20} style={{ color: '#6b7280', marginRight: '12px' }} />
+          <Search size={20} style={{ color: 'var(--theme-text-secondary, #6b7280)', marginRight: '12px' }} />
           <input
             style={searchInputStyles}
             placeholder="Search canvases and projects..."
@@ -361,7 +360,7 @@ export function SearchModal() {
                   </div>
                   <div style={{
                     fontSize: '12px',
-                    color: state.theme === 'light' ? '#9ca3af' : '#6b7280',
+                    color: 'var(--theme-text-tertiary, #9ca3af)',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                     whiteSpace: 'nowrap',
@@ -382,7 +381,7 @@ export function SearchModal() {
 
                 <div style={{
                   fontSize: '12px',
-                  color: state.theme === 'light' ? '#9ca3af' : '#6b7280',
+                  color: 'var(--theme-text-tertiary, #9ca3af)',
                   flexShrink: 0
                 }}>
                   {result.type === 'canvas' ? 'Canvas' : 'Project'}

@@ -1,30 +1,40 @@
-/* Light theme (default) */
-:root {
+/* Light theme (default) - High specificity to override any conflicts */
+:root,
+html:not([data-theme="dark"]) {
     /* Background colors */
-    --theme-bg-primary: #ffffff;
-    --theme-bg-secondary: rgba(255, 255, 255, 0.95);
-    --theme-bg-tertiary: rgba(0, 0, 0, 0.02);
-    --theme-bg-hover: rgba(0, 0, 0, 0.03);
-    --theme-bg-active: rgba(0, 0, 0, 0.05);
+    --theme-bg-primary: #ffffff !important;
+    --theme-bg-secondary: #ffffff !important;
+    --theme-bg-tertiary: #f8f9fa !important;
+    --theme-bg-hover: #f1f3f4 !important;
+    --theme-bg-active: #e8eaed !important;
 
     /* Text colors */
-    --theme-text-primary: #1f2937;
-    --theme-text-secondary: #6b7280;
-    --theme-text-tertiary: #9ca3af;
+    --theme-text-primary: #1f2937 !important;
+    --theme-text-secondary: #6b7280 !important;
+    --theme-text-tertiary: #9ca3af !important;
 
     /* Border colors */
-    --theme-border-primary: rgba(0, 0, 0, 0.1);
-    --theme-border-secondary: rgba(0, 0, 0, 0.08);
-    --theme-border-tertiary: rgba(0, 0, 0, 0.06);
+    --theme-border-primary: rgba(0, 0, 0, 0.1) !important;
+    --theme-border-secondary: rgba(0, 0, 0, 0.08) !important;
+    --theme-border-tertiary: rgba(0, 0, 0, 0.06) !important;
 
     /* Accent colors */
-    --theme-accent-primary: #6366f1;
-    --theme-accent-secondary: #8b5cf6;
+    --theme-accent-primary: #6366f1 !important;
+    --theme-accent-secondary: #8b5cf6 !important;
 
     /* Status colors */
-    --theme-success: #10b981;
-    --theme-error: #ef4444;
-    --theme-warning: #f59e0b;
+    --theme-success: #10b981 !important;
+    --theme-error: #ef4444 !important;
+    --theme-warning: #f59e0b !important;
+    
+    /* Extended colors for components */
+    --theme-highlight-bg: rgba(255, 255, 0, 0.2) !important;
+    --theme-error-bg: rgba(239, 68, 68, 0.1) !important;
+    --theme-error-border: rgba(239, 68, 68, 0.3) !important;
+    --theme-text-on-accent: #ffffff !important;
+    --theme-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.06) !important;
+    --theme-shadow-md: 0 0 20px rgba(0, 0, 0, 0.1) !important;
+    --theme-shadow-lg: 0 20px 40px rgba(0, 0, 0, 0.1) !important;
 }
 
 /* Add smooth transitions for theme changes */
@@ -42,31 +52,41 @@
     }
 }
 
-/* Dark theme */
+/* Dark theme - High specificity to override any conflicts */
+html[data-theme="dark"],
 [data-theme="dark"] {
     /* Background colors */
-    --theme-bg-primary: #1a1b23;
-    --theme-bg-secondary: rgba(35, 35, 41, 0.95);
-    --theme-bg-tertiary: rgba(255, 255, 255, 0.02);
-    --theme-bg-hover: rgba(255, 255, 255, 0.03);
-    --theme-bg-active: rgba(255, 255, 255, 0.05);
+    --theme-bg-primary: #1a1b23 !important;
+    --theme-bg-secondary: #232329 !important;
+    --theme-bg-tertiary: #2a2b31 !important;
+    --theme-bg-hover: #34353b !important;
+    --theme-bg-active: #3e3f45 !important;
 
     /* Text colors */
-    --theme-text-primary: #f3f4f6;
-    --theme-text-secondary: #d1d5db;
-    --theme-text-tertiary: #9ca3af;
+    --theme-text-primary: #f3f4f6 !important;
+    --theme-text-secondary: #d1d5db !important;
+    --theme-text-tertiary: #9ca3af !important;
 
     /* Border colors */
-    --theme-border-primary: rgba(255, 255, 255, 0.1);
-    --theme-border-secondary: rgba(255, 255, 255, 0.08);
-    --theme-border-tertiary: rgba(255, 255, 255, 0.06);
+    --theme-border-primary: rgba(255, 255, 255, 0.1) !important;
+    --theme-border-secondary: rgba(255, 255, 255, 0.08) !important;
+    --theme-border-tertiary: rgba(255, 255, 255, 0.06) !important;
 
     /* Accent colors */
-    --theme-accent-primary: #6366f1;
-    --theme-accent-secondary: #8b5cf6;
+    --theme-accent-primary: #6366f1 !important;
+    --theme-accent-secondary: #8b5cf6 !important;
 
     /* Status colors */
-    --theme-success: #34d399;
-    --theme-error: #ef4444;
-    --theme-warning: #fbbf24;
+    --theme-success: #34d399 !important;
+    --theme-error: #ef4444 !important;
+    --theme-warning: #fbbf24 !important;
+    
+    /* Extended colors for components */
+    --theme-highlight-bg: rgba(255, 255, 0, 0.3) !important;
+    --theme-error-bg: rgba(239, 68, 68, 0.1) !important;
+    --theme-error-border: rgba(239, 68, 68, 0.3) !important;
+    --theme-text-on-accent: #ffffff !important;
+    --theme-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.15) !important;
+    --theme-shadow-md: 0 0 20px rgba(0, 0, 0, 0.2) !important;
+    --theme-shadow-lg: 0 20px 40px rgba(0, 0, 0, 0.2) !important;
 }

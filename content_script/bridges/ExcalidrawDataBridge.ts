@@ -1,5 +1,5 @@
 /**
- * ExcalidrawDataBridge - Handles synchronization between the file manager and Excalidraw
+ * ExcalidrawDataBridge - Handles synchronization between Excali Organizer and Excalidraw
  * Manages canvas loading, saving, and real-time sync with Excalidraw's localStorage
  */
 
