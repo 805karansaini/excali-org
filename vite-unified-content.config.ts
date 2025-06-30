@@ -37,8 +37,8 @@ export default defineConfig({
     },
 
     // Optimization settings
-    minify: 'esbuild', // Fast minification
-    sourcemap: process.env.NODE_ENV === 'development', // Source maps for development
+    minify: false, // Disable minification to avoid encoding issues
+    sourcemap: false, // Disable source maps to avoid encoding issues
 
     // CSS handling
     cssCodeSplit: false, // Inline CSS for content script

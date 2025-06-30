@@ -20,14 +20,14 @@ export class UnifiedDexie extends Dexie {
 
   constructor() {
     super('ExcaliOrgUnifiedDB');
-    
+
     this.version(1).stores({
       // Canvases table with indexes for performance
       canvases: 'id, name, projectId, createdAt, updatedAt, lastModified',
-      
+
       // Projects table with indexes
       projects: 'id, name, createdAt, updatedAt, color',
-      
+
       // Settings table for app preferences
       settings: 'key, updatedAt'
     });
@@ -111,7 +111,7 @@ export const canvasOperations = {
   async deleteCanvas(id: string): Promise<void> {
     try {
       await unifiedDb.canvases.delete(id);
-      
+
       // Remove canvas from all projects
       const projects = await unifiedDb.projects.toArray();
       for (const project of projects) {
@@ -167,7 +167,7 @@ export const canvasOperations = {
   async bulkDeleteCanvases(canvasIds: string[]): Promise<void> {
     try {
       await unifiedDb.canvases.bulkDelete(canvasIds);
-      
+
       // Remove canvases from all projects
       const projects = await unifiedDb.projects.toArray();
       for (const project of projects) {
@@ -176,7 +176,7 @@ export const canvasOperations = {
         if (project.fileIds) {
           project.fileIds = project.fileIds.filter(id => !canvasIds.includes(id));
         }
-        
+
         // Only update if changes were made
         if (project.canvasIds.length !== originalLength) {
           await unifiedDb.projects.put(project);
@@ -262,16 +262,16 @@ export const projectOperations = {
     try {
       // Get project to find associated canvases
       const project = await unifiedDb.projects.get(id);
-      
+
       await unifiedDb.projects.delete(id);
-      
+
       // Remove project association from canvases
       if (project && project.canvasIds.length > 0) {
         const canvases = await unifiedDb.canvases
           .where('id')
           .anyOf(project.canvasIds)
           .toArray();
-          
+
         for (const canvas of canvases) {
           canvas.projectId = undefined;
           await unifiedDb.canvases.put(canvas);
@@ -293,16 +293,16 @@ export const projectOperations = {
       if (!canvas) {
         throw new Error(`Canvas ${canvasId} not found`);
       }
-      
+
       canvas.projectId = projectId;
       await unifiedDb.canvases.put(canvas);
-      
+
       // Update project
       const project = await unifiedDb.projects.get(projectId);
       if (!project) {
         throw new Error(`Project ${projectId} not found`);
       }
-      
+
       if (!project.canvasIds.includes(canvasId)) {
         project.canvasIds.push(canvasId);
         if (project.fileIds && !project.fileIds.includes(canvasId)) {
@@ -327,7 +327,7 @@ export const projectOperations = {
         canvas.projectId = undefined;
         await unifiedDb.canvases.put(canvas);
       }
-      
+
       // Update project
       const project = await unifiedDb.projects.get(projectId);
       if (project) {
@@ -369,7 +369,7 @@ export const settingsOperations = {
         value,
         updatedAt: new Date()
       };
-      
+
       await unifiedDb.settings.put(setting);
     } catch (error) {
       console.error(`Failed to set setting ${key}:`, error);
@@ -384,11 +384,11 @@ export const settingsOperations = {
     try {
       const settings = await unifiedDb.settings.toArray();
       const result: Record<string, any> = {};
-      
+
       for (const setting of settings) {
         result[setting.key] = setting.value;
       }
-      
+
       return result;
     } catch (error) {
       console.error('Failed to get all settings:', error);
@@ -423,7 +423,7 @@ export const bulkOperations = {
         if (!canvas.lastModified) canvas.lastModified = now.toISOString();
         return canvas;
       });
-      
+
       await unifiedDb.canvases.bulkAdd(processedCanvases);
     } catch (error) {
       console.error('Failed to bulk add canvases:', error);
@@ -443,7 +443,7 @@ export const bulkOperations = {
         if (!project.canvasIds) project.canvasIds = [];
         return project;
       });
-      
+
       await unifiedDb.projects.bulkAdd(processedProjects);
     } catch (error) {
       console.error('Failed to bulk add projects:', error);
@@ -464,7 +464,7 @@ export const backupOperations = {
         unifiedDb.projects.toArray(),
         unifiedDb.settings.toArray()
       ]);
-      
+
       return { canvases, projects, settings };
     } catch (error) {
       console.error('Failed to export data:', error);
@@ -482,7 +482,7 @@ export const backupOperations = {
         await unifiedDb.canvases.clear();
         await unifiedDb.projects.clear();
         await unifiedDb.settings.clear();
-        
+
         // Import new data
         if (data.canvases.length > 0) {
           await unifiedDb.canvases.bulkAdd(data.canvases);
@@ -513,7 +513,7 @@ export const dbUtils = {
         unifiedDb.projects.count(),
         unifiedDb.settings.count()
       ]);
-      
+
       return { canvasCount, projectCount, settingsCount };
     } catch (error) {
       console.error('Failed to get database stats:', error);

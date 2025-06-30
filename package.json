@@ -7,7 +7,8 @@
     "build": "tsc && vite build --config vite-unified-content.config.ts && vite build --config vite-background.config.ts",
     "package": "cd dist && zip -r ../excali-org.zip .",
     "lint": "eslint . --report-unused-disable-directives --max-warnings 0",
-    "analyze": "vite build --config vite-unified-content.config.ts --mode analyze"
+    "analyze": "vite build --config vite-unified-content.config.ts --mode analyze",
+    "watch": "vite build --config vite-unified-content.config.ts --watch"
   },
   "dependencies": {
     "@emotion/react": "^11.13.0",
@@ -37,7 +38,7 @@
     "@types/react-dom": "^18.3.1",
     "@types/react-redux": "^7.1.34",
     "@vitejs/plugin-react": "^4.3.4",
-    "eslint": "^9.15.0",
+    "eslint": "^9.30.1",
     "eslint-plugin-react-hooks": "^5.0.0",
     "eslint-plugin-react-refresh": "^0.4.14",
     "globals": "^15.12.0",
