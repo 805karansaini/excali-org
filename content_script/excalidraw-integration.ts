@@ -1,3 +1,5 @@
+import { ExcalidrawElement } from '../shared/excalidraw-types';
+
 export class ExcalidrawIntegration {
   private panelContainer: HTMLElement | null = null;
   private triggerZone: HTMLElement | null = null;
@@ -250,7 +252,7 @@ export class ExcalidrawIntegration {
   /**
    * Get Excalidraw canvas data
    */
-  getCanvasData(): any {
+  getCanvasData(): ExcalidrawElement[] | null {
     try {
       // Try to access Excalidraw's data from localStorage
       const excalidrawData = localStorage.getItem('excalidraw');
@@ -265,7 +267,7 @@ export class ExcalidrawIntegration {
   /**
    * Set Excalidraw canvas data
    */
-  setCanvasData(data: any): boolean {
+  setCanvasData(data: ExcalidrawElement[]): boolean {
     try {
       localStorage.setItem('excalidraw', JSON.stringify(data));
 

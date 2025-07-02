@@ -63,7 +63,7 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
       console.log('Creating new canvas...');
 
       const existingNames = state.canvases.map(c => c.name);
-      let baseName = 'Untitled Canvas';
+      const baseName = 'Untitled Canvas';
       let counter = 1;
       let finalName = baseName;
 
@@ -100,15 +100,32 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
             verticalAlign: 'top',
             containerId: null,
             originalText: `Welcome to ${finalName}!`,
-            lineHeight: 1.25
+            lineHeight: 1.25,
+            // Required ExcalidrawElement properties
+            version: 1,
+            versionNonce: Math.floor(Math.random() * 2147483647),
+            isDeleted: false,
+            groupIds: [],
+            frameId: null,
+            roundness: null,
+            boundElements: null,
+            updated: Date.now(),
+            link: null,
+            locked: false
           }
         ],
         excalidraw: [], // Backward compatibility
         appState: {
-          viewBackgroundColor: '#ffffff',
           zoom: { value: 1 },
           scrollX: 0,
           scrollY: 0,
+          width: window.innerWidth,
+          height: window.innerHeight,
+          viewBackgroundColor: '#ffffff',
+          theme: 'light' as const,
+          selectedElementIds: {},
+          editingGroupId: null,
+          viewModeEnabled: false,
           currentItemFontSize: 20,
           currentItemStrokeColor: '#000000'
         },

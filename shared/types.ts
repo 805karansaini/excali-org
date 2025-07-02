@@ -1,3 +1,5 @@
+import { ExcalidrawElement, AppState } from "./excalidraw-types";
+
 export enum STORAGE_KEYS {
   CURRENT_WORKING_FILE_ID = "current-working-file-id",
 }
@@ -17,7 +19,7 @@ export type Message = {
 export type ExcalidrawType = {
   angle: number;
   backgroundColor: string;
-  boundElements: any[] | null;
+  boundElements: ExcalidrawElement[] | null;
   fillStyle: string;
   frameId: string | null;
   groupIds: string[];
@@ -29,7 +31,7 @@ export type ExcalidrawType = {
   locked: boolean;
   opacity: number;
   roughness: number;
-  roundness: any | null;
+  roundness: { type: number } | null;
   seed: number;
   strokeColor: string;
   strokeStyle: string;
@@ -53,9 +55,9 @@ export interface UnifiedCanvas {
   projectId?: string;
 
   // Excalidraw data - combining old File format and new Canvas format
-  elements: any[]; // New Canvas format
-  excalidraw: any[] | ExcalidrawType[]; // Old File format - migration compatibility
-  appState?: any; // New Canvas format
+  elements: readonly ExcalidrawElement[]; // New Canvas format
+  excalidraw: readonly ExcalidrawElement[] | ExcalidrawType[]; // Old File format - migration compatibility
+  appState?: AppState; // New Canvas format
 }
 
 export interface UnifiedProject {

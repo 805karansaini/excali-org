@@ -12,6 +12,7 @@ import {
   dbUtils
 } from '../../shared/unified-db';
 import { globalEventBus, InternalEventTypes } from '../messaging/InternalEventBus';
+import { ExcalidrawElement, AppState } from '../../shared/excalidraw-types';
 
 // Enhanced state interface combining data and UI state
 interface UnifiedState {
@@ -211,7 +212,7 @@ function unifiedStateReducer(state: UnifiedState, action: UnifiedAction): Unifie
     case 'SET_PANEL_WIDTH':
       return { ...state, panelWidth: action.payload };
 
-    case 'TOGGLE_PROJECT_COLLAPSED':
+    case 'TOGGLE_PROJECT_COLLAPSED': {
       const newCollapsed = new Set(state.collapsedProjects);
       if (newCollapsed.has(action.payload)) {
         newCollapsed.delete(action.payload);
@@ -219,6 +220,7 @@ function unifiedStateReducer(state: UnifiedState, action: UnifiedAction): Unifie
         newCollapsed.add(action.payload);
       }
       return { ...state, collapsedProjects: newCollapsed };
+    }
 
     case 'SET_COLLAPSED_PROJECTS':
       return { ...state, collapsedProjects: action.payload };
@@ -429,7 +431,7 @@ export function UnifiedStateProvider({ children }: { children: React.ReactNode }
           try {
             const newState = JSON.parse(e.newValue);
             console.log(`New excalidraw-state theme: ${newState.theme}`);
-          } catch (error) {
+          } catch (error: unknown) { // eslint-disable-line @typescript-eslint/no-unused-vars
             console.log('Could not parse new storage value');
           }
         }
@@ -677,7 +679,7 @@ export function UnifiedStateProvider({ children }: { children: React.ReactNode }
 
   // Setup event listener for canvas data sync
   useEffect(() => {
-    const handleSyncExcalidrawData = async ({ elements, appState }: { elements: any[]; appState: any }) => {
+    const handleSyncExcalidrawData = async ({ elements, appState }: { elements: readonly ExcalidrawElement[], appState: AppState }) => {
       try {
         console.log('Handling SYNC_EXCALIDRAW_DATA event with', elements?.length || 0, 'elements');
 
@@ -796,5 +798,4 @@ export function useUnifiedState() {
   return context;
 }
 
-// Export types for use in components
-export type { UnifiedState, UnifiedAction, UnifiedStateContextType };
+

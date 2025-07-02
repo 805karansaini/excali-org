@@ -4,6 +4,7 @@
  */
 
 import { UnifiedCanvas, UnifiedProject } from '../../shared/types';
+import { ExcalidrawElement, AppState } from '../../shared/excalidraw-types';
 
 // Event types for internal communication
 export enum InternalEventTypes {
@@ -65,9 +66,9 @@ export interface EventPayloads {
   [InternalEventTypes.PROJECT_SELECTED]: UnifiedProject;
   
   [InternalEventTypes.LOAD_CANVAS_TO_EXCALIDRAW]: UnifiedCanvas;
-  [InternalEventTypes.SAVE_EXCALIDRAW_DATA]: { canvasId: string; elements: any[]; appState: any };
+  [InternalEventTypes.SAVE_EXCALIDRAW_DATA]: { canvasId: string; elements: readonly ExcalidrawElement[]; appState: AppState };
   [InternalEventTypes.UPDATE_FILE_NAME_DISPLAY]: { fileName: string };
-  [InternalEventTypes.SYNC_EXCALIDRAW_DATA]: { elements: any[]; appState: any };
+  [InternalEventTypes.SYNC_EXCALIDRAW_DATA]: { elements: readonly ExcalidrawElement[]; appState: AppState };
   
   [InternalEventTypes.PANEL_VISIBILITY_CHANGED]: { isVisible: boolean };
   [InternalEventTypes.PANEL_PINNED_CHANGED]: { isPinned: boolean };
@@ -85,7 +86,7 @@ export interface EventPayloads {
   [InternalEventTypes.SHOW_HELP_OVERLAY]: null;
   [InternalEventTypes.REFRESH_DATA]: null;
   
-  [InternalEventTypes.ERROR_OCCURRED]: { error: string; details?: any };
+  [InternalEventTypes.ERROR_OCCURRED]: { error: string; details?: unknown };
   [InternalEventTypes.LOADING_STATE_CHANGED]: { isLoading: boolean };
   [InternalEventTypes.THEME_CHANGED]: 'light' | 'dark';
 }

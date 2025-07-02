@@ -1,9 +1,10 @@
 import { UnifiedCanvas, UnifiedProject, ExcalidrawType } from './types';
+import { ExcalidrawElement } from './excalidraw-types';
 interface LegacyFile {
   id: string;
   name: string;
   lastModified: string;
-  excalidraw: any[] | ExcalidrawType[];
+  excalidraw: ExcalidrawElement[] | ExcalidrawType[];
 }
 
 interface LegacyCollection {
@@ -24,7 +25,18 @@ export function transformFileToCanvas(file: LegacyFile): UnifiedCanvas {
     projectId: undefined,
     elements: Array.isArray(file.excalidraw) ? file.excalidraw : [],
     excalidraw: file.excalidraw,
-    appState: {}
+    appState: {
+      zoom: { value: 1 },
+      scrollX: 0,
+      scrollY: 0,
+      width: 800,
+      height: 600,
+      viewBackgroundColor: '#ffffff',
+      theme: 'light' as const,
+      selectedElementIds: {},
+      editingGroupId: null,
+      viewModeEnabled: false
+    }
   };
 }
 

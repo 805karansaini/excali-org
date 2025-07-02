@@ -6,10 +6,16 @@
 import { UnifiedCanvas } from '../../shared/types';
 import { globalEventBus, InternalEventTypes } from '../messaging/InternalEventBus';
 
+import {
+  ExcalidrawElement,
+  AppState,
+  BinaryFiles,
+} from "../../shared/excalidraw-types";
+
 export interface ExcalidrawData {
-  elements: any[];
-  appState: any;
-  files?: any;
+  elements: readonly ExcalidrawElement[];
+  appState: AppState;
+  files?: BinaryFiles;
 }
 
 export interface ExcalidrawSyncOptions {
@@ -100,47 +106,50 @@ export class ExcalidrawDataBridge {
 
       // Ensure all elements have required properties for Excalidraw
       elements = elements.map((element, index) => ({
-        // Required base properties
+        // Preserve existing properties first
+        ...element,
+        
+        // Override with defaults only if not present
         id: element.id || `element_${Date.now()}_${index}`,
         type: element.type || 'rectangle',
-        x: element.x || 0,
-        y: element.y || 0,
-        width: element.width || 100,
-        height: element.height || 100,
-        angle: element.angle || 0,
-
-        // Style properties with defaults
+        x: element.x ?? 0,
+        y: element.y ?? 0,
+        width: element.width ?? 100,
+        height: element.height ?? 100,
+        angle: element.angle ?? 0,
         strokeColor: element.strokeColor || '#000000',
         backgroundColor: element.backgroundColor || 'transparent',
         fillStyle: element.fillStyle || 'hachure',
-        strokeWidth: element.strokeWidth || 1,
+        strokeWidth: element.strokeWidth ?? 1,
         strokeStyle: element.strokeStyle || 'solid',
-        roughness: element.roughness || 1,
-        opacity: element.opacity || 100,
-
-        // Array properties
+        roughness: element.roughness ?? 1,
+        opacity: element.opacity ?? 100,
         groupIds: element.groupIds || [],
-
-        // Object/null properties
-        frameId: element.frameId || null,
-        roundness: element.roundness || null,
-        boundElements: element.boundElements || null,
-        link: element.link || null,
-
-        // Version/state properties
-        seed: element.seed || Math.floor(Math.random() * 2147483647),
-        versionNonce: element.versionNonce || Math.floor(Math.random() * 2147483647),
-        isDeleted: element.isDeleted || false,
-        updated: element.updated || 1,
-        locked: element.locked || false,
-
-        // Preserve any other existing properties
-        ...element
+        frameId: element.frameId ?? null,
+        roundness: element.roundness ?? null,
+        boundElements: element.boundElements ?? null,
+        link: element.link ?? null,
+        seed: element.seed ?? Math.floor(Math.random() * 2147483647),
+        versionNonce: element.versionNonce ?? Math.floor(Math.random() * 2147483647),
+        isDeleted: element.isDeleted ?? false,
+        updated: element.updated ?? 1,
+        locked: element.locked ?? false,
       }));
 
       const excalidrawData: ExcalidrawData = {
         elements: elements,
-        appState: canvas.appState || {},
+        appState: canvas.appState || {
+          zoom: { value: 1 },
+          scrollX: 0,
+          scrollY: 0,
+          width: window.innerWidth,
+          height: window.innerHeight,
+          viewBackgroundColor: '#ffffff',
+          theme: 'light' as const,
+          selectedElementIds: {},
+          editingGroupId: null,
+          viewModeEnabled: false
+        },
         files: {} // Files are handled separately in Excalidraw
       };
 
@@ -233,11 +242,23 @@ export class ExcalidrawDataBridge {
       }
 
       // Get appState from excalidraw-state key
-      let appState = {};
+      let appState: AppState = {
+        zoom: { value: 1 },
+        scrollX: 0,
+        scrollY: 0,
+        width: window.innerWidth,
+        height: window.innerHeight,
+        viewBackgroundColor: '#ffffff',
+        theme: 'light' as const,
+        selectedElementIds: {},
+        editingGroupId: null,
+        viewModeEnabled: false
+      };
       const stateData = localStorage.getItem('excalidraw-state');
       if (stateData) {
         try {
-          appState = JSON.parse(stateData);
+          const parsedState = JSON.parse(stateData);
+          appState = { ...appState, ...parsedState };
           console.log('[ExcalidrawDataBridge] Found appState in excalidraw-state');
         } catch (parseError) {
           console.warn('[ExcalidrawDataBridge] Failed to parse excalidraw-state:', parseError);
@@ -283,8 +304,8 @@ export class ExcalidrawDataBridge {
           if (existing) {
             existingState = JSON.parse(existing);
           }
-        } catch (e) {
-          console.warn('[ExcalidrawDataBridge] Failed to parse existing state:', e);
+        } catch {  
+          console.warn('[ExcalidrawDataBridge] Failed to parse existing state:');
         }
 
         const mergedState = {
@@ -372,7 +393,7 @@ export class ExcalidrawDataBridge {
 
       // Compare elements count and IDs for more accurate change detection
       const currentElementsCount = currentData.elements?.length || 0;
-      const currentElementIds = currentData.elements?.map((el: any) => el.id).sort() || [];
+      const currentElementIds = currentData.elements?.map((el: ExcalidrawElement) => el.id).sort() || [];
 
       let lastElementsCount = 0;
       let lastElementIds: string[] = [];
@@ -380,9 +401,9 @@ export class ExcalidrawDataBridge {
       try {
         const lastData = JSON.parse(this.lastSyncData);
         lastElementsCount = lastData.elements?.length || 0;
-        lastElementIds = lastData.elements?.map((el: any) => el.id).sort() || [];
-      } catch (e) {
-        console.log('[ExcalidrawDataBridge] Failed to parse last sync data, considering as changed');
+        lastElementIds = lastData.elements?.map((el: ExcalidrawElement) => el.id).sort() || [];
+      } catch (_error: unknown) {  
+        console.log('[ExcalidrawDataBridge] Failed to parse last sync data, considering as changed.', _error);
         return true;
       }
 

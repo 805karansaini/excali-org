@@ -45,6 +45,7 @@ import { ExcalidrawIntegration } from './excalidraw-integration';
 import { ExcalidrawDataBridge } from './bridges/ExcalidrawDataBridge';
 import { UnifiedStateProvider } from './context/UnifiedStateProvider';
 import { globalEventBus, InternalEventTypes } from './messaging/InternalEventBus';
+import { UnifiedCanvas } from '../shared/types';
 
 // Import the enhanced panel application
 import { EnhancedAutoHidePanel } from './components/EnhancedAutoHidePanel';
@@ -285,7 +286,7 @@ async function createAndMountPanel(): Promise<void> {
       }
     };
 
-    const handleCanvasSelect = async (canvas: any) => {
+    const handleCanvasSelect = async (canvas: UnifiedCanvas) => {
       try {
         console.log('handleCanvasSelect called from unified-entry:', canvas);
         await globalEventBus.emit(InternalEventTypes.CANVAS_SELECTED, canvas);
@@ -528,7 +529,7 @@ function isValidExcalidrawPage(): boolean {
 
 // Export for potential external access (development/debugging)
 if (typeof window !== 'undefined') {
-  (window as any).__excaliOrganizer = {
+  (window as Window & typeof globalThis & { __excaliOrganizer: unknown }).__excaliOrganizer = {
     cleanup,
     panelRoot,
     excalidrawIntegration,

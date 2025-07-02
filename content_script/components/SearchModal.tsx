@@ -123,6 +123,21 @@ export function SearchModal() {
     return () => clearTimeout(timeoutId);
   }, [query, performSearch]);
 
+  const handleSelect = useCallback((result: SearchResult) => {
+    if (result.type === 'canvas') {
+      const canvas = result.item as UnifiedCanvas;
+      dispatch({ type: 'SET_SELECTED_CANVAS', payload: canvas.id });
+      eventBus.emit(InternalEventTypes.CANVAS_SELECTED, canvas);
+      eventBus.emit(InternalEventTypes.LOAD_CANVAS_TO_EXCALIDRAW, canvas);
+    } else {
+      const project = result.item as UnifiedProject;
+      // Focus on project in the panel
+      eventBus.emit(InternalEventTypes.PROJECT_SELECTED, project);
+    }
+
+    dispatch({ type: 'SET_SEARCH_MODAL_OPEN', payload: false });
+  }, [dispatch]);
+
   // Handle keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -143,22 +158,7 @@ export function SearchModal() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [results, selectedIndex, dispatch]);
-
-  const handleSelect = (result: SearchResult) => {
-    if (result.type === 'canvas') {
-      const canvas = result.item as UnifiedCanvas;
-      dispatch({ type: 'SET_SELECTED_CANVAS', payload: canvas.id });
-      eventBus.emit(InternalEventTypes.CANVAS_SELECTED, canvas);
-      eventBus.emit(InternalEventTypes.LOAD_CANVAS_TO_EXCALIDRAW, canvas);
-    } else {
-      const project = result.item as UnifiedProject;
-      // Focus on project in the panel
-      eventBus.emit(InternalEventTypes.PROJECT_SELECTED, project);
-    }
-
-    dispatch({ type: 'SET_SEARCH_MODAL_OPEN', payload: false });
-  };
+  }, [results, selectedIndex, dispatch, handleSelect]);
 
   const highlightMatch = (text: string, query: string) => {
     if (!query.trim()) return text;

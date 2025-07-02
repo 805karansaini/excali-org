@@ -8,7 +8,7 @@ import { UnifiedCanvas, UnifiedProject } from './types';
 // Settings interface for app preferences
 export interface AppSettings {
   key: string;
-  value: any;
+  value: unknown;
   updatedAt: Date;
 }
 
@@ -352,7 +352,7 @@ export const settingsOperations = {
   async getSetting<T>(key: string, defaultValue?: T): Promise<T | undefined> {
     try {
       const setting = await unifiedDb.settings.get(key);
-      return setting ? setting.value : defaultValue;
+      return setting ? setting.value as T : defaultValue;
     } catch (error) {
       console.error(`Failed to get setting ${key}:`, error);
       return defaultValue;
@@ -380,10 +380,10 @@ export const settingsOperations = {
   /**
    * Get all settings
    */
-  async getAllSettings(): Promise<Record<string, any>> {
+  async getAllSettings(): Promise<Record<string, unknown>> {
     try {
       const settings = await unifiedDb.settings.toArray();
-      const result: Record<string, any> = {};
+      const result: Record<string, unknown> = {};
 
       for (const setting of settings) {
         result[setting.key] = setting.value;
