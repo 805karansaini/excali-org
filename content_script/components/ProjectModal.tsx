@@ -390,14 +390,14 @@ export function ProjectModal({ onClose }: Props) {
                 padding: "10px 20px",
                 background:
                   !name.trim() || isLoading
-                    ? "var(--theme-bg-tertiary)"
-                    : "linear-gradient(135deg, var(--theme-accent-primary), var(--theme-accent-secondary))",
+                    ? "var(--theme-bg-tertiary, #f8f9fa)"
+                    : "var(--theme-accent-primary, #6366f1)",
                 border: "none",
                 borderRadius: "6px",
                 color:
                   !name.trim() || isLoading
-                    ? "var(--theme-text-secondary)"
-                    : "white",
+                    ? "var(--theme-text-secondary, #6b7280)"
+                    : "var(--theme-text-on-accent, #ffffff)",
                 fontSize: "14px",
                 fontWeight: 500,
                 cursor: !name.trim() || isLoading ? "not-allowed" : "pointer",
