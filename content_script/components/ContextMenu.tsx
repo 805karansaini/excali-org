@@ -8,7 +8,6 @@ import {
   FolderPlus,
   Download,
   ChevronRight,
-  Move,
 } from "lucide-react";
 import { useUnifiedState } from "../context/UnifiedStateProvider";
 import { eventBus, InternalEventTypes } from "../messaging/InternalEventBus";
@@ -22,9 +21,8 @@ interface Props {
 }
 
 export function ContextMenu({ x, y, canvas, onClose }: Props) {
-  const { state, dispatch } = useUnifiedState();
+  const { state, dispatch, saveCanvas, saveProject } = useUnifiedState();
   const [showAddToProject, setShowAddToProject] = useState(false);
-  const [showMoveToProject, setShowMoveToProject] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Position menu to stay within viewport
@@ -84,7 +82,7 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
     };
   }, [onClose]);
 
-  const handleRename = () => {
+  const handleRename = async () => {
     const newName = prompt("Enter new name:", canvas.name);
     if (newName && newName.trim() !== canvas.name) {
       const updatedCanvas = {
@@ -93,8 +91,16 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
         updatedAt: new Date(),
       };
 
-      eventBus.emit(InternalEventTypes.CANVAS_UPDATED, updatedCanvas);
-      dispatch({ type: "UPDATE_CANVAS", payload: updatedCanvas });
+      try {
+        // Save to database first
+        await saveCanvas(updatedCanvas);
+        
+        eventBus.emit(InternalEventTypes.CANVAS_UPDATED, updatedCanvas);
+        console.log("Canvas renamed and saved to database:", updatedCanvas.name);
+      } catch (error) {
+        console.error("Failed to save renamed canvas:", error);
+        alert("Failed to rename canvas. Please try again.");
+      }
     }
     onClose();
   };
@@ -131,9 +137,16 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
     onClose();
   };
 
-  const handleAddToProject = (projectId: string) => {
+  const handleAddToProject = async (projectId: string) => {
     const project = state.projects.find((p) => p.id === projectId);
     if (!project) return;
+
+    // Check if canvas is already in this project
+    if ((project.canvasIds || []).includes(canvas.id)) {
+      console.log("Canvas already in project");
+      onClose();
+      return;
+    }
 
     // Update project's canvas list
     const updatedProject: UnifiedProject = {
@@ -150,68 +163,27 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
       updatedAt: new Date(),
     };
 
-    eventBus.emit(InternalEventTypes.PROJECT_UPDATED, updatedProject);
-    eventBus.emit(InternalEventTypes.CANVAS_UPDATED, updatedCanvas);
+    try {
+      // Save to database first
+      await Promise.all([
+        saveProject(updatedProject),
+        saveCanvas(updatedCanvas)
+      ]);
 
-    dispatch({ type: "UPDATE_PROJECT", payload: updatedProject });
-    dispatch({ type: "UPDATE_CANVAS", payload: updatedCanvas });
-
-    onClose();
-  };
-
-  const handleMoveToProject = (projectId: string) => {
-    const targetProject = state.projects.find((p) => p.id === projectId);
-    if (!targetProject) return;
-
-    // Remove from current project if any
-    if (canvas.projectId) {
-      const currentProject = state.projects.find(
-        (p) => p.id === canvas.projectId,
-      );
-      if (currentProject) {
-        const updatedCurrentProject: UnifiedProject = {
-          ...currentProject,
-          canvasIds: (currentProject.canvasIds || []).filter(
-            (id) => id !== canvas.id,
-          ),
-          fileIds: (currentProject.fileIds || []).filter(
-            (id) => id !== canvas.id,
-          ),
-          updatedAt: new Date(),
-        };
-
-        eventBus.emit(
-          InternalEventTypes.PROJECT_UPDATED,
-          updatedCurrentProject,
-        );
-        dispatch({ type: "UPDATE_PROJECT", payload: updatedCurrentProject });
-      }
+      eventBus.emit(InternalEventTypes.PROJECT_UPDATED, updatedProject);
+      eventBus.emit(InternalEventTypes.CANVAS_UPDATED, updatedCanvas);
+      
+      console.log("Canvas added to project and saved to database:", project.name);
+    } catch (error) {
+      console.error("Failed to add canvas to project:", error);
+      alert("Failed to add canvas to project. Please try again.");
     }
 
-    // Add to new project
-    const updatedTargetProject: UnifiedProject = {
-      ...targetProject,
-      canvasIds: [...(targetProject.canvasIds || []), canvas.id],
-      fileIds: [...(targetProject.fileIds || []), canvas.id],
-      updatedAt: new Date(),
-    };
-
-    const updatedCanvas: UnifiedCanvas = {
-      ...canvas,
-      projectId,
-      updatedAt: new Date(),
-    };
-
-    eventBus.emit(InternalEventTypes.PROJECT_UPDATED, updatedTargetProject);
-    eventBus.emit(InternalEventTypes.CANVAS_UPDATED, updatedCanvas);
-
-    dispatch({ type: "UPDATE_PROJECT", payload: updatedTargetProject });
-    dispatch({ type: "UPDATE_CANVAS", payload: updatedCanvas });
-
     onClose();
   };
 
-  const handleRemoveFromProject = () => {
+
+  const handleRemoveFromProject = async () => {
     if (!canvas.projectId) return;
 
     const project = state.projects.find((p) => p.id === canvas.projectId);
@@ -230,11 +202,21 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
       updatedAt: new Date(),
     };
 
-    eventBus.emit(InternalEventTypes.PROJECT_UPDATED, updatedProject);
-    eventBus.emit(InternalEventTypes.CANVAS_UPDATED, updatedCanvas);
+    try {
+      // Save to database first
+      await Promise.all([
+        saveProject(updatedProject),
+        saveCanvas(updatedCanvas)
+      ]);
 
-    dispatch({ type: "UPDATE_PROJECT", payload: updatedProject });
-    dispatch({ type: "UPDATE_CANVAS", payload: updatedCanvas });
+      eventBus.emit(InternalEventTypes.PROJECT_UPDATED, updatedProject);
+      eventBus.emit(InternalEventTypes.CANVAS_UPDATED, updatedCanvas);
+      
+      console.log("Canvas removed from project and saved to database:", project.name);
+    } catch (error) {
+      console.error("Failed to remove canvas from project:", error);
+      alert("Failed to remove canvas from project. Please try again.");
+    }
 
     onClose();
   };
@@ -277,15 +259,11 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
     onClose();
   };
 
-  // Get available projects for adding/moving
+  // Get available projects for adding (exclude current project)
   const availableProjectsForAdd = state.projects.filter(
     (project) =>
       !(project.canvasIds || []).includes(canvas.id) &&
       !(project.fileIds || []).includes(canvas.id),
-  );
-
-  const availableProjectsForMove = state.projects.filter(
-    (project) => project.id !== canvas.projectId,
   );
 
   const currentProject = canvas.projectId
@@ -483,69 +461,6 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
         </div>
       )}
 
-      {/* Move to Project submenu */}
-      {availableProjectsForMove.length > 0 && (
-        <div
-          style={{ position: "relative" }}
-          onMouseEnter={() => setShowMoveToProject(true)}
-          onMouseLeave={() => setShowMoveToProject(false)}
-        >
-          <button style={menuItemStyles}>
-            <Move size={16} />
-            Move to Project
-            <ChevronRight size={14} style={{ marginLeft: "auto" }} />
-          </button>
-
-          <AnimatePresence>
-            {showMoveToProject && (
-              <motion.div
-                style={submenuStyles}
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -10 }}
-                transition={{ duration: 0.15 }}
-              >
-                {availableProjectsForMove.map((project) => (
-                  <button
-                    key={project.id}
-                    style={{
-                      ...menuItemStyles,
-                      padding: "8px 12px",
-                    }}
-                    onClick={() => handleMoveToProject(project.id)}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background =
-                        "var(--theme-bg-hover)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = "none";
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: "12px",
-                        height: "12px",
-                        borderRadius: "3px",
-                        backgroundColor: project.color,
-                        flexShrink: 0,
-                      }}
-                    />
-                    <span
-                      style={{
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {project.name}
-                    </span>
-                  </button>
-                ))}
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-      )}
 
       {/* Remove from current project */}
       {currentProject && (

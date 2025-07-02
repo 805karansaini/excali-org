@@ -4,8 +4,6 @@ import { motion } from "framer-motion";
 import { X } from "lucide-react";
 import { useUnifiedState } from "../context/UnifiedStateProvider";
 import { eventBus, InternalEventTypes } from "../messaging/InternalEventBus";
-import { UnifiedProject } from "../../shared/types";
-import { v4 as uuidv4 } from "uuid";
 
 interface Props {
   onClose: () => void;
@@ -27,7 +25,7 @@ const projectColors = [
 ];
 
 export function ProjectModal({ onClose }: Props) {
-  const { state, dispatch } = useUnifiedState();
+  const { state, createProject } = useUnifiedState();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [selectedColor, setSelectedColor] = useState(projectColors[0]);
@@ -61,24 +59,21 @@ export function ProjectModal({ onClose }: Props) {
     setIsLoading(true);
 
     try {
-      // Create new project
-      const newProject: UnifiedProject = {
-        id: uuidv4(),
+      // Create new project using the state provider method (saves to database)
+      const newProject = await createProject({
         name: name.trim(),
         description: description.trim() || undefined,
         canvasIds: [],
         fileIds: [], // Backward compatibility
         color: selectedColor,
-        createdAt: new Date(),
         updatedAt: new Date(),
-      };
+      });
 
       // Emit project creation event
       eventBus.emit(InternalEventTypes.PROJECT_CREATED, newProject);
 
-      // Update state
-      dispatch({ type: "ADD_PROJECT", payload: newProject });
-
+      console.log("Project created and saved to database:", newProject);
+      
       onClose();
     } catch (err) {
       setError("Failed to create project. Please try again.");
