@@ -3,7 +3,7 @@
 import { Message } from "./types";
 
 export const sendMessageToContent = async <T = void>(
-  message: Message
+  message: Message,
 ): Promise<T | undefined> => {
   const [tab] = await chrome.tabs.query({
     active: true,
@@ -15,4 +15,3 @@ export const sendMessageToContent = async <T = void>(
     return response;
   }
 };
-

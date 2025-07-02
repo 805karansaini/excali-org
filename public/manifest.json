@@ -22,19 +22,10 @@
   },
   "web_accessible_resources": [
     {
-      "matches": [
-        "https://excalidraw.com/*"
-      ],
-      "resources": [
-        "assets/*"
-      ]
+      "matches": ["https://excalidraw.com/*"],
+      "resources": ["assets/*"]
     }
   ],
-  "permissions": [
-    "activeTab",
-    "scripting"
-  ],
-  "host_permissions": [
-    "https://excalidraw.com/*"
-  ]
+  "permissions": ["activeTab", "scripting"],
+  "host_permissions": ["https://excalidraw.com/*"]
 }

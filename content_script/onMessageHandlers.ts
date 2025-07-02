@@ -56,7 +56,7 @@ export const onPushExcalidrawFile = async (data: string): Promise<void> => {
 };
 
 export const onPushFileNameToExcalidraw = async (
-  fileName: string
+  fileName: string,
 ): Promise<void> => {
   ensureStyles();
   await removeBadge();

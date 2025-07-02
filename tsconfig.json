@@ -2,7 +2,7 @@
   "compilerOptions": {
     "target": "ESNext",
     "useDefineForClassFields": true,
-    "lib": ["ES2020", "DOM", "DOM.Iterable","ESNext"],
+    "lib": ["ES2020", "DOM", "DOM.Iterable", "ESNext"],
     "typeRoots": ["./node_modules/@types"],
     "types": ["chrome"],
     "module": "ESNext",
@@ -21,8 +21,13 @@
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true,
+    "noFallthroughCasesInSwitch": true
   },
-  "include": ["content_script","background","shared", "shared/excalidraw-types.ts"],
+  "include": [
+    "content_script",
+    "background",
+    "shared",
+    "shared/excalidraw-types.ts"
+  ],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

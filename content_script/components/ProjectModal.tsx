@@ -1,28 +1,37 @@
-import React, { useState } from 'react';
-import { createPortal } from 'react-dom';
-import { motion } from 'framer-motion';
-import { X } from 'lucide-react';
-import { useUnifiedState } from '../context/UnifiedStateProvider';
-import { eventBus, InternalEventTypes } from '../messaging/InternalEventBus';
-import { UnifiedProject } from '../../shared/types';
-import { v4 as uuidv4 } from 'uuid';
+import React, { useState } from "react";
+import { createPortal } from "react-dom";
+import { motion } from "framer-motion";
+import { X } from "lucide-react";
+import { useUnifiedState } from "../context/UnifiedStateProvider";
+import { eventBus, InternalEventTypes } from "../messaging/InternalEventBus";
+import { UnifiedProject } from "../../shared/types";
+import { v4 as uuidv4 } from "uuid";
 
 interface Props {
   onClose: () => void;
 }
 
 const projectColors = [
-  '#6366f1', '#8b5cf6', '#06b6d4', '#10b981',
-  '#f59e0b', '#ef4444', '#ec4899', '#84cc16',
-  '#f97316', '#3b82f6', '#8b5cf6', '#14b8a6'
+  "#6366f1",
+  "#8b5cf6",
+  "#06b6d4",
+  "#10b981",
+  "#f59e0b",
+  "#ef4444",
+  "#ec4899",
+  "#84cc16",
+  "#f97316",
+  "#3b82f6",
+  "#8b5cf6",
+  "#14b8a6",
 ];
 
 export function ProjectModal({ onClose }: Props) {
   const { state, dispatch } = useUnifiedState();
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
   const [selectedColor, setSelectedColor] = useState(projectColors[0]);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -30,22 +39,22 @@ export function ProjectModal({ onClose }: Props) {
 
     // Validate name
     if (!name.trim()) {
-      setError('Project name is required');
+      setError("Project name is required");
       return;
     }
 
     if (name.trim().length > 50) {
-      setError('Project name must be 50 characters or less');
+      setError("Project name must be 50 characters or less");
       return;
     }
 
     // Check for duplicate names
     const existingProject = state.projects.find(
-      project => project.name.toLowerCase() === name.trim().toLowerCase()
+      (project) => project.name.toLowerCase() === name.trim().toLowerCase(),
     );
 
     if (existingProject) {
-      setError('A project with this name already exists');
+      setError("A project with this name already exists");
       return;
     }
 
@@ -61,19 +70,19 @@ export function ProjectModal({ onClose }: Props) {
         fileIds: [], // Backward compatibility
         color: selectedColor,
         createdAt: new Date(),
-        updatedAt: new Date()
+        updatedAt: new Date(),
       };
 
       // Emit project creation event
       eventBus.emit(InternalEventTypes.PROJECT_CREATED, newProject);
 
       // Update state
-      dispatch({ type: 'ADD_PROJECT', payload: newProject });
+      dispatch({ type: "ADD_PROJECT", payload: newProject });
 
       onClose();
     } catch (err) {
-      setError('Failed to create project. Please try again.');
-      console.error('Error creating project:', err);
+      setError("Failed to create project. Please try again.");
+      console.error("Error creating project:", err);
     } finally {
       setIsLoading(false);
     }
@@ -81,61 +90,63 @@ export function ProjectModal({ onClose }: Props) {
 
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setName(e.target.value);
-    if (error) setError('');
+    if (error) setError("");
   };
 
-  const handleDescriptionChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+  const handleDescriptionChange = (
+    e: React.ChangeEvent<HTMLTextAreaElement>,
+  ) => {
     setDescription(e.target.value);
-    if (error && error.includes('description')) setError('');
+    if (error && error.includes("description")) setError("");
   };
 
   const overlayStyles: React.CSSProperties = {
-    position: 'fixed',
+    position: "fixed",
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    background: 'var(--theme-bg-primary, #ffffff)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
+    background: "var(--theme-bg-primary, #ffffff)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
     zIndex: 9999999,
-    pointerEvents: 'auto'
+    pointerEvents: "auto",
   };
 
   const modalStyles: React.CSSProperties = {
-    width: '100%',
-    maxWidth: '500px',
-    background: 'var(--theme-bg-primary, #ffffff)',
-    border: '1px solid var(--theme-border-primary, rgba(0, 0, 0, 0.1))',
-    borderRadius: '16px',
-    boxShadow: 'var(--theme-shadow-lg, 0 20px 40px rgba(0, 0, 0, 0.1))',
-    overflow: 'hidden',
-    margin: '0 16px'
+    width: "100%",
+    maxWidth: "500px",
+    background: "var(--theme-bg-primary, #ffffff)",
+    border: "1px solid var(--theme-border-primary, rgba(0, 0, 0, 0.1))",
+    borderRadius: "16px",
+    boxShadow: "var(--theme-shadow-lg, 0 20px 40px rgba(0, 0, 0, 0.1))",
+    overflow: "hidden",
+    margin: "0 16px",
   };
 
   const headerStyles: React.CSSProperties = {
-    padding: '24px 24px 20px',
-    borderBottom: '1px solid var(--theme-border-secondary)'
+    padding: "24px 24px 20px",
+    borderBottom: "1px solid var(--theme-border-secondary)",
   };
 
   const inputStyles: React.CSSProperties = {
-    width: '100%',
-    padding: '12px 16px',
-    background: 'var(--theme-bg-tertiary)',
-    border: '1px solid var(--theme-border-primary)',
-    borderRadius: '8px',
-    color: 'var(--theme-text-primary)',
-    fontSize: '14px',
-    outline: 'none',
-    transition: 'border-color 0.2s ease'
+    width: "100%",
+    padding: "12px 16px",
+    background: "var(--theme-bg-tertiary)",
+    border: "1px solid var(--theme-border-primary)",
+    borderRadius: "8px",
+    color: "var(--theme-text-primary)",
+    fontSize: "14px",
+    outline: "none",
+    transition: "border-color 0.2s ease",
   };
 
   const textareaStyles: React.CSSProperties = {
     ...inputStyles,
-    minHeight: '80px',
-    resize: 'vertical' as const,
-    fontFamily: 'inherit'
+    minHeight: "80px",
+    resize: "vertical" as const,
+    fontFamily: "inherit",
   };
 
   return createPortal(
@@ -155,67 +166,81 @@ export function ProjectModal({ onClose }: Props) {
         initial={{ scale: 0.9, y: -50 }}
         animate={{ scale: 1, y: 0 }}
         exit={{ scale: 0.9, y: -50 }}
-        transition={{ type: 'spring', damping: 30, stiffness: 400 }}
+        transition={{ type: "spring", damping: 30, stiffness: 400 }}
       >
         <div style={headerStyles}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-            <h2 style={{
-              fontSize: '20px',
-              fontWeight: 600,
-              color: 'var(--theme-text-primary)',
-              margin: 0
-            }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginBottom: "8px",
+            }}
+          >
+            <h2
+              style={{
+                fontSize: "20px",
+                fontWeight: 600,
+                color: "var(--theme-text-primary)",
+                margin: 0,
+              }}
+            >
               Create New Project
             </h2>
             <button
               onClick={onClose}
               style={{
-                background: 'none',
-                border: 'none',
-                color: 'var(--theme-text-secondary)',
-                cursor: 'pointer',
-                padding: '4px',
-                borderRadius: '4px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
+                background: "none",
+                border: "none",
+                color: "var(--theme-text-secondary)",
+                cursor: "pointer",
+                padding: "4px",
+                borderRadius: "4px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
               }}
               aria-label="Close modal"
             >
               <X size={20} />
             </button>
           </div>
-          <p style={{
-            fontSize: '14px',
-            color: 'var(--theme-text-secondary)',
-            margin: 0,
-            lineHeight: 1.5
-          }}>
+          <p
+            style={{
+              fontSize: "14px",
+              color: "var(--theme-text-secondary)",
+              margin: 0,
+              lineHeight: 1.5,
+            }}
+          >
             Organize your canvases into projects for better management
           </p>
         </div>
 
         <form onSubmit={handleSubmit}>
-          <div style={{ padding: '24px' }}>
-            <div style={{ marginBottom: '20px' }}>
-              <label style={{
-                display: 'block',
-                fontSize: '14px',
-                fontWeight: 500,
-                color: 'var(--theme-text-primary)',
-                marginBottom: '8px'
-              }}>
+          <div style={{ padding: "24px" }}>
+            <div style={{ marginBottom: "20px" }}>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "14px",
+                  fontWeight: 500,
+                  color: "var(--theme-text-primary)",
+                  marginBottom: "8px",
+                }}
+              >
                 Project Name *
               </label>
               <input
                 type="text"
                 style={{
                   ...inputStyles,
-                  borderColor: error && !name.trim()
-                    ? 'var(--theme-error, #ef4444)'
-                    : name.trim()
-                      ? 'var(--theme-success, #10b981)'
-                      : undefined
+                  borderColor:
+                    error && !name.trim()
+                      ? "var(--theme-error, #ef4444)"
+                      : name.trim()
+                        ? "var(--theme-success, #10b981)"
+                        : undefined,
                 }}
                 placeholder="Enter project name..."
                 value={name}
@@ -224,26 +249,30 @@ export function ProjectModal({ onClose }: Props) {
                 maxLength={50}
                 disabled={isLoading}
               />
-              <div style={{
-                fontSize: '12px',
-                color: 'var(--theme-text-secondary)',
-                marginTop: '4px',
-                display: 'flex',
-                justifyContent: 'space-between'
-              }}>
-                <span>{error && error.includes('name') ? error : ''}</span>
+              <div
+                style={{
+                  fontSize: "12px",
+                  color: "var(--theme-text-secondary)",
+                  marginTop: "4px",
+                  display: "flex",
+                  justifyContent: "space-between",
+                }}
+              >
+                <span>{error && error.includes("name") ? error : ""}</span>
                 <span>{name.length}/50</span>
               </div>
             </div>
 
-            <div style={{ marginBottom: '20px' }}>
-              <label style={{
-                display: 'block',
-                fontSize: '14px',
-                fontWeight: 500,
-                color: 'var(--theme-text-primary)',
-                marginBottom: '8px'
-              }}>
+            <div style={{ marginBottom: "20px" }}>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "14px",
+                  fontWeight: 500,
+                  color: "var(--theme-text-primary)",
+                  marginBottom: "8px",
+                }}
+              >
                 Description (Optional)
               </label>
               <textarea
@@ -254,47 +283,54 @@ export function ProjectModal({ onClose }: Props) {
                 maxLength={200}
                 disabled={isLoading}
               />
-              <div style={{
-                fontSize: '12px',
-                color: 'var(--theme-text-secondary)',
-                marginTop: '4px',
-                textAlign: 'right'
-              }}>
+              <div
+                style={{
+                  fontSize: "12px",
+                  color: "var(--theme-text-secondary)",
+                  marginTop: "4px",
+                  textAlign: "right",
+                }}
+              >
                 {description.length}/200
               </div>
             </div>
 
-            <div style={{ marginBottom: '20px' }}>
-              <label style={{
-                display: 'block',
-                fontSize: '14px',
-                fontWeight: 500,
-                color: 'var(--theme-text-primary)',
-                marginBottom: '12px'
-              }}>
+            <div style={{ marginBottom: "20px" }}>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "14px",
+                  fontWeight: 500,
+                  color: "var(--theme-text-primary)",
+                  marginBottom: "12px",
+                }}
+              >
                 Project Color
               </label>
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(6, 1fr)',
-                gap: '8px',
-                maxWidth: '200px'
-              }}>
-                {projectColors.map(color => (
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(6, 1fr)",
+                  gap: "8px",
+                  maxWidth: "200px",
+                }}
+              >
+                {projectColors.map((color) => (
                   <button
                     key={color}
                     type="button"
                     style={{
-                      width: '28px',
-                      height: '28px',
-                      borderRadius: '6px',
+                      width: "28px",
+                      height: "28px",
+                      borderRadius: "6px",
                       backgroundColor: color,
-                      border: selectedColor === color
-                        ? `3px solid var(--theme-text-primary)`
-                        : '2px solid transparent',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s ease',
-                      boxSizing: 'border-box'
+                      border:
+                        selectedColor === color
+                          ? `3px solid var(--theme-text-primary)`
+                          : "2px solid transparent",
+                      cursor: "pointer",
+                      transition: "all 0.2s ease",
+                      boxSizing: "border-box",
                     }}
                     onClick={() => setSelectedColor(color)}
                     disabled={isLoading}
@@ -304,43 +340,50 @@ export function ProjectModal({ onClose }: Props) {
               </div>
             </div>
 
-            {error && !error.includes('name') && !error.includes('description') && (
-              <div style={{
-                background: 'var(--theme-error-bg, rgba(239, 68, 68, 0.1))',
-                border: '1px solid var(--theme-error-border, rgba(239, 68, 68, 0.3))',
-                borderRadius: '6px',
-                padding: '12px',
-                color: 'var(--theme-error, #ef4444)',
-                fontSize: '14px',
-                marginBottom: '20px'
-              }}>
-                {error}
-              </div>
-            )}
+            {error &&
+              !error.includes("name") &&
+              !error.includes("description") && (
+                <div
+                  style={{
+                    background: "var(--theme-error-bg, rgba(239, 68, 68, 0.1))",
+                    border:
+                      "1px solid var(--theme-error-border, rgba(239, 68, 68, 0.3))",
+                    borderRadius: "6px",
+                    padding: "12px",
+                    color: "var(--theme-error, #ef4444)",
+                    fontSize: "14px",
+                    marginBottom: "20px",
+                  }}
+                >
+                  {error}
+                </div>
+              )}
           </div>
 
-          <div style={{
-            padding: '20px 24px',
-            borderTop: '1px solid var(--theme-border-secondary)',
-            display: 'flex',
-            gap: '12px',
-            justifyContent: 'flex-end'
-          }}>
+          <div
+            style={{
+              padding: "20px 24px",
+              borderTop: "1px solid var(--theme-border-secondary)",
+              display: "flex",
+              gap: "12px",
+              justifyContent: "flex-end",
+            }}
+          >
             <button
               type="button"
               onClick={onClose}
               disabled={isLoading}
               style={{
-                padding: '10px 20px',
-                background: 'transparent',
-                border: '1px solid var(--theme-border-primary)',
-                borderRadius: '6px',
-                color: 'var(--theme-text-secondary)',
-                fontSize: '14px',
+                padding: "10px 20px",
+                background: "transparent",
+                border: "1px solid var(--theme-border-primary)",
+                borderRadius: "6px",
+                color: "var(--theme-text-secondary)",
+                fontSize: "14px",
                 fontWeight: 500,
-                cursor: isLoading ? 'not-allowed' : 'pointer',
+                cursor: isLoading ? "not-allowed" : "pointer",
                 opacity: isLoading ? 0.6 : 1,
-                transition: 'all 0.2s ease'
+                transition: "all 0.2s ease",
               }}
             >
               Cancel
@@ -349,38 +392,42 @@ export function ProjectModal({ onClose }: Props) {
               type="submit"
               disabled={!name.trim() || isLoading}
               style={{
-                padding: '10px 20px',
-                background: !name.trim() || isLoading
-                  ? 'var(--theme-bg-tertiary)'
-                  : 'linear-gradient(135deg, var(--theme-accent-primary), var(--theme-accent-secondary))',
-                border: 'none',
-                borderRadius: '6px',
-                color: !name.trim() || isLoading
-                  ? 'var(--theme-text-secondary)'
-                  : 'white',
-                fontSize: '14px',
+                padding: "10px 20px",
+                background:
+                  !name.trim() || isLoading
+                    ? "var(--theme-bg-tertiary)"
+                    : "linear-gradient(135deg, var(--theme-accent-primary), var(--theme-accent-secondary))",
+                border: "none",
+                borderRadius: "6px",
+                color:
+                  !name.trim() || isLoading
+                    ? "var(--theme-text-secondary)"
+                    : "white",
+                fontSize: "14px",
                 fontWeight: 500,
-                cursor: !name.trim() || isLoading ? 'not-allowed' : 'pointer',
-                transition: 'all 0.2s ease',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px'
+                cursor: !name.trim() || isLoading ? "not-allowed" : "pointer",
+                transition: "all 0.2s ease",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
               }}
             >
               {isLoading ? (
                 <>
-                  <div style={{
-                    width: '16px',
-                    height: '16px',
-                    border: '2px solid transparent',
-                    borderTop: '2px solid currentColor',
-                    borderRadius: '50%',
-                    animation: 'spin 1s linear infinite'
-                  }} />
+                  <div
+                    style={{
+                      width: "16px",
+                      height: "16px",
+                      border: "2px solid transparent",
+                      borderTop: "2px solid currentColor",
+                      borderRadius: "50%",
+                      animation: "spin 1s linear infinite",
+                    }}
+                  />
                   Creating...
                 </>
               ) : (
-                'Create Project'
+                "Create Project"
               )}
             </button>
           </div>
@@ -393,6 +440,6 @@ export function ProjectModal({ onClose }: Props) {
         }
       `}</style>
     </motion.div>,
-    document.body
+    document.body,
   );
 }

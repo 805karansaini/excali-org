@@ -23,10 +23,12 @@ export interface ExcalidrawElement {
     type: number;
     value?: number;
   } | null;
-  boundElements: readonly {
-    id: string;
-    type: string;
-  }[] | null;
+  boundElements:
+    | readonly {
+        id: string;
+        type: string;
+      }[]
+    | null;
   updated: number;
   link: string | null;
   locked: boolean;
@@ -42,7 +44,7 @@ export interface AppState {
   width: number;
   height: number;
   viewBackgroundColor: string;
-  theme: 'light' | 'dark';
+  theme: "light" | "dark";
   selectedElementIds: Record<string, boolean>;
   editingGroupId: string | null;
   viewModeEnabled: boolean;

@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Edit3,
   Trash2,
@@ -8,11 +8,11 @@ import {
   FolderPlus,
   Download,
   ChevronRight,
-  Move
-} from 'lucide-react';
-import { useUnifiedState } from '../context/UnifiedStateProvider';
-import { eventBus, InternalEventTypes } from '../messaging/InternalEventBus';
-import { UnifiedCanvas, UnifiedProject } from '../../shared/types';
+  Move,
+} from "lucide-react";
+import { useUnifiedState } from "../context/UnifiedStateProvider";
+import { eventBus, InternalEventTypes } from "../messaging/InternalEventBus";
+import { UnifiedCanvas, UnifiedProject } from "../../shared/types";
 
 interface Props {
   x: number;
@@ -66,35 +66,35 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
     };
 
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+      if (e.key === "Escape") {
         onClose();
       }
     };
 
     // Delay adding listeners to prevent immediate close
     const timeoutId = setTimeout(() => {
-      document.addEventListener('mousedown', handleClickOutside);
-      document.addEventListener('keydown', handleEscape);
+      document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener("keydown", handleEscape);
     }, 100);
 
     return () => {
       clearTimeout(timeoutId);
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('keydown', handleEscape);
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
     };
   }, [onClose]);
 
   const handleRename = () => {
-    const newName = prompt('Enter new name:', canvas.name);
+    const newName = prompt("Enter new name:", canvas.name);
     if (newName && newName.trim() !== canvas.name) {
       const updatedCanvas = {
         ...canvas,
         name: newName.trim(),
-        updatedAt: new Date()
+        updatedAt: new Date(),
       };
 
       eventBus.emit(InternalEventTypes.CANVAS_UPDATED, updatedCanvas);
-      dispatch({ type: 'UPDATE_CANVAS', payload: updatedCanvas });
+      dispatch({ type: "UPDATE_CANVAS", payload: updatedCanvas });
     }
     onClose();
   };
@@ -106,29 +106,33 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
       name: `${canvas.name} (Copy)`,
       createdAt: new Date(),
       updatedAt: new Date(),
-      projectId: undefined // Remove from project on duplicate
+      projectId: undefined, // Remove from project on duplicate
     };
 
     eventBus.emit(InternalEventTypes.CANVAS_CREATED, newCanvas);
-    dispatch({ type: 'ADD_CANVAS', payload: newCanvas });
+    dispatch({ type: "ADD_CANVAS", payload: newCanvas });
     onClose();
   };
 
   const handleDelete = () => {
-    if (confirm(`Are you sure you want to delete "${canvas.name}"?\n\nThis action cannot be undone.`)) {
+    if (
+      confirm(
+        `Are you sure you want to delete "${canvas.name}"?\n\nThis action cannot be undone.`,
+      )
+    ) {
       eventBus.emit(InternalEventTypes.CANVAS_DELETED, canvas);
-      dispatch({ type: 'DELETE_CANVAS', payload: canvas.id });
+      dispatch({ type: "DELETE_CANVAS", payload: canvas.id });
 
       // If this was the selected canvas, clear selection
       if (state.selectedCanvasId === canvas.id) {
-        dispatch({ type: 'SET_SELECTED_CANVAS', payload: null });
+        dispatch({ type: "SET_SELECTED_CANVAS", payload: null });
       }
     }
     onClose();
   };
 
   const handleAddToProject = (projectId: string) => {
-    const project = state.projects.find(p => p.id === projectId);
+    const project = state.projects.find((p) => p.id === projectId);
     if (!project) return;
 
     // Update project's canvas list
@@ -136,42 +140,51 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
       ...project,
       canvasIds: [...(project.canvasIds || []), canvas.id],
       fileIds: [...(project.fileIds || []), canvas.id], // Backward compatibility
-      updatedAt: new Date()
+      updatedAt: new Date(),
     };
 
     // Update canvas with project reference
     const updatedCanvas: UnifiedCanvas = {
       ...canvas,
       projectId,
-      updatedAt: new Date()
+      updatedAt: new Date(),
     };
 
     eventBus.emit(InternalEventTypes.PROJECT_UPDATED, updatedProject);
     eventBus.emit(InternalEventTypes.CANVAS_UPDATED, updatedCanvas);
 
-    dispatch({ type: 'UPDATE_PROJECT', payload: updatedProject });
-    dispatch({ type: 'UPDATE_CANVAS', payload: updatedCanvas });
+    dispatch({ type: "UPDATE_PROJECT", payload: updatedProject });
+    dispatch({ type: "UPDATE_CANVAS", payload: updatedCanvas });
 
     onClose();
   };
 
   const handleMoveToProject = (projectId: string) => {
-    const targetProject = state.projects.find(p => p.id === projectId);
+    const targetProject = state.projects.find((p) => p.id === projectId);
     if (!targetProject) return;
 
     // Remove from current project if any
     if (canvas.projectId) {
-      const currentProject = state.projects.find(p => p.id === canvas.projectId);
+      const currentProject = state.projects.find(
+        (p) => p.id === canvas.projectId,
+      );
       if (currentProject) {
         const updatedCurrentProject: UnifiedProject = {
           ...currentProject,
-          canvasIds: (currentProject.canvasIds || []).filter(id => id !== canvas.id),
-          fileIds: (currentProject.fileIds || []).filter(id => id !== canvas.id),
-          updatedAt: new Date()
+          canvasIds: (currentProject.canvasIds || []).filter(
+            (id) => id !== canvas.id,
+          ),
+          fileIds: (currentProject.fileIds || []).filter(
+            (id) => id !== canvas.id,
+          ),
+          updatedAt: new Date(),
         };
 
-        eventBus.emit(InternalEventTypes.PROJECT_UPDATED, updatedCurrentProject);
-        dispatch({ type: 'UPDATE_PROJECT', payload: updatedCurrentProject });
+        eventBus.emit(
+          InternalEventTypes.PROJECT_UPDATED,
+          updatedCurrentProject,
+        );
+        dispatch({ type: "UPDATE_PROJECT", payload: updatedCurrentProject });
       }
     }
 
@@ -180,20 +193,20 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
       ...targetProject,
       canvasIds: [...(targetProject.canvasIds || []), canvas.id],
       fileIds: [...(targetProject.fileIds || []), canvas.id],
-      updatedAt: new Date()
+      updatedAt: new Date(),
     };
 
     const updatedCanvas: UnifiedCanvas = {
       ...canvas,
       projectId,
-      updatedAt: new Date()
+      updatedAt: new Date(),
     };
 
     eventBus.emit(InternalEventTypes.PROJECT_UPDATED, updatedTargetProject);
     eventBus.emit(InternalEventTypes.CANVAS_UPDATED, updatedCanvas);
 
-    dispatch({ type: 'UPDATE_PROJECT', payload: updatedTargetProject });
-    dispatch({ type: 'UPDATE_CANVAS', payload: updatedCanvas });
+    dispatch({ type: "UPDATE_PROJECT", payload: updatedTargetProject });
+    dispatch({ type: "UPDATE_CANVAS", payload: updatedCanvas });
 
     onClose();
   };
@@ -201,27 +214,27 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
   const handleRemoveFromProject = () => {
     if (!canvas.projectId) return;
 
-    const project = state.projects.find(p => p.id === canvas.projectId);
+    const project = state.projects.find((p) => p.id === canvas.projectId);
     if (!project) return;
 
     const updatedProject: UnifiedProject = {
       ...project,
-      canvasIds: (project.canvasIds || []).filter(id => id !== canvas.id),
-      fileIds: (project.fileIds || []).filter(id => id !== canvas.id),
-      updatedAt: new Date()
+      canvasIds: (project.canvasIds || []).filter((id) => id !== canvas.id),
+      fileIds: (project.fileIds || []).filter((id) => id !== canvas.id),
+      updatedAt: new Date(),
     };
 
     const updatedCanvas: UnifiedCanvas = {
       ...canvas,
       projectId: undefined,
-      updatedAt: new Date()
+      updatedAt: new Date(),
     };
 
     eventBus.emit(InternalEventTypes.PROJECT_UPDATED, updatedProject);
     eventBus.emit(InternalEventTypes.CANVAS_UPDATED, updatedCanvas);
 
-    dispatch({ type: 'UPDATE_PROJECT', payload: updatedProject });
-    dispatch({ type: 'UPDATE_CANVAS', payload: updatedCanvas });
+    dispatch({ type: "UPDATE_PROJECT", payload: updatedProject });
+    dispatch({ type: "UPDATE_CANVAS", payload: updatedCanvas });
 
     onClose();
   };
@@ -236,23 +249,23 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
           id: canvas.id,
           createdAt: canvas.createdAt,
           updatedAt: canvas.updatedAt,
-          projectId: canvas.projectId
-        }
+          projectId: canvas.projectId,
+        },
       };
 
       const blob = new Blob([JSON.stringify(exportData, null, 2)], {
-        type: 'application/json'
+        type: "application/json",
       });
 
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
+      const a = document.createElement("a");
       a.href = url;
-      a.download = `${canvas.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.excalidraw`;
+      a.download = `${canvas.name.replace(/[^a-z0-9]/gi, "_").toLowerCase()}.excalidraw`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (error) {
-      console.error('Error downloading canvas:', error);
-      alert('Failed to download canvas. Please try again.');
+      console.error("Error downloading canvas:", error);
+      alert("Failed to download canvas. Please try again.");
     }
     onClose();
   };
@@ -260,64 +273,65 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
   const handleLoadCanvas = () => {
     eventBus.emit(InternalEventTypes.CANVAS_SELECTED, canvas);
     eventBus.emit(InternalEventTypes.LOAD_CANVAS_TO_EXCALIDRAW, canvas);
-    dispatch({ type: 'SET_SELECTED_CANVAS', payload: canvas.id });
+    dispatch({ type: "SET_SELECTED_CANVAS", payload: canvas.id });
     onClose();
   };
 
   // Get available projects for adding/moving
-  const availableProjectsForAdd = state.projects.filter(project =>
-    !(project.canvasIds || []).includes(canvas.id) &&
-    !(project.fileIds || []).includes(canvas.id)
+  const availableProjectsForAdd = state.projects.filter(
+    (project) =>
+      !(project.canvasIds || []).includes(canvas.id) &&
+      !(project.fileIds || []).includes(canvas.id),
   );
 
-  const availableProjectsForMove = state.projects.filter(project =>
-    project.id !== canvas.projectId
+  const availableProjectsForMove = state.projects.filter(
+    (project) => project.id !== canvas.projectId,
   );
 
   const currentProject = canvas.projectId
-    ? state.projects.find(p => p.id === canvas.projectId)
+    ? state.projects.find((p) => p.id === canvas.projectId)
     : null;
 
   const menuStyles: React.CSSProperties = {
-    position: 'fixed',
+    position: "fixed",
     left: position.x,
     top: position.y,
-    background: 'var(--theme-bg-primary, #ffffff)',
-    border: '1px solid var(--theme-border-primary, rgba(0, 0, 0, 0.1))',
-    borderRadius: '8px',
-    boxShadow: 'var(--theme-shadow-lg, 0 8px 32px rgba(0, 0, 0, 0.1))',
-    minWidth: '200px',
-    padding: '8px 0',
+    background: "var(--theme-bg-primary, #ffffff)",
+    border: "1px solid var(--theme-border-primary, rgba(0, 0, 0, 0.1))",
+    borderRadius: "8px",
+    boxShadow: "var(--theme-shadow-lg, 0 8px 32px rgba(0, 0, 0, 0.1))",
+    minWidth: "200px",
+    padding: "8px 0",
     zIndex: 9999999,
-    pointerEvents: 'auto'
+    pointerEvents: "auto",
   };
 
   const menuItemStyles: React.CSSProperties = {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '12px',
-    padding: '10px 16px',
-    background: 'none',
-    border: 'none',
-    width: '100%',
-    textAlign: 'left',
-    fontSize: '14px',
-    color: 'var(--theme-text-primary)',
-    cursor: 'pointer',
-    transition: 'background-color 0.15s ease'
+    display: "flex",
+    alignItems: "center",
+    gap: "12px",
+    padding: "10px 16px",
+    background: "none",
+    border: "none",
+    width: "100%",
+    textAlign: "left",
+    fontSize: "14px",
+    color: "var(--theme-text-primary)",
+    cursor: "pointer",
+    transition: "background-color 0.15s ease",
   };
 
   const submenuStyles: React.CSSProperties = {
-    position: 'absolute',
-    left: '100%',
+    position: "absolute",
+    left: "100%",
     top: 0,
-    background: 'var(--theme-bg-primary, #ffffff)',
-    border: '1px solid var(--theme-border-primary, rgba(0, 0, 0, 0.1))',
-    borderRadius: '8px',
-    boxShadow: 'var(--theme-shadow-lg, 0 8px 32px rgba(0, 0, 0, 0.1))',
-    minWidth: '180px',
-    padding: '8px 0',
-    marginLeft: '4px'
+    background: "var(--theme-bg-primary, #ffffff)",
+    border: "1px solid var(--theme-border-primary, rgba(0, 0, 0, 0.1))",
+    borderRadius: "8px",
+    boxShadow: "var(--theme-shadow-lg, 0 8px 32px rgba(0, 0, 0, 0.1))",
+    minWidth: "180px",
+    padding: "8px 0",
+    marginLeft: "4px",
   };
 
   return createPortal(
@@ -333,77 +347,89 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
         style={menuItemStyles}
         onClick={handleLoadCanvas}
         onMouseEnter={(e) => {
-          e.currentTarget.style.background = 'var(--theme-bg-hover)';
+          e.currentTarget.style.background = "var(--theme-bg-hover)";
         }}
         onMouseLeave={(e) => {
-          e.currentTarget.style.background = 'none';
+          e.currentTarget.style.background = "none";
         }}
       >
         <Edit3 size={16} />
         Open Canvas
       </button>
 
-      <div style={{
-        height: '1px',
-        background: 'var(--theme-border-secondary)',
-        margin: '4px 0'
-      }} />
+      <div
+        style={{
+          height: "1px",
+          background: "var(--theme-border-secondary)",
+          margin: "4px 0",
+        }}
+      />
 
       <button
         style={menuItemStyles}
         onClick={handleRename}
         onMouseEnter={(e) => {
-          e.currentTarget.style.background = 'var(--theme-bg-hover)';
+          e.currentTarget.style.background = "var(--theme-bg-hover)";
         }}
         onMouseLeave={(e) => {
-          e.currentTarget.style.background = 'none';
+          e.currentTarget.style.background = "none";
         }}
       >
         <Edit3 size={16} />
         Rename
-        <span style={{
-          marginLeft: 'auto',
-          fontSize: '12px',
-          color: 'var(--theme-text-secondary)'
-        }}>F2</span>
+        <span
+          style={{
+            marginLeft: "auto",
+            fontSize: "12px",
+            color: "var(--theme-text-secondary)",
+          }}
+        >
+          F2
+        </span>
       </button>
 
       <button
         style={menuItemStyles}
         onClick={handleDuplicate}
         onMouseEnter={(e) => {
-          e.currentTarget.style.background = 'var(--theme-bg-hover)';
+          e.currentTarget.style.background = "var(--theme-bg-hover)";
         }}
         onMouseLeave={(e) => {
-          e.currentTarget.style.background = 'none';
+          e.currentTarget.style.background = "none";
         }}
       >
         <Copy size={16} />
         Duplicate
-        <span style={{
-          marginLeft: 'auto',
-          fontSize: '12px',
-          color: 'var(--theme-text-secondary)'
-        }}>⌘D</span>
+        <span
+          style={{
+            marginLeft: "auto",
+            fontSize: "12px",
+            color: "var(--theme-text-secondary)",
+          }}
+        >
+          ⌘D
+        </span>
       </button>
 
-      <div style={{
-        height: '1px',
-        background: 'var(--theme-border-secondary)',
-        margin: '4px 0'
-      }} />
+      <div
+        style={{
+          height: "1px",
+          background: "var(--theme-border-secondary)",
+          margin: "4px 0",
+        }}
+      />
 
       {/* Add to Project submenu */}
       {availableProjectsForAdd.length > 0 && (
         <div
-          style={{ position: 'relative' }}
+          style={{ position: "relative" }}
           onMouseEnter={() => setShowAddToProject(true)}
           onMouseLeave={() => setShowAddToProject(false)}
         >
           <button style={menuItemStyles}>
             <FolderPlus size={16} />
             Add to Project
-            <ChevronRight size={14} style={{ marginLeft: 'auto' }} />
+            <ChevronRight size={14} style={{ marginLeft: "auto" }} />
           </button>
 
           <AnimatePresence>
@@ -415,33 +441,38 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
                 exit={{ opacity: 0, x: -10 }}
                 transition={{ duration: 0.15 }}
               >
-                {availableProjectsForAdd.map(project => (
+                {availableProjectsForAdd.map((project) => (
                   <button
                     key={project.id}
                     style={{
                       ...menuItemStyles,
-                      padding: '8px 12px'
+                      padding: "8px 12px",
                     }}
                     onClick={() => handleAddToProject(project.id)}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.background = 'var(--theme-bg-hover)';
+                      e.currentTarget.style.background =
+                        "var(--theme-bg-hover)";
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.background = 'none';
+                      e.currentTarget.style.background = "none";
                     }}
                   >
-                    <div style={{
-                      width: '12px',
-                      height: '12px',
-                      borderRadius: '3px',
-                      backgroundColor: project.color,
-                      flexShrink: 0
-                    }} />
-                    <span style={{
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap'
-                    }}>
+                    <div
+                      style={{
+                        width: "12px",
+                        height: "12px",
+                        borderRadius: "3px",
+                        backgroundColor: project.color,
+                        flexShrink: 0,
+                      }}
+                    />
+                    <span
+                      style={{
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
                       {project.name}
                     </span>
                   </button>
@@ -455,14 +486,14 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
       {/* Move to Project submenu */}
       {availableProjectsForMove.length > 0 && (
         <div
-          style={{ position: 'relative' }}
+          style={{ position: "relative" }}
           onMouseEnter={() => setShowMoveToProject(true)}
           onMouseLeave={() => setShowMoveToProject(false)}
         >
           <button style={menuItemStyles}>
             <Move size={16} />
             Move to Project
-            <ChevronRight size={14} style={{ marginLeft: 'auto' }} />
+            <ChevronRight size={14} style={{ marginLeft: "auto" }} />
           </button>
 
           <AnimatePresence>
@@ -474,33 +505,38 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
                 exit={{ opacity: 0, x: -10 }}
                 transition={{ duration: 0.15 }}
               >
-                {availableProjectsForMove.map(project => (
+                {availableProjectsForMove.map((project) => (
                   <button
                     key={project.id}
                     style={{
                       ...menuItemStyles,
-                      padding: '8px 12px'
+                      padding: "8px 12px",
                     }}
                     onClick={() => handleMoveToProject(project.id)}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.background = 'var(--theme-bg-hover)';
+                      e.currentTarget.style.background =
+                        "var(--theme-bg-hover)";
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.background = 'none';
+                      e.currentTarget.style.background = "none";
                     }}
                   >
-                    <div style={{
-                      width: '12px',
-                      height: '12px',
-                      borderRadius: '3px',
-                      backgroundColor: project.color,
-                      flexShrink: 0
-                    }} />
-                    <span style={{
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap'
-                    }}>
+                    <div
+                      style={{
+                        width: "12px",
+                        height: "12px",
+                        borderRadius: "3px",
+                        backgroundColor: project.color,
+                        flexShrink: 0,
+                      }}
+                    />
+                    <span
+                      style={{
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
                       {project.name}
                     </span>
                   </button>
@@ -517,70 +553,83 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
           style={menuItemStyles}
           onClick={handleRemoveFromProject}
           onMouseEnter={(e) => {
-            e.currentTarget.style.background = 'var(--theme-bg-hover)';
+            e.currentTarget.style.background = "var(--theme-bg-hover)";
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'none';
+            e.currentTarget.style.background = "none";
           }}
         >
-          <FolderPlus size={16} style={{ transform: 'rotate(45deg)' }} />
+          <FolderPlus size={16} style={{ transform: "rotate(45deg)" }} />
           Remove from "{currentProject.name}"
         </button>
       )}
 
-      <div style={{
-        height: '1px',
-        background: 'var(--theme-border-secondary)',
-        margin: '4px 0'
-      }} />
+      <div
+        style={{
+          height: "1px",
+          background: "var(--theme-border-secondary)",
+          margin: "4px 0",
+        }}
+      />
 
       <button
         style={menuItemStyles}
         onClick={handleDownload}
         onMouseEnter={(e) => {
-          e.currentTarget.style.background = 'var(--theme-bg-hover)';
+          e.currentTarget.style.background = "var(--theme-bg-hover)";
         }}
         onMouseLeave={(e) => {
-          e.currentTarget.style.background = 'none';
+          e.currentTarget.style.background = "none";
         }}
       >
         <Download size={16} />
         Download
-        <span style={{
-          marginLeft: 'auto',
-          fontSize: '12px',
-          color: 'var(--theme-text-secondary)'
-        }}>⌘S</span>
+        <span
+          style={{
+            marginLeft: "auto",
+            fontSize: "12px",
+            color: "var(--theme-text-secondary)",
+          }}
+        >
+          ⌘S
+        </span>
       </button>
 
-      <div style={{
-        height: '1px',
-        background: 'var(--theme-border-secondary)',
-        margin: '4px 0'
-      }} />
+      <div
+        style={{
+          height: "1px",
+          background: "var(--theme-border-secondary)",
+          margin: "4px 0",
+        }}
+      />
 
       <button
         style={{
           ...menuItemStyles,
-          color: 'var(--theme-error)'
+          color: "var(--theme-error)",
         }}
         onClick={handleDelete}
         onMouseEnter={(e) => {
-          e.currentTarget.style.background = 'var(--theme-error-bg, rgba(239, 68, 68, 0.1))';
+          e.currentTarget.style.background =
+            "var(--theme-error-bg, rgba(239, 68, 68, 0.1))";
         }}
         onMouseLeave={(e) => {
-          e.currentTarget.style.background = 'none';
+          e.currentTarget.style.background = "none";
         }}
       >
         <Trash2 size={16} />
         Delete
-        <span style={{
-          marginLeft: 'auto',
-          fontSize: '12px',
-          opacity: 0.7
-        }}>Del</span>
+        <span
+          style={{
+            marginLeft: "auto",
+            fontSize: "12px",
+            opacity: 0.7,
+          }}
+        >
+          Del
+        </span>
       </button>
     </motion.div>,
-    document.body
+    document.body,
   );
 }

@@ -73,7 +73,7 @@ export interface UnifiedProject {
 }
 
 export interface SearchResult {
-  type: 'canvas' | 'project';
+  type: "canvas" | "project";
   item: UnifiedCanvas | UnifiedProject;
   matches: string[];
 }

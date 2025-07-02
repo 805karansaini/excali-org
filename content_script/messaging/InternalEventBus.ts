@@ -3,53 +3,53 @@
  * Replaces Chrome messaging API with direct internal communication
  */
 
-import { UnifiedCanvas, UnifiedProject } from '../../shared/types';
-import { ExcalidrawElement, AppState } from '../../shared/excalidraw-types';
+import { UnifiedCanvas, UnifiedProject } from "../../shared/types";
+import { ExcalidrawElement, AppState } from "../../shared/excalidraw-types";
 
 // Event types for internal communication
 export enum InternalEventTypes {
   // Canvas operations
-  CANVAS_CREATED = 'CANVAS_CREATED',
-  CANVAS_UPDATED = 'CANVAS_UPDATED',
-  CANVAS_DELETED = 'CANVAS_DELETED',
-  CANVAS_SELECTED = 'CANVAS_SELECTED',
-  CANVAS_LOADED = 'CANVAS_LOADED',
-  
+  CANVAS_CREATED = "CANVAS_CREATED",
+  CANVAS_UPDATED = "CANVAS_UPDATED",
+  CANVAS_DELETED = "CANVAS_DELETED",
+  CANVAS_SELECTED = "CANVAS_SELECTED",
+  CANVAS_LOADED = "CANVAS_LOADED",
+
   // Project operations
-  PROJECT_CREATED = 'PROJECT_CREATED',
-  PROJECT_UPDATED = 'PROJECT_UPDATED',
-  PROJECT_DELETED = 'PROJECT_DELETED',
-  PROJECT_SELECTED = 'PROJECT_SELECTED',
-  
+  PROJECT_CREATED = "PROJECT_CREATED",
+  PROJECT_UPDATED = "PROJECT_UPDATED",
+  PROJECT_DELETED = "PROJECT_DELETED",
+  PROJECT_SELECTED = "PROJECT_SELECTED",
+
   // Excalidraw integration
-  LOAD_CANVAS_TO_EXCALIDRAW = 'LOAD_CANVAS_TO_EXCALIDRAW',
-  SAVE_EXCALIDRAW_DATA = 'SAVE_EXCALIDRAW_DATA',
-  UPDATE_FILE_NAME_DISPLAY = 'UPDATE_FILE_NAME_DISPLAY',
-  SYNC_EXCALIDRAW_DATA = 'SYNC_EXCALIDRAW_DATA',
-  
+  LOAD_CANVAS_TO_EXCALIDRAW = "LOAD_CANVAS_TO_EXCALIDRAW",
+  SAVE_EXCALIDRAW_DATA = "SAVE_EXCALIDRAW_DATA",
+  UPDATE_FILE_NAME_DISPLAY = "UPDATE_FILE_NAME_DISPLAY",
+  SYNC_EXCALIDRAW_DATA = "SYNC_EXCALIDRAW_DATA",
+
   // Panel operations
-  PANEL_VISIBILITY_CHANGED = 'PANEL_VISIBILITY_CHANGED',
-  PANEL_PINNED_CHANGED = 'PANEL_PINNED_CHANGED',
-  PANEL_WIDTH_CHANGED = 'PANEL_WIDTH_CHANGED',
-  
+  PANEL_VISIBILITY_CHANGED = "PANEL_VISIBILITY_CHANGED",
+  PANEL_PINNED_CHANGED = "PANEL_PINNED_CHANGED",
+  PANEL_WIDTH_CHANGED = "PANEL_WIDTH_CHANGED",
+
   // UI operations
-  SHOW_SEARCH_MODAL = 'SHOW_SEARCH_MODAL',
-  HIDE_SEARCH_MODAL = 'HIDE_SEARCH_MODAL',
-  SHOW_PROJECT_MODAL = 'SHOW_PROJECT_MODAL',
-  HIDE_PROJECT_MODAL = 'HIDE_PROJECT_MODAL',
-  SHOW_CONTEXT_MENU = 'SHOW_CONTEXT_MENU',
-  HIDE_CONTEXT_MENU = 'HIDE_CONTEXT_MENU',
-  
+  SHOW_SEARCH_MODAL = "SHOW_SEARCH_MODAL",
+  HIDE_SEARCH_MODAL = "HIDE_SEARCH_MODAL",
+  SHOW_PROJECT_MODAL = "SHOW_PROJECT_MODAL",
+  HIDE_PROJECT_MODAL = "HIDE_PROJECT_MODAL",
+  SHOW_CONTEXT_MENU = "SHOW_CONTEXT_MENU",
+  HIDE_CONTEXT_MENU = "HIDE_CONTEXT_MENU",
+
   // Keyboard shortcuts and actions
-  ESCAPE_PRESSED = 'ESCAPE_PRESSED',
-  SELECT_ALL_REQUEST = 'SELECT_ALL_REQUEST',
-  SHOW_HELP_OVERLAY = 'SHOW_HELP_OVERLAY',
-  REFRESH_DATA = 'REFRESH_DATA',
-  
+  ESCAPE_PRESSED = "ESCAPE_PRESSED",
+  SELECT_ALL_REQUEST = "SELECT_ALL_REQUEST",
+  SHOW_HELP_OVERLAY = "SHOW_HELP_OVERLAY",
+  REFRESH_DATA = "REFRESH_DATA",
+
   // System operations
-  ERROR_OCCURRED = 'ERROR_OCCURRED',
-  LOADING_STATE_CHANGED = 'LOADING_STATE_CHANGED',
-  THEME_CHANGED = 'THEME_CHANGED',
+  ERROR_OCCURRED = "ERROR_OCCURRED",
+  LOADING_STATE_CHANGED = "LOADING_STATE_CHANGED",
+  THEME_CHANGED = "THEME_CHANGED",
 }
 
 // Event payload types
@@ -59,40 +59,53 @@ export interface EventPayloads {
   [InternalEventTypes.CANVAS_DELETED]: UnifiedCanvas;
   [InternalEventTypes.CANVAS_SELECTED]: UnifiedCanvas;
   [InternalEventTypes.CANVAS_LOADED]: UnifiedCanvas;
-  
+
   [InternalEventTypes.PROJECT_CREATED]: UnifiedProject;
   [InternalEventTypes.PROJECT_UPDATED]: UnifiedProject;
   [InternalEventTypes.PROJECT_DELETED]: UnifiedProject;
   [InternalEventTypes.PROJECT_SELECTED]: UnifiedProject;
-  
+
   [InternalEventTypes.LOAD_CANVAS_TO_EXCALIDRAW]: UnifiedCanvas;
-  [InternalEventTypes.SAVE_EXCALIDRAW_DATA]: { canvasId: string; elements: readonly ExcalidrawElement[]; appState: AppState };
+  [InternalEventTypes.SAVE_EXCALIDRAW_DATA]: {
+    canvasId: string;
+    elements: readonly ExcalidrawElement[];
+    appState: AppState;
+  };
   [InternalEventTypes.UPDATE_FILE_NAME_DISPLAY]: { fileName: string };
-  [InternalEventTypes.SYNC_EXCALIDRAW_DATA]: { elements: readonly ExcalidrawElement[]; appState: AppState };
-  
+  [InternalEventTypes.SYNC_EXCALIDRAW_DATA]: {
+    elements: readonly ExcalidrawElement[];
+    appState: AppState;
+  };
+
   [InternalEventTypes.PANEL_VISIBILITY_CHANGED]: { isVisible: boolean };
   [InternalEventTypes.PANEL_PINNED_CHANGED]: { isPinned: boolean };
   [InternalEventTypes.PANEL_WIDTH_CHANGED]: { width: number };
-  
+
   [InternalEventTypes.SHOW_SEARCH_MODAL]: null;
   [InternalEventTypes.HIDE_SEARCH_MODAL]: null;
   [InternalEventTypes.SHOW_PROJECT_MODAL]: null;
   [InternalEventTypes.HIDE_PROJECT_MODAL]: null;
-  [InternalEventTypes.SHOW_CONTEXT_MENU]: { x: number; y: number; canvas: UnifiedCanvas };
+  [InternalEventTypes.SHOW_CONTEXT_MENU]: {
+    x: number;
+    y: number;
+    canvas: UnifiedCanvas;
+  };
   [InternalEventTypes.HIDE_CONTEXT_MENU]: null;
-  
+
   [InternalEventTypes.ESCAPE_PRESSED]: null;
   [InternalEventTypes.SELECT_ALL_REQUEST]: null;
   [InternalEventTypes.SHOW_HELP_OVERLAY]: null;
   [InternalEventTypes.REFRESH_DATA]: null;
-  
+
   [InternalEventTypes.ERROR_OCCURRED]: { error: string; details?: unknown };
   [InternalEventTypes.LOADING_STATE_CHANGED]: { isLoading: boolean };
-  [InternalEventTypes.THEME_CHANGED]: 'light' | 'dark';
+  [InternalEventTypes.THEME_CHANGED]: "light" | "dark";
 }
 
 // Event handler type
-type EventHandler<T extends InternalEventTypes> = (payload: EventPayloads[T]) => void | Promise<void>;
+type EventHandler<T extends InternalEventTypes> = (
+  payload: EventPayloads[T],
+) => void | Promise<void>;
 
 /**
  * Internal Event Bus for content script communication
@@ -112,7 +125,7 @@ export class InternalEventBus {
    */
   on<T extends InternalEventTypes>(
     eventType: T,
-    handler: EventHandler<T>
+    handler: EventHandler<T>,
   ): () => void {
     const handlers = this.listeners.get(eventType) || new Set();
     handlers.add(handler);
@@ -131,7 +144,7 @@ export class InternalEventBus {
    */
   once<T extends InternalEventTypes>(
     eventType: T,
-    handler: EventHandler<T>
+    handler: EventHandler<T>,
   ): () => void {
     const handlers = this.onceListeners.get(eventType) || new Set();
     handlers.add(handler);
@@ -155,7 +168,7 @@ export class InternalEventBus {
    */
   off<T extends InternalEventTypes>(
     eventType: T,
-    handler: EventHandler<T>
+    handler: EventHandler<T>,
   ): void {
     const handlers = this.listeners.get(eventType);
     if (handlers) {
@@ -183,7 +196,7 @@ export class InternalEventBus {
    */
   async emit<T extends InternalEventTypes>(
     eventType: T,
-    payload: EventPayloads[T]
+    payload: EventPayloads[T],
   ): Promise<void> {
     if (this.debugMode) {
       console.log(`[EventBus] Emitting ${eventType}`, payload);
@@ -193,7 +206,7 @@ export class InternalEventBus {
     const handlers = this.listeners.get(eventType);
     if (handlers) {
       const promises: Promise<void>[] = [];
-      handlers.forEach(handler => {
+      handlers.forEach((handler) => {
         try {
           const result = handler(payload);
           if (result instanceof Promise) {
@@ -203,7 +216,7 @@ export class InternalEventBus {
           console.error(`[EventBus] Error in ${eventType} handler:`, error);
         }
       });
-      
+
       if (promises.length > 0) {
         await Promise.allSettled(promises);
       }
@@ -214,21 +227,24 @@ export class InternalEventBus {
     if (onceHandlers) {
       const promises: Promise<void>[] = [];
       const handlersToRemove = Array.from(onceHandlers);
-      
-      handlersToRemove.forEach(handler => {
+
+      handlersToRemove.forEach((handler) => {
         try {
           const result = handler(payload);
           if (result instanceof Promise) {
             promises.push(result);
           }
         } catch (error) {
-          console.error(`[EventBus] Error in ${eventType} once handler:`, error);
+          console.error(
+            `[EventBus] Error in ${eventType} once handler:`,
+            error,
+          );
         }
       });
 
       // Remove once handlers
       this.onceListeners.delete(eventType);
-      
+
       if (promises.length > 0) {
         await Promise.allSettled(promises);
       }
@@ -249,7 +265,7 @@ export class InternalEventBus {
       this.listeners.clear();
       this.onceListeners.clear();
       if (this.debugMode) {
-        console.log('[EventBus] Removed all listeners');
+        console.log("[EventBus] Removed all listeners");
       }
     }
   }
@@ -268,15 +284,15 @@ export class InternalEventBus {
    */
   eventNames(): InternalEventTypes[] {
     const allTypes = new Set<InternalEventTypes>();
-    
+
     this.listeners.forEach((_, eventType) => {
       allTypes.add(eventType as InternalEventTypes);
     });
-    
+
     this.onceListeners.forEach((_, eventType) => {
       allTypes.add(eventType as InternalEventTypes);
     });
-    
+
     return Array.from(allTypes);
   }
 
@@ -301,12 +317,12 @@ export class InternalEventBus {
 export class NamespacedEventBus {
   constructor(
     private parentBus: InternalEventBus,
-    private namespace: string
+    private namespace: string,
   ) {}
 
   on<T extends InternalEventTypes>(
     eventType: T,
-    handler: EventHandler<T>
+    handler: EventHandler<T>,
   ): () => void {
     const namespacedType = `${this.namespace}:${eventType}` as T;
     return this.parentBus.on(namespacedType, handler);
@@ -314,7 +330,7 @@ export class NamespacedEventBus {
 
   once<T extends InternalEventTypes>(
     eventType: T,
-    handler: EventHandler<T>
+    handler: EventHandler<T>,
   ): () => void {
     const namespacedType = `${this.namespace}:${eventType}` as T;
     return this.parentBus.once(namespacedType, handler);
@@ -322,7 +338,7 @@ export class NamespacedEventBus {
 
   off<T extends InternalEventTypes>(
     eventType: T,
-    handler: EventHandler<T>
+    handler: EventHandler<T>,
   ): void {
     const namespacedType = `${this.namespace}:${eventType}` as T;
     this.parentBus.off(namespacedType, handler);
@@ -330,7 +346,7 @@ export class NamespacedEventBus {
 
   async emit<T extends InternalEventTypes>(
     eventType: T,
-    payload: EventPayloads[T]
+    payload: EventPayloads[T],
   ): Promise<void> {
     const namespacedType = `${this.namespace}:${eventType}` as T;
     return this.parentBus.emit(namespacedType, payload);
@@ -340,7 +356,7 @@ export class NamespacedEventBus {
 // Singleton instance for global use
 export const eventBus = new InternalEventBus(
   // Enable debug mode in development
-  typeof window !== 'undefined' && window.location.hostname === 'localhost'
+  typeof window !== "undefined" && window.location.hostname === "localhost",
 );
 
 // Export convenience functions

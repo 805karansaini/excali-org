@@ -2,8 +2,8 @@
 // Clean, unified database implementation using Dexie for the new architecture
 // No migration logic needed - fresh start approach
 
-import Dexie, { Table } from 'dexie';
-import { UnifiedCanvas, UnifiedProject } from './types';
+import Dexie, { Table } from "dexie";
+import { UnifiedCanvas, UnifiedProject } from "./types";
 
 // Settings interface for app preferences
 export interface AppSettings {
@@ -19,17 +19,17 @@ export class UnifiedDexie extends Dexie {
   settings!: Table<AppSettings>;
 
   constructor() {
-    super('ExcaliOrgUnifiedDB');
+    super("ExcaliOrgUnifiedDB");
 
     this.version(1).stores({
       // Canvases table with indexes for performance
-      canvases: 'id, name, projectId, createdAt, updatedAt, lastModified',
+      canvases: "id, name, projectId, createdAt, updatedAt, lastModified",
 
       // Projects table with indexes
-      projects: 'id, name, createdAt, updatedAt, color',
+      projects: "id, name, createdAt, updatedAt, color",
 
       // Settings table for app preferences
-      settings: 'key, updatedAt'
+      settings: "key, updatedAt",
     });
   }
 }
@@ -44,13 +44,10 @@ export const canvasOperations = {
    */
   async getAllCanvases(): Promise<UnifiedCanvas[]> {
     try {
-      return await unifiedDb.canvases
-        .orderBy('updatedAt')
-        .reverse()
-        .toArray();
+      return await unifiedDb.canvases.orderBy("updatedAt").reverse().toArray();
     } catch (error) {
-      console.error('Failed to get all canvases:', error);
-      throw new Error('Database error: Could not retrieve canvases');
+      console.error("Failed to get all canvases:", error);
+      throw new Error("Database error: Could not retrieve canvases");
     }
   },
 
@@ -73,7 +70,7 @@ export const canvasOperations = {
     try {
       // Validate canvas data
       if (!canvas.id || !canvas.name) {
-        throw new Error('Canvas must have id and name');
+        throw new Error("Canvas must have id and name");
       }
 
       // Ensure timestamps
@@ -84,8 +81,8 @@ export const canvasOperations = {
 
       await unifiedDb.canvases.add(canvas);
     } catch (error) {
-      console.error('Failed to add canvas:', error);
-      throw new Error('Database error: Could not add canvas');
+      console.error("Failed to add canvas:", error);
+      throw new Error("Database error: Could not add canvas");
     }
   },
 
@@ -100,8 +97,8 @@ export const canvasOperations = {
 
       await unifiedDb.canvases.put(canvas);
     } catch (error) {
-      console.error('Failed to update canvas:', error);
-      throw new Error('Database error: Could not update canvas');
+      console.error("Failed to update canvas:", error);
+      throw new Error("Database error: Could not update canvas");
     }
   },
 
@@ -116,16 +113,18 @@ export const canvasOperations = {
       const projects = await unifiedDb.projects.toArray();
       for (const project of projects) {
         if (project.canvasIds.includes(id)) {
-          project.canvasIds = project.canvasIds.filter(canvasId => canvasId !== id);
+          project.canvasIds = project.canvasIds.filter(
+            (canvasId) => canvasId !== id,
+          );
           if (project.fileIds) {
-            project.fileIds = project.fileIds.filter(fileId => fileId !== id);
+            project.fileIds = project.fileIds.filter((fileId) => fileId !== id);
           }
           await unifiedDb.projects.put(project);
         }
       }
     } catch (error) {
-      console.error('Failed to delete canvas:', error);
-      throw new Error('Database error: Could not delete canvas');
+      console.error("Failed to delete canvas:", error);
+      throw new Error("Database error: Could not delete canvas");
     }
   },
 
@@ -135,12 +134,12 @@ export const canvasOperations = {
   async getCanvasesForProject(projectId: string): Promise<UnifiedCanvas[]> {
     try {
       return await unifiedDb.canvases
-        .where('projectId')
+        .where("projectId")
         .equals(projectId)
-        .sortBy('updatedAt');
+        .sortBy("updatedAt");
     } catch (error) {
       console.error(`Failed to get canvases for project ${projectId}:`, error);
-      throw new Error('Database error: Could not retrieve project canvases');
+      throw new Error("Database error: Could not retrieve project canvases");
     }
   },
 
@@ -150,14 +149,16 @@ export const canvasOperations = {
   async getUnorganizedCanvases(): Promise<UnifiedCanvas[]> {
     try {
       return await unifiedDb.canvases
-        .where('projectId')
-        .equals('')
-        .or('projectId')
-        .below('')
-        .sortBy('updatedAt');
+        .where("projectId")
+        .equals("")
+        .or("projectId")
+        .below("")
+        .sortBy("updatedAt");
     } catch (error) {
-      console.error('Failed to get unorganized canvases:', error);
-      throw new Error('Database error: Could not retrieve unorganized canvases');
+      console.error("Failed to get unorganized canvases:", error);
+      throw new Error(
+        "Database error: Could not retrieve unorganized canvases",
+      );
     }
   },
 
@@ -172,9 +173,13 @@ export const canvasOperations = {
       const projects = await unifiedDb.projects.toArray();
       for (const project of projects) {
         const originalLength = project.canvasIds.length;
-        project.canvasIds = project.canvasIds.filter(id => !canvasIds.includes(id));
+        project.canvasIds = project.canvasIds.filter(
+          (id) => !canvasIds.includes(id),
+        );
         if (project.fileIds) {
-          project.fileIds = project.fileIds.filter(id => !canvasIds.includes(id));
+          project.fileIds = project.fileIds.filter(
+            (id) => !canvasIds.includes(id),
+          );
         }
 
         // Only update if changes were made
@@ -183,10 +188,10 @@ export const canvasOperations = {
         }
       }
     } catch (error) {
-      console.error('Failed to bulk delete canvases:', error);
-      throw new Error('Database error: Could not delete canvases');
+      console.error("Failed to bulk delete canvases:", error);
+      throw new Error("Database error: Could not delete canvases");
     }
-  }
+  },
 };
 
 // Core Project Operations
@@ -196,12 +201,10 @@ export const projectOperations = {
    */
   async getAllProjects(): Promise<UnifiedProject[]> {
     try {
-      return await unifiedDb.projects
-        .orderBy('createdAt')
-        .toArray();
+      return await unifiedDb.projects.orderBy("createdAt").toArray();
     } catch (error) {
-      console.error('Failed to get all projects:', error);
-      throw new Error('Database error: Could not retrieve projects');
+      console.error("Failed to get all projects:", error);
+      throw new Error("Database error: Could not retrieve projects");
     }
   },
 
@@ -224,7 +227,7 @@ export const projectOperations = {
     try {
       // Validate project data
       if (!project.id || !project.name || !project.color) {
-        throw new Error('Project must have id, name, and color');
+        throw new Error("Project must have id, name, and color");
       }
 
       // Ensure timestamps and arrays
@@ -235,8 +238,8 @@ export const projectOperations = {
 
       await unifiedDb.projects.add(project);
     } catch (error) {
-      console.error('Failed to add project:', error);
-      throw new Error('Database error: Could not add project');
+      console.error("Failed to add project:", error);
+      throw new Error("Database error: Could not add project");
     }
   },
 
@@ -250,8 +253,8 @@ export const projectOperations = {
 
       await unifiedDb.projects.put(project);
     } catch (error) {
-      console.error('Failed to update project:', error);
-      throw new Error('Database error: Could not update project');
+      console.error("Failed to update project:", error);
+      throw new Error("Database error: Could not update project");
     }
   },
 
@@ -268,7 +271,7 @@ export const projectOperations = {
       // Remove project association from canvases
       if (project && project.canvasIds.length > 0) {
         const canvases = await unifiedDb.canvases
-          .where('id')
+          .where("id")
           .anyOf(project.canvasIds)
           .toArray();
 
@@ -278,8 +281,8 @@ export const projectOperations = {
         }
       }
     } catch (error) {
-      console.error('Failed to delete project:', error);
-      throw new Error('Database error: Could not delete project');
+      console.error("Failed to delete project:", error);
+      throw new Error("Database error: Could not delete project");
     }
   },
 
@@ -311,15 +314,18 @@ export const projectOperations = {
         await unifiedDb.projects.put(project);
       }
     } catch (error) {
-      console.error('Failed to add canvas to project:', error);
-      throw new Error('Database error: Could not add canvas to project');
+      console.error("Failed to add canvas to project:", error);
+      throw new Error("Database error: Could not add canvas to project");
     }
   },
 
   /**
    * Remove canvas from project
    */
-  async removeCanvasFromProject(canvasId: string, projectId: string): Promise<void> {
+  async removeCanvasFromProject(
+    canvasId: string,
+    projectId: string,
+  ): Promise<void> {
     try {
       // Update canvas
       const canvas = await unifiedDb.canvases.get(canvasId);
@@ -331,17 +337,17 @@ export const projectOperations = {
       // Update project
       const project = await unifiedDb.projects.get(projectId);
       if (project) {
-        project.canvasIds = project.canvasIds.filter(id => id !== canvasId);
+        project.canvasIds = project.canvasIds.filter((id) => id !== canvasId);
         if (project.fileIds) {
-          project.fileIds = project.fileIds.filter(id => id !== canvasId);
+          project.fileIds = project.fileIds.filter((id) => id !== canvasId);
         }
         await unifiedDb.projects.put(project);
       }
     } catch (error) {
-      console.error('Failed to remove canvas from project:', error);
-      throw new Error('Database error: Could not remove canvas from project');
+      console.error("Failed to remove canvas from project:", error);
+      throw new Error("Database error: Could not remove canvas from project");
     }
-  }
+  },
 };
 
 // Settings Management
@@ -352,7 +358,7 @@ export const settingsOperations = {
   async getSetting<T>(key: string, defaultValue?: T): Promise<T | undefined> {
     try {
       const setting = await unifiedDb.settings.get(key);
-      return setting ? setting.value as T : defaultValue;
+      return setting ? (setting.value as T) : defaultValue;
     } catch (error) {
       console.error(`Failed to get setting ${key}:`, error);
       return defaultValue;
@@ -367,13 +373,13 @@ export const settingsOperations = {
       const setting: AppSettings = {
         key,
         value,
-        updatedAt: new Date()
+        updatedAt: new Date(),
       };
 
       await unifiedDb.settings.put(setting);
     } catch (error) {
       console.error(`Failed to set setting ${key}:`, error);
-      throw new Error('Database error: Could not save setting');
+      throw new Error("Database error: Could not save setting");
     }
   },
 
@@ -391,7 +397,7 @@ export const settingsOperations = {
 
       return result;
     } catch (error) {
-      console.error('Failed to get all settings:', error);
+      console.error("Failed to get all settings:", error);
       return {};
     }
   },
@@ -404,9 +410,9 @@ export const settingsOperations = {
       await unifiedDb.settings.delete(key);
     } catch (error) {
       console.error(`Failed to delete setting ${key}:`, error);
-      throw new Error('Database error: Could not delete setting');
+      throw new Error("Database error: Could not delete setting");
     }
-  }
+  },
 };
 
 // Bulk Operations for Performance
@@ -417,7 +423,7 @@ export const bulkOperations = {
   async bulkAddCanvases(canvases: UnifiedCanvas[]): Promise<void> {
     try {
       const now = new Date();
-      const processedCanvases = canvases.map(canvas => {
+      const processedCanvases = canvases.map((canvas) => {
         if (!canvas.createdAt) canvas.createdAt = now;
         if (!canvas.updatedAt) canvas.updatedAt = now;
         if (!canvas.lastModified) canvas.lastModified = now.toISOString();
@@ -426,8 +432,8 @@ export const bulkOperations = {
 
       await unifiedDb.canvases.bulkAdd(processedCanvases);
     } catch (error) {
-      console.error('Failed to bulk add canvases:', error);
-      throw new Error('Database error: Could not bulk add canvases');
+      console.error("Failed to bulk add canvases:", error);
+      throw new Error("Database error: Could not bulk add canvases");
     }
   },
 
@@ -437,7 +443,7 @@ export const bulkOperations = {
   async bulkAddProjects(projects: UnifiedProject[]): Promise<void> {
     try {
       const now = new Date();
-      const processedProjects = projects.map(project => {
+      const processedProjects = projects.map((project) => {
         if (!project.createdAt) project.createdAt = now;
         if (!project.updatedAt) project.updatedAt = now;
         if (!project.canvasIds) project.canvasIds = [];
@@ -446,10 +452,10 @@ export const bulkOperations = {
 
       await unifiedDb.projects.bulkAdd(processedProjects);
     } catch (error) {
-      console.error('Failed to bulk add projects:', error);
-      throw new Error('Database error: Could not bulk add projects');
+      console.error("Failed to bulk add projects:", error);
+      throw new Error("Database error: Could not bulk add projects");
     }
-  }
+  },
 };
 
 // Backup and Restore Functionality
@@ -457,48 +463,62 @@ export const backupOperations = {
   /**
    * Export all data for backup
    */
-  async exportAllData(): Promise<{canvases: UnifiedCanvas[], projects: UnifiedProject[], settings: AppSettings[]}> {
+  async exportAllData(): Promise<{
+    canvases: UnifiedCanvas[];
+    projects: UnifiedProject[];
+    settings: AppSettings[];
+  }> {
     try {
       const [canvases, projects, settings] = await Promise.all([
         unifiedDb.canvases.toArray(),
         unifiedDb.projects.toArray(),
-        unifiedDb.settings.toArray()
+        unifiedDb.settings.toArray(),
       ]);
 
       return { canvases, projects, settings };
     } catch (error) {
-      console.error('Failed to export data:', error);
-      throw new Error('Database error: Could not export data');
+      console.error("Failed to export data:", error);
+      throw new Error("Database error: Could not export data");
     }
   },
 
   /**
    * Import data from backup (clears existing data)
    */
-  async importAllData(data: {canvases: UnifiedCanvas[], projects: UnifiedProject[], settings?: AppSettings[]}): Promise<void> {
+  async importAllData(data: {
+    canvases: UnifiedCanvas[];
+    projects: UnifiedProject[];
+    settings?: AppSettings[];
+  }): Promise<void> {
     try {
-      await unifiedDb.transaction('rw', unifiedDb.canvases, unifiedDb.projects, unifiedDb.settings, async () => {
-        // Clear existing data
-        await unifiedDb.canvases.clear();
-        await unifiedDb.projects.clear();
-        await unifiedDb.settings.clear();
+      await unifiedDb.transaction(
+        "rw",
+        unifiedDb.canvases,
+        unifiedDb.projects,
+        unifiedDb.settings,
+        async () => {
+          // Clear existing data
+          await unifiedDb.canvases.clear();
+          await unifiedDb.projects.clear();
+          await unifiedDb.settings.clear();
 
-        // Import new data
-        if (data.canvases.length > 0) {
-          await unifiedDb.canvases.bulkAdd(data.canvases);
-        }
-        if (data.projects.length > 0) {
-          await unifiedDb.projects.bulkAdd(data.projects);
-        }
-        if (data.settings && data.settings.length > 0) {
-          await unifiedDb.settings.bulkAdd(data.settings);
-        }
-      });
+          // Import new data
+          if (data.canvases.length > 0) {
+            await unifiedDb.canvases.bulkAdd(data.canvases);
+          }
+          if (data.projects.length > 0) {
+            await unifiedDb.projects.bulkAdd(data.projects);
+          }
+          if (data.settings && data.settings.length > 0) {
+            await unifiedDb.settings.bulkAdd(data.settings);
+          }
+        },
+      );
     } catch (error) {
-      console.error('Failed to import data:', error);
-      throw new Error('Database error: Could not import data');
+      console.error("Failed to import data:", error);
+      throw new Error("Database error: Could not import data");
     }
-  }
+  },
 };
 
 // Database Utility Functions
@@ -506,17 +526,21 @@ export const dbUtils = {
   /**
    * Get database statistics
    */
-  async getStats(): Promise<{canvasCount: number, projectCount: number, settingsCount: number}> {
+  async getStats(): Promise<{
+    canvasCount: number;
+    projectCount: number;
+    settingsCount: number;
+  }> {
     try {
       const [canvasCount, projectCount, settingsCount] = await Promise.all([
         unifiedDb.canvases.count(),
         unifiedDb.projects.count(),
-        unifiedDb.settings.count()
+        unifiedDb.settings.count(),
       ]);
 
       return { canvasCount, projectCount, settingsCount };
     } catch (error) {
-      console.error('Failed to get database stats:', error);
+      console.error("Failed to get database stats:", error);
       return { canvasCount: 0, projectCount: 0, settingsCount: 0 };
     }
   },
@@ -526,14 +550,20 @@ export const dbUtils = {
    */
   async clearAllData(): Promise<void> {
     try {
-      await unifiedDb.transaction('rw', unifiedDb.canvases, unifiedDb.projects, unifiedDb.settings, async () => {
-        await unifiedDb.canvases.clear();
-        await unifiedDb.projects.clear();
-        await unifiedDb.settings.clear();
-      });
+      await unifiedDb.transaction(
+        "rw",
+        unifiedDb.canvases,
+        unifiedDb.projects,
+        unifiedDb.settings,
+        async () => {
+          await unifiedDb.canvases.clear();
+          await unifiedDb.projects.clear();
+          await unifiedDb.settings.clear();
+        },
+      );
     } catch (error) {
-      console.error('Failed to clear all data:', error);
-      throw new Error('Database error: Could not clear data');
+      console.error("Failed to clear all data:", error);
+      throw new Error("Database error: Could not clear data");
     }
   },
 
@@ -545,19 +575,19 @@ export const dbUtils = {
       await unifiedDb.canvases.limit(1).toArray();
       return true;
     } catch (error) {
-      console.error('Database accessibility check failed:', error);
+      console.error("Database accessibility check failed:", error);
       return false;
     }
-  }
+  },
 };
 
 // Initialize database
 export async function initializeDatabase(): Promise<void> {
   try {
     await unifiedDb.open();
-    console.log('Unified database initialized successfully');
+    console.log("Unified database initialized successfully");
   } catch (error) {
-    console.error('Failed to initialize database:', error);
-    throw new Error('Database initialization failed');
+    console.error("Failed to initialize database:", error);
+    throw new Error("Database initialization failed");
   }
 }

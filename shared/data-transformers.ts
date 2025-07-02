@@ -1,5 +1,5 @@
-import { UnifiedCanvas, UnifiedProject, ExcalidrawType } from './types';
-import { ExcalidrawElement } from './excalidraw-types';
+import { UnifiedCanvas, UnifiedProject, ExcalidrawType } from "./types";
+import { ExcalidrawElement } from "./excalidraw-types";
 interface LegacyFile {
   id: string;
   name: string;
@@ -12,7 +12,6 @@ interface LegacyCollection {
   name: string;
   fileIds: string[];
 }
-
 
 export function transformFileToCanvas(file: LegacyFile): UnifiedCanvas {
   return {
@@ -31,23 +30,25 @@ export function transformFileToCanvas(file: LegacyFile): UnifiedCanvas {
       scrollY: 0,
       width: 800,
       height: 600,
-      viewBackgroundColor: '#ffffff',
-      theme: 'light' as const,
+      viewBackgroundColor: "#ffffff",
+      theme: "light" as const,
       selectedElementIds: {},
       editingGroupId: null,
-      viewModeEnabled: false
-    }
+      viewModeEnabled: false,
+    },
   };
 }
 
-export function transformCollectionToProject(collection: LegacyCollection): UnifiedProject {
+export function transformCollectionToProject(
+  collection: LegacyCollection,
+): UnifiedProject {
   const now = new Date();
 
   return {
     id: collection.id,
     name: collection.name,
     description: undefined,
-    color: '#4ECDC4',
+    color: "#4ECDC4",
     createdAt: now,
     updatedAt: now,
 
