@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
 import { Search, FileText, Folder, Clock } from "lucide-react";
@@ -18,6 +18,35 @@ export function SearchModal() {
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [results, setResults] = useState<SearchResult[]>([]);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Autofocus and trap focus within the modal
+  useEffect(() => {
+    const input = searchInputRef.current;
+    if (input) {
+      // Delay focus slightly to ensure the modal is fully rendered
+      const focusTimeout = setTimeout(() => {
+        input.focus();
+      }, 100);
+
+      // Trap focus
+      const handleFocusTrap = (e: FocusEvent) => {
+        if (
+          e.target instanceof Node &&
+          !searchInputRef.current?.contains(e.target)
+        ) {
+          input.focus();
+        }
+      };
+
+      document.addEventListener("focusin", handleFocusTrap);
+
+      return () => {
+        clearTimeout(focusTimeout);
+        document.removeEventListener("focusin", handleFocusTrap);
+      };
+    }
+  }, []);
 
   // Fuzzy search implementation
   const fuzzyMatch = (
@@ -331,6 +360,7 @@ export function SearchModal() {
             }}
           />
           <input
+            ref={searchInputRef}
             style={searchInputStyles}
             placeholder="Search canvases and projects..."
             value={query}

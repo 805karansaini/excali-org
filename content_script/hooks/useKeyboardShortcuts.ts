@@ -8,14 +8,40 @@ interface KeyboardShortcutsProps {
   onTogglePanel?: () => void;
 }
 
+export function getExtensionShortcuts() {
+  const isMac = /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+  const modifier = isMac ? "⌥" : "Alt";
+  const ctrlCmd = isMac ? "⌘" : "Ctrl";
+
+  return {
+    shortcuts: {
+      "Toggle Panel": `${ctrlCmd} + B`,
+      "Navigate Canvases": `${ctrlCmd} + ${modifier} + ↑/↓`,
+      "Close Modals / Focus Panel": "Escape",
+      "New Canvas": `${modifier} + N`,
+      "Duplicate Canvas": `${ctrlCmd} + Shift + D`,
+      "Delete Canvas": `${modifier} + Delete`,
+      "Rename Canvas": `F2`,
+      "New Project": `${modifier} + Shift + N`,
+      Search: `${ctrlCmd} + Shift + F`,
+      "Refresh Data": `${modifier} + F5`,
+      Help: `F1`,
+    },
+    modifiers: {
+      modifier,
+      ctrlCmd,
+    },
+  };
+}
+
 export function useKeyboardShortcuts({
   onNewCanvas,
   onNewProject,
   onTogglePanel,
 }: KeyboardShortcutsProps) {
-  const { state, dispatch } = useUnifiedState();
+  const { state, dispatch, saveCanvas, removeCanvas, createCanvas } =
+    useUnifiedState();
 
-  // Check if user is currently typing in an input
   const isTyping = useCallback(() => {
     const activeElement = document.activeElement;
     return (
@@ -24,16 +50,13 @@ export function useKeyboardShortcuts({
         activeElement.tagName === "TEXTAREA" ||
         activeElement.hasAttribute("contenteditable") ||
         activeElement.closest("[contenteditable]") ||
-        // Check for Excalidraw canvas focus
         activeElement.closest(".excalidraw") ||
         activeElement.closest(".App-center"))
     );
   }, []);
 
-  // Handle canvas deletion
-  const handleDeleteSelected = useCallback(() => {
+  const handleDeleteSelected = useCallback(async () => {
     if (!state.selectedCanvasId) return;
-
     const selectedCanvas = state.canvases.find(
       (c) => c.id === state.selectedCanvasId,
     );
@@ -44,37 +67,43 @@ export function useKeyboardShortcuts({
         `Are you sure you want to delete "${selectedCanvas.name}"?\n\nThis action cannot be undone.`,
       )
     ) {
-      eventBus.emit(InternalEventTypes.CANVAS_DELETED, selectedCanvas);
-      dispatch({ type: "DELETE_CANVAS", payload: selectedCanvas.id });
-      dispatch({ type: "SET_SELECTED_CANVAS", payload: null });
+      try {
+        await removeCanvas(selectedCanvas.id);
+        eventBus.emit(InternalEventTypes.CANVAS_DELETED, selectedCanvas);
+        dispatch({ type: "SET_SELECTED_CANVAS", payload: null });
+      } catch (error) {
+        console.error("Failed to delete canvas via keyboard shortcut:", error);
+        alert("Failed to delete canvas. Please try again.");
+      }
     }
-  }, [state.selectedCanvasId, state.canvases, dispatch]);
+  }, [state.selectedCanvasId, state.canvases, removeCanvas, dispatch]);
 
-  // Handle canvas duplication
-  const handleDuplicateSelected = useCallback(() => {
+  const handleDuplicateSelected = useCallback(async () => {
     if (!state.selectedCanvasId) return;
-
     const canvas = state.canvases.find((c) => c.id === state.selectedCanvasId);
     if (!canvas) return;
 
-    const newCanvas = {
-      ...canvas,
-      id: `canvas-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      name: `${canvas.name} (Copy)`,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      projectId: undefined, // Remove from project on duplicate
-    };
+    try {
+      const newCanvas = await createCanvas({
+        ...canvas,
+        name: `${canvas.name} (Copy)`,
+        projectId: undefined,
+        elements: canvas.elements || [],
+        appState: canvas.appState,
+      });
+      eventBus.emit(InternalEventTypes.CANVAS_CREATED, newCanvas);
+      dispatch({ type: "SET_SELECTED_CANVAS", payload: newCanvas.id });
+    } catch (error) {
+      console.error(
+        "Failed to duplicate canvas via keyboard shortcut:",
+        error,
+      );
+      alert("Failed to duplicate canvas. Please try again.");
+    }
+  }, [state.selectedCanvasId, state.canvases, createCanvas, dispatch]);
 
-    eventBus.emit(InternalEventTypes.CANVAS_CREATED, newCanvas);
-    dispatch({ type: "ADD_CANVAS", payload: newCanvas });
-    dispatch({ type: "SET_SELECTED_CANVAS", payload: newCanvas.id });
-  }, [state.selectedCanvasId, state.canvases, dispatch]);
-
-  // Handle canvas rename
-  const handleRenameSelected = useCallback(() => {
+  const handleRenameSelected = useCallback(async () => {
     if (!state.selectedCanvasId) return;
-
     const selectedCanvas = state.canvases.find(
       (c) => c.id === state.selectedCanvasId,
     );
@@ -87,36 +116,32 @@ export function useKeyboardShortcuts({
         name: newName.trim(),
         updatedAt: new Date(),
       };
-
-      eventBus.emit(InternalEventTypes.CANVAS_UPDATED, updatedCanvas);
-      dispatch({ type: "UPDATE_CANVAS", payload: updatedCanvas });
+      try {
+        await saveCanvas(updatedCanvas);
+        eventBus.emit(InternalEventTypes.CANVAS_UPDATED, updatedCanvas);
+      } catch (error) {
+        console.error("Failed to rename canvas via keyboard shortcut:", error);
+        alert("Failed to rename canvas. Please try again.");
+      }
     }
-  }, [state.selectedCanvasId, state.canvases, dispatch]);
+  }, [state.selectedCanvasId, state.canvases, saveCanvas]);
 
-  // Navigate between canvases
   const handleNavigateCanvases = useCallback(
     (direction: "next" | "prev") => {
       const visibleCanvases = state.canvases
-        .filter(() => {
-          // Include all canvases that are visible in the current view
-          return true; // For now, include all canvases
-        })
-        .sort((a, b) => {
-          // Sort by updated date (most recent first)
-          return (
+        .filter(() => true)
+        .sort(
+          (a, b) =>
             new Date(b.updatedAt || b.createdAt).getTime() -
-            new Date(a.updatedAt || a.createdAt).getTime()
-          );
-        });
+            new Date(a.updatedAt || a.createdAt).getTime(),
+        );
 
       if (visibleCanvases.length === 0) return;
 
-      let currentIndex = -1;
-      if (state.selectedCanvasId) {
-        currentIndex = visibleCanvases.findIndex(
-          (c) => c.id === state.selectedCanvasId,
-        );
-      }
+      let currentIndex = state.selectedCanvasId
+        ?
+        visibleCanvases.findIndex((c) => c.id === state.selectedCanvasId)
+        : -1;
 
       let newIndex;
       if (direction === "next") {
@@ -137,162 +162,132 @@ export function useKeyboardShortcuts({
     [state.canvases, state.selectedCanvasId, dispatch],
   );
 
-  // Main keyboard event handler
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Skip if user is typing
-      if (isTyping()) return;
-
-      const isMac = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
-      const modKey = isMac ? e.metaKey : e.ctrlKey;
+      const isMac = /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+      const altKey = e.altKey;
+      const ctrlCmdKey = isMac ? e.metaKey : e.ctrlKey;
       const shiftKey = e.shiftKey;
 
-      // Search modal - Cmd/Ctrl + P
-      if (modKey && e.key === "p") {
+      // Universal Search Shortcut (works even when typing)
+      if (ctrlCmdKey && shiftKey && !altKey && e.key.toLowerCase() === "f") {
         e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
         dispatch({ type: "SET_SEARCH_MODAL_OPEN", payload: true });
         return;
       }
 
-      // New canvas - Cmd/Ctrl + N
-      if (modKey && e.key === "n" && !shiftKey) {
+      if (isTyping()) return;
+
+      // Toggle Panel: Ctrl/Cmd + B
+      if (ctrlCmdKey && !altKey && !shiftKey && e.key === "b") {
         e.preventDefault();
-        onNewCanvas();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        onTogglePanel?.();
         return;
       }
 
-      // New project - Cmd/Ctrl + Shift + N
-      if (modKey && shiftKey && e.key === "N") {
+      // Navigate Canvases: Ctrl/Cmd + Alt + Up/Down
+      if (
+        ctrlCmdKey &&
+        altKey &&
+        !shiftKey &&
+        (e.key === "ArrowUp" || e.key === "ArrowDown")
+      ) {
         e.preventDefault();
-        onNewProject();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        handleNavigateCanvases(e.key === "ArrowDown" ? "next" : "prev");
         return;
       }
 
-      // Toggle panel visibility - Cmd/Ctrl + B
-      if (modKey && e.key === "b") {
+      // Close Modals / Focus Panel: Escape
+      if (!ctrlCmdKey && !altKey && !shiftKey && e.key === "Escape") {
         e.preventDefault();
-        if (onTogglePanel) {
-          onTogglePanel();
-        }
-        return;
-      }
-
-      // Duplicate canvas - Cmd/Ctrl + D
-      if (modKey && e.key === "d") {
-        e.preventDefault();
-        handleDuplicateSelected();
-        return;
-      }
-
-      // Delete selected canvas - Delete or Backspace
-      if (e.key === "Delete" || e.key === "Backspace") {
-        e.preventDefault();
-        handleDeleteSelected();
-        return;
-      }
-
-      // Rename selected canvas - F2
-      if (e.key === "F2") {
-        e.preventDefault();
-        handleRenameSelected();
-        return;
-      }
-
-      // Navigate between canvases - Cmd/Ctrl + Arrow keys
-      if (modKey && e.key === "ArrowDown") {
-        e.preventDefault();
-        handleNavigateCanvases("next");
-        return;
-      }
-
-      if (modKey && e.key === "ArrowUp") {
-        e.preventDefault();
-        handleNavigateCanvases("prev");
-        return;
-      }
-
-      // Close modals - Escape
-      if (e.key === "Escape") {
-        e.preventDefault();
-
-        // Priority order: context menu > search modal > other modals
+        e.stopPropagation();
+        e.stopImmediatePropagation();
         if (state.contextMenu) {
           dispatch({ type: "SET_CONTEXT_MENU", payload: null });
         } else if (state.isSearchModalOpen) {
           dispatch({ type: "SET_SEARCH_MODAL_OPEN", payload: false });
         }
-
-        // Emit escape event for other components to handle
         eventBus.emit(InternalEventTypes.ESCAPE_PRESSED, null);
         return;
       }
 
-      // Toggle theme - Cmd/Ctrl + Shift + T
-      if (modKey && shiftKey && e.key === "T") {
+      // New Canvas: Alt + N
+      if (altKey && !ctrlCmdKey && !shiftKey && e.key === "n") {
         e.preventDefault();
-        const newTheme = state.theme === "light" ? "dark" : "light";
-        dispatch({ type: "SET_THEME", payload: newTheme });
-        eventBus.emit(InternalEventTypes.THEME_CHANGED, newTheme);
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        onNewCanvas();
         return;
       }
 
-      // Quick actions with numbers - Cmd/Ctrl + 1-9
-      if (modKey && e.key >= "1" && e.key <= "9") {
+      // Duplicate Canvas: Ctrl/Cmd + Shift + D
+      if (ctrlCmdKey && shiftKey && !altKey && e.key.toLowerCase() === "d") {
         e.preventDefault();
-        const index = parseInt(e.key) - 1;
-        const recentCanvases = state.canvases
-          .sort(
-            (a, b) =>
-              new Date(b.updatedAt || b.createdAt).getTime() -
-              new Date(a.updatedAt || a.createdAt).getTime(),
-          )
-          .slice(0, 9);
-
-        const canvas = recentCanvases[index];
-        if (canvas) {
-          dispatch({ type: "SET_SELECTED_CANVAS", payload: canvas.id });
-          eventBus.emit(InternalEventTypes.CANVAS_SELECTED, canvas);
-          eventBus.emit(InternalEventTypes.LOAD_CANVAS_TO_EXCALIDRAW, canvas);
-        }
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        handleDuplicateSelected();
         return;
       }
 
-      // Select all canvases - Cmd/Ctrl + A (for future bulk operations)
-      if (modKey && e.key === "a") {
-        // Don't prevent default here as Excalidraw might need it
-        // For now, just emit an event that could be used for bulk selection
-        eventBus.emit(InternalEventTypes.SELECT_ALL_REQUEST, null);
+      // Delete Canvas: Alt + Delete
+      if (altKey && !ctrlCmdKey && !shiftKey && e.key === "Delete") {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        handleDeleteSelected();
         return;
       }
 
-      // Help overlay - F1 or Cmd/Ctrl + /
-      if (e.key === "F1" || (modKey && e.key === "/")) {
+      // Rename Canvas: F2
+      if (!altKey && !ctrlCmdKey && !shiftKey && e.key === "F2") {
         e.preventDefault();
-        eventBus.emit(InternalEventTypes.SHOW_HELP_OVERLAY, null);
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        handleRenameSelected();
         return;
       }
 
-      // Refresh panel data - F5 or Cmd/Ctrl + R
-      if (e.key === "F5" || (modKey && e.key === "r")) {
+      // New Project: Alt + Shift + N
+      if (altKey && shiftKey && !ctrlCmdKey && e.key.toLowerCase() === "n") {
         e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        onNewProject();
+        return;
+      }
+
+      // Refresh Data: Alt + F5
+      if (altKey && !ctrlCmdKey && !shiftKey && e.key === "F5") {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
         eventBus.emit(InternalEventTypes.REFRESH_DATA, null);
+        return;
+      }
+
+      // Help: F1
+      if (!altKey && !ctrlCmdKey && !shiftKey && e.key === "F1") {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        eventBus.emit(InternalEventTypes.SHOW_HELP_OVERLAY, null);
         return;
       }
     };
 
-    // Add event listener
-    window.addEventListener("keydown", handleKeyDown);
-
-    // Cleanup
+    document.addEventListener("keydown", handleKeyDown, true);
     return () => {
-      window.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("keydown", handleKeyDown, true);
     };
   }, [
     state.contextMenu,
     state.isSearchModalOpen,
-    state.theme,
-    state.canvases,
-    state.selectedCanvasId,
     isTyping,
     dispatch,
     onNewCanvas,
@@ -304,22 +299,5 @@ export function useKeyboardShortcuts({
     handleNavigateCanvases,
   ]);
 
-  // Return information about available shortcuts for help overlay
-  return {
-    shortcuts: {
-      Search: "Cmd/Ctrl + P",
-      "New Canvas": "Cmd/Ctrl + N",
-      "New Project": "Cmd/Ctrl + Shift + N",
-      "Toggle Panel": "Cmd/Ctrl + B",
-      "Duplicate Canvas": "Cmd/Ctrl + D",
-      "Delete Canvas": "Delete/Backspace",
-      "Rename Canvas": "F2",
-      "Navigate Canvases": "Cmd/Ctrl + ↑/↓",
-      "Quick Select": "Cmd/Ctrl + 1-9",
-      "Toggle Theme": "Cmd/Ctrl + Shift + T",
-      "Close Modals": "Escape",
-      Help: "F1 or Cmd/Ctrl + /",
-      Refresh: "F5 or Cmd/Ctrl + R",
-    },
-  };
+  return getExtensionShortcuts();
 }

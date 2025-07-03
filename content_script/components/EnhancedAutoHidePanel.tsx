@@ -11,7 +11,10 @@ import {
 } from "lucide-react";
 import { useUnifiedState } from "../context/UnifiedStateProvider";
 import { eventBus, InternalEventTypes } from "../messaging/InternalEventBus";
-import { useKeyboardShortcuts } from "../hooks/useKeyboardShortcuts";
+import {
+  useKeyboardShortcuts,
+  getExtensionShortcuts,
+} from "../hooks/useKeyboardShortcuts";
 import { SearchModal } from "./SearchModal";
 import { ProjectModal } from "./ProjectModal";
 import { ContextMenu } from "./ContextMenu";
@@ -57,6 +60,8 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
       isVisible: newVisible,
     });
   }, [state.isPanelVisible, dispatch]);
+
+  const shortcuts = getExtensionShortcuts().shortcuts;
 
   // Initialize keyboard shortcuts
   useKeyboardShortcuts({
@@ -652,7 +657,7 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
                       fontFamily: "monospace",
                     }}
                   >
-                    ⌘P
+                    {shortcuts["Search"]}
                   </span>
                 </button>
               </div>

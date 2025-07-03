@@ -11,6 +11,8 @@ import {
 } from "lucide-react";
 import { useUnifiedState } from "../context/UnifiedStateProvider";
 import { eventBus, InternalEventTypes } from "../messaging/InternalEventBus";
+import { RenameModal } from "./RenameModal";
+import { getExtensionShortcuts } from "../hooks/useKeyboardShortcuts";
 import { UnifiedCanvas, UnifiedProject } from "../../shared/types";
 
 interface Props {
@@ -21,8 +23,10 @@ interface Props {
 }
 
 export function ContextMenu({ x, y, canvas, onClose }: Props) {
-  const { state, dispatch, saveCanvas, saveProject } = useUnifiedState();
+  const { state, dispatch, saveCanvas, saveProject, createCanvas, removeCanvas } =
+    useUnifiedState();
   const [showAddToProject, setShowAddToProject] = useState(false);
+  const [isRenameModalOpen, setRenameModalOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Position menu to stay within viewport
@@ -82,30 +86,23 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
     };
   }, [onClose]);
 
-  const handleRename = async () => {
-    const newName = prompt("Enter new name:", canvas.name);
-    if (newName && newName.trim() !== canvas.name) {
-      const updatedCanvas = {
-        ...canvas,
-        name: newName.trim(),
-        updatedAt: new Date(),
-      };
+  const handleRename = async (newName: string) => {
+    const updatedCanvas = {
+      ...canvas,
+      name: newName,
+      updatedAt: new Date(),
+    };
 
-      try {
-        // Save to database first
-        await saveCanvas(updatedCanvas);
-        
-        eventBus.emit(InternalEventTypes.CANVAS_UPDATED, updatedCanvas);
-        console.log("Canvas renamed and saved to database:", updatedCanvas.name);
-      } catch (error) {
-        console.error("Failed to save renamed canvas:", error);
-        alert("Failed to rename canvas. Please try again.");
-      }
+    try {
+      await saveCanvas(updatedCanvas);
+      eventBus.emit(InternalEventTypes.CANVAS_UPDATED, updatedCanvas);
+    } catch (error) {
+      console.error("Failed to save renamed canvas:", error);
+      alert("Failed to rename canvas. Please try again.");
     }
-    onClose();
   };
 
-  const handleDuplicate = () => {
+  const handleDuplicate = async () => {
     const newCanvas: UnifiedCanvas = {
       ...canvas,
       id: `canvas-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -115,23 +112,34 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
       projectId: undefined, // Remove from project on duplicate
     };
 
-    eventBus.emit(InternalEventTypes.CANVAS_CREATED, newCanvas);
-    dispatch({ type: "ADD_CANVAS", payload: newCanvas });
+    try {
+      await createCanvas(newCanvas);
+      eventBus.emit(InternalEventTypes.CANVAS_CREATED, newCanvas);
+    } catch (error) {
+      console.error("Failed to duplicate canvas:", error);
+      alert("Failed to duplicate canvas. Please try again.");
+    }
     onClose();
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (
       confirm(
         `Are you sure you want to delete "${canvas.name}"?\n\nThis action cannot be undone.`,
       )
     ) {
-      eventBus.emit(InternalEventTypes.CANVAS_DELETED, canvas);
-      dispatch({ type: "DELETE_CANVAS", payload: canvas.id });
+      try {
+        await removeCanvas(canvas.id);
+        eventBus.emit(InternalEventTypes.CANVAS_DELETED, canvas);
+        dispatch({ type: "DELETE_CANVAS", payload: canvas.id });
 
-      // If this was the selected canvas, clear selection
-      if (state.selectedCanvasId === canvas.id) {
-        dispatch({ type: "SET_SELECTED_CANVAS", payload: null });
+        // If this was the selected canvas, clear selection
+        if (state.selectedCanvasId === canvas.id) {
+          dispatch({ type: "SET_SELECTED_CANVAS", payload: null });
+        }
+      } catch (error) {
+        console.error("Failed to delete canvas:", error);
+        alert("Failed to delete canvas. Please try again.");
       }
     }
     onClose();
@@ -167,13 +175,16 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
       // Save to database first
       await Promise.all([
         saveProject(updatedProject),
-        saveCanvas(updatedCanvas)
+        saveCanvas(updatedCanvas),
       ]);
 
       eventBus.emit(InternalEventTypes.PROJECT_UPDATED, updatedProject);
       eventBus.emit(InternalEventTypes.CANVAS_UPDATED, updatedCanvas);
-      
-      console.log("Canvas added to project and saved to database:", project.name);
+
+      console.log(
+        "Canvas added to project and saved to database:",
+        project.name,
+      );
     } catch (error) {
       console.error("Failed to add canvas to project:", error);
       alert("Failed to add canvas to project. Please try again.");
@@ -181,7 +192,6 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
 
     onClose();
   };
-
 
   const handleRemoveFromProject = async () => {
     if (!canvas.projectId) return;
@@ -206,13 +216,16 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
       // Save to database first
       await Promise.all([
         saveProject(updatedProject),
-        saveCanvas(updatedCanvas)
+        saveCanvas(updatedCanvas),
       ]);
 
       eventBus.emit(InternalEventTypes.PROJECT_UPDATED, updatedProject);
       eventBus.emit(InternalEventTypes.CANVAS_UPDATED, updatedCanvas);
-      
-      console.log("Canvas removed from project and saved to database:", project.name);
+
+      console.log(
+        "Canvas removed from project and saved to database:",
+        project.name,
+      );
     } catch (error) {
       console.error("Failed to remove canvas from project:", error);
       alert("Failed to remove canvas from project. Please try again.");
@@ -242,7 +255,9 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${canvas.name.replace(/[^a-z0-9]/gi, "_").toLowerCase()}.excalidraw`;
+      a.download = `${canvas.name
+        .replace(/[^a-z0-9]/gi, "_")
+        .toLowerCase()}.excalidraw`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (error) {
@@ -269,6 +284,8 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
   const currentProject = canvas.projectId
     ? state.projects.find((p) => p.id === canvas.projectId)
     : null;
+
+  const shortcuts = getExtensionShortcuts().shortcuts;
 
   const menuStyles: React.CSSProperties = {
     position: "fixed",
@@ -313,160 +330,18 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
   };
 
   return createPortal(
-    <motion.div
-      ref={menuRef}
-      style={menuStyles}
-      initial={{ opacity: 0, scale: 0.9 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.9 }}
-      transition={{ duration: 0.15 }}
-    >
-      <button
-        style={menuItemStyles}
-        onClick={handleLoadCanvas}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.background = "var(--theme-bg-hover)";
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.background = "none";
-        }}
+    <>
+      <motion.div
+        ref={menuRef}
+        style={menuStyles}
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.9 }}
+        transition={{ duration: 0.15 }}
       >
-        <Edit3 size={16} />
-        Open Canvas
-      </button>
-
-      <div
-        style={{
-          height: "1px",
-          background: "var(--theme-border-secondary)",
-          margin: "4px 0",
-        }}
-      />
-
-      <button
-        style={menuItemStyles}
-        onClick={handleRename}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.background = "var(--theme-bg-hover)";
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.background = "none";
-        }}
-      >
-        <Edit3 size={16} />
-        Rename
-        <span
-          style={{
-            marginLeft: "auto",
-            fontSize: "12px",
-            color: "var(--theme-text-secondary)",
-          }}
-        >
-          F2
-        </span>
-      </button>
-
-      <button
-        style={menuItemStyles}
-        onClick={handleDuplicate}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.background = "var(--theme-bg-hover)";
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.background = "none";
-        }}
-      >
-        <Copy size={16} />
-        Duplicate
-        <span
-          style={{
-            marginLeft: "auto",
-            fontSize: "12px",
-            color: "var(--theme-text-secondary)",
-          }}
-        >
-          ⌘D
-        </span>
-      </button>
-
-      <div
-        style={{
-          height: "1px",
-          background: "var(--theme-border-secondary)",
-          margin: "4px 0",
-        }}
-      />
-
-      {/* Add to Project submenu */}
-      {availableProjectsForAdd.length > 0 && (
-        <div
-          style={{ position: "relative" }}
-          onMouseEnter={() => setShowAddToProject(true)}
-          onMouseLeave={() => setShowAddToProject(false)}
-        >
-          <button style={menuItemStyles}>
-            <FolderPlus size={16} />
-            Add to Project
-            <ChevronRight size={14} style={{ marginLeft: "auto" }} />
-          </button>
-
-          <AnimatePresence>
-            {showAddToProject && (
-              <motion.div
-                style={submenuStyles}
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -10 }}
-                transition={{ duration: 0.15 }}
-              >
-                {availableProjectsForAdd.map((project) => (
-                  <button
-                    key={project.id}
-                    style={{
-                      ...menuItemStyles,
-                      padding: "8px 12px",
-                    }}
-                    onClick={() => handleAddToProject(project.id)}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background =
-                        "var(--theme-bg-hover)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = "none";
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: "12px",
-                        height: "12px",
-                        borderRadius: "3px",
-                        backgroundColor: project.color,
-                        flexShrink: 0,
-                      }}
-                    />
-                    <span
-                      style={{
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {project.name}
-                    </span>
-                  </button>
-                ))}
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-      )}
-
-
-      {/* Remove from current project */}
-      {currentProject && (
         <button
           style={menuItemStyles}
-          onClick={handleRemoveFromProject}
+          onClick={handleLoadCanvas}
           onMouseEnter={(e) => {
             e.currentTarget.style.background = "var(--theme-bg-hover)";
           }}
@@ -474,77 +349,218 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
             e.currentTarget.style.background = "none";
           }}
         >
-          <FolderPlus size={16} style={{ transform: "rotate(45deg)" }} />
-          Remove from "{currentProject.name}"
+          <Edit3 size={16} />
+          Open Canvas
         </button>
+
+        <div
+          style={{
+            height: "1px",
+            background: "var(--theme-border-secondary)",
+            margin: "4px 0",
+          }}
+        />
+
+        <button
+          style={menuItemStyles}
+          onClick={() => setRenameModalOpen(true)}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = "var(--theme-bg-hover)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = "none";
+          }}
+        >
+          <Edit3 size={16} />
+          Rename
+          <span
+            style={{
+              marginLeft: "auto",
+              fontSize: "12px",
+              color: "var(--theme-text-secondary)",
+            }}
+          >
+            {shortcuts["Rename Canvas"]}
+          </span>
+        </button>
+
+        <button
+          style={menuItemStyles}
+          onClick={handleDuplicate}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = "var(--theme-bg-hover)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = "none";
+          }}
+        >
+          <Copy size={16} />
+          Duplicate
+          <span
+            style={{
+              marginLeft: "auto",
+              fontSize: "12px",
+              color: "var(--theme-text-secondary)",
+            }}
+          >
+            {shortcuts["Duplicate Canvas"]}
+          </span>
+        </button>
+
+        <div
+          style={{
+            height: "1px",
+            background: "var(--theme-border-secondary)",
+            margin: "4px 0",
+          }}
+        />
+
+        {/* Add to Project submenu */}
+        {availableProjectsForAdd.length > 0 && (
+          <div
+            style={{ position: "relative" }}
+            onMouseEnter={() => setShowAddToProject(true)}
+            onMouseLeave={() => setShowAddToProject(false)}
+          >
+            <button style={menuItemStyles}>
+              <FolderPlus size={16} />
+              Add to Project
+              <ChevronRight size={14} style={{ marginLeft: "auto" }} />
+            </button>
+
+            <AnimatePresence>
+              {showAddToProject && (
+                <motion.div
+                  style={submenuStyles}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -10 }}
+                  transition={{ duration: 0.15 }}
+                >
+                  {availableProjectsForAdd.map((project) => (
+                    <button
+                      key={project.id}
+                      style={{
+                        ...menuItemStyles,
+                        padding: "8px 12px",
+                      }}
+                      onClick={() => handleAddToProject(project.id)}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background =
+                          "var(--theme-bg-hover)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = "none";
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: "12px",
+                          height: "12px",
+                          borderRadius: "3px",
+                          backgroundColor: project.color,
+                          flexShrink: 0,
+                        }}
+                      />
+                      <span
+                        style={{
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {project.name}
+                      </span>
+                    </button>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
+
+        {/* Remove from current project */}
+        {currentProject && (
+          <button
+            style={menuItemStyles}
+            onClick={handleRemoveFromProject}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "var(--theme-bg-hover)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "none";
+            }}
+          >
+            <FolderPlus size={16} style={{ transform: "rotate(45deg)" }} />
+            Remove from "{currentProject.name}"
+          </button>
+        )}
+
+        <div
+          style={{
+            height: "1px",
+            background: "var(--theme-border-secondary)",
+            margin: "4px 0",
+          }}
+        />
+
+        <button
+          style={menuItemStyles}
+          onClick={handleDownload}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = "var(--theme-bg-hover)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = "none";
+          }}
+        >
+          <Download size={16} />
+          Download
+        </button>
+
+        <div
+          style={{
+            height: "1px",
+            background: "var(--theme-border-secondary)",
+            margin: "4px 0",
+          }}
+        />
+
+        <button
+          style={{
+            ...menuItemStyles,
+            color: "var(--theme-error)",
+          }}
+          onClick={handleDelete}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background =
+              "var(--theme-error-bg, rgba(239, 68, 68, 0.1))";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = "none";
+          }}
+        >
+          <Trash2 size={16} />
+          Delete
+          <span
+            style={{
+              marginLeft: "auto",
+              fontSize: "12px",
+              opacity: 0.7,
+            }}
+          >
+            {shortcuts["Delete Canvas"]}
+          </span>
+        </button>
+      </motion.div>
+      {isRenameModalOpen && (
+        <RenameModal
+          currentName={canvas.name}
+          onRename={handleRename}
+          onClose={() => setRenameModalOpen(false)}
+        />
       )}
-
-      <div
-        style={{
-          height: "1px",
-          background: "var(--theme-border-secondary)",
-          margin: "4px 0",
-        }}
-      />
-
-      <button
-        style={menuItemStyles}
-        onClick={handleDownload}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.background = "var(--theme-bg-hover)";
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.background = "none";
-        }}
-      >
-        <Download size={16} />
-        Download
-        <span
-          style={{
-            marginLeft: "auto",
-            fontSize: "12px",
-            color: "var(--theme-text-secondary)",
-          }}
-        >
-          ⌘S
-        </span>
-      </button>
-
-      <div
-        style={{
-          height: "1px",
-          background: "var(--theme-border-secondary)",
-          margin: "4px 0",
-        }}
-      />
-
-      <button
-        style={{
-          ...menuItemStyles,
-          color: "var(--theme-error)",
-        }}
-        onClick={handleDelete}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.background =
-            "var(--theme-error-bg, rgba(239, 68, 68, 0.1))";
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.background = "none";
-        }}
-      >
-        <Trash2 size={16} />
-        Delete
-        <span
-          style={{
-            marginLeft: "auto",
-            fontSize: "12px",
-            opacity: 0.7,
-          }}
-        >
-          Del
-        </span>
-      </button>
-    </motion.div>,
+    </>,
     document.body,
   );
 }
