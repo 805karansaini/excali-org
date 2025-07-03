@@ -40,7 +40,11 @@ const injectFallbackCSS = () => {
 };
 import React from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { initializeDatabase } from "../shared/unified-db";
+import {
+  initializeDatabase,
+  canvasOperations,
+  settingsOperations,
+} from "../shared/unified-db";
 import { ExcalidrawIntegration } from "./excalidraw-integration";
 import { ExcalidrawDataBridge } from "./bridges/ExcalidrawDataBridge";
 import { UnifiedStateProvider } from "./context/UnifiedStateProvider";
@@ -95,15 +99,31 @@ async function initializeUnifiedApp(): Promise<void> {
     await excalidrawIntegration.initialize();
     console.log("Excalidraw integration initialized");
 
-    // 5. Setup event handlers
+    // 5. Load initial canvas and update file name
+    const currentCanvasId = await settingsOperations.getSetting(
+      "currentWorkingCanvasId",
+    );
+    let currentCanvas: UnifiedCanvas | undefined;
+    if (typeof currentCanvasId === "string") {
+      currentCanvas = await canvasOperations.getCanvas(currentCanvasId);
+    }
+
+    if (currentCanvas) {
+      await dataBridge.loadCanvasToExcalidraw(currentCanvas, false);
+    } else {
+      await dataBridge.updateFileNameOnLoad(null);
+    }
+    console.log("Initial canvas loaded and file name updated");
+
+    // 6. Setup event handlers
     setupEventHandlers();
     console.log("Event handlers setup");
 
-    // 6. Create and mount the panel with state provider
+    // 7. Create and mount the panel with state provider
     await createAndMountPanel();
     console.log("Panel mounted successfully");
 
-    // 7. Setup cleanup handlers
+    // 8. Setup cleanup handlers
     setupCleanupHandlers();
     console.log("Cleanup handlers registered");
 

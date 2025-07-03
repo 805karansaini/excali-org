@@ -103,11 +103,13 @@ export class ExcalidrawDataBridge {
   /**
    * Load a canvas into Excalidraw
    */
-  async loadCanvasToExcalidraw(canvas: UnifiedCanvas): Promise<void> {
+  async loadCanvasToExcalidraw(
+    canvas: UnifiedCanvas,
+    forceReload: boolean = false,
+  ): Promise<void> {
     try {
       console.log(
-        "[ExcalidrawDataBridge] Loading canvas to Excalidraw:",
-        canvas.name,
+        `[ExcalidrawDataBridge] Loading canvas to Excalidraw: ${canvas.name} (forceReload: ${forceReload})`,
       );
 
       this.isLoading = true;
@@ -174,24 +176,20 @@ export class ExcalidrawDataBridge {
       // Emit loading event
       await globalEventBus.emit(InternalEventTypes.CANVAS_LOADED, canvas);
 
-      // Give a small delay to ensure localStorage is written before reload
-      console.log(
-        "[ExcalidrawDataBridge] Canvas data prepared, reloading page to load canvas:",
-        canvas.name,
-      );
+      // Update file name display
+      await this.updateFileNameDisplay(canvas.name);
 
-      setTimeout(() => {
-        // Update file name display just before reload
-        this.updateFileNameDisplay(canvas.name)
-          .then(() => {
-            // Reload page to ensure Excalidraw loads the new data reliably
-            window.location.reload();
-          })
-          .catch(() => {
-            // Even if file name update fails, still reload
-            window.location.reload();
-          });
-      }, 100); // Small delay to ensure localStorage write completes
+      // Reload if forced
+      if (forceReload) {
+        console.log(
+          "[ExcalidrawDataBridge] Canvas data prepared, reloading page to load canvas:",
+          canvas.name,
+        );
+        // Give a small delay to ensure localStorage is written before reload
+        setTimeout(() => {
+          window.location.reload();
+        }, 100);
+      }
     } catch (error) {
       console.error("[ExcalidrawDataBridge] Failed to load canvas:", error);
       await globalEventBus.emit(InternalEventTypes.ERROR_OCCURRED, {
@@ -202,6 +200,14 @@ export class ExcalidrawDataBridge {
     } finally {
       this.isLoading = false;
     }
+  }
+
+  /**
+   * Update file name on initial load
+   */
+  async updateFileNameOnLoad(canvasName: string | null): Promise<void> {
+    const name = canvasName || "Please choose a file to start drawing";
+    await this.updateFileNameDisplay(name);
   }
 
   /**
@@ -570,7 +576,7 @@ export class ExcalidrawDataBridge {
     globalEventBus.on(
       InternalEventTypes.LOAD_CANVAS_TO_EXCALIDRAW,
       async (canvas) => {
-        await this.loadCanvasToExcalidraw(canvas);
+        await this.loadCanvasToExcalidraw(canvas, true);
       },
     );
   }
