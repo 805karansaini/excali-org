@@ -180,7 +180,7 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
     }
   }, [state.canvases, dispatch, onNewCanvas]);
 
-  // Handle window resize
+  // Handle window resize and escape key for modals
   useEffect(() => {
     const handleWindowResize = () => {
       const maxAllowedWidth = Math.min(MAX_WIDTH, window.innerWidth * 0.8);
@@ -188,10 +188,21 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
         updatePanelSettings({ width: maxAllowedWidth });
       }
     };
+    
+    const handleEscape = () => {
+      if (showProjectModal) {
+        setShowProjectModal(false);
+      }
+    };
 
     window.addEventListener("resize", handleWindowResize);
-    return () => window.removeEventListener("resize", handleWindowResize);
-  }, [state.panelWidth, updatePanelSettings]);
+    eventBus.on(InternalEventTypes.ESCAPE_PRESSED, handleEscape);
+
+    return () => {
+      window.removeEventListener("resize", handleWindowResize);
+      eventBus.off(InternalEventTypes.ESCAPE_PRESSED, handleEscape);
+    };
+  }, [state.panelWidth, updatePanelSettings, showProjectModal]);
 
   // Panel resize keyboard shortcuts
   useEffect(() => {

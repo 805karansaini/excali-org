@@ -178,7 +178,19 @@ export function useKeyboardShortcuts({
         return;
       }
 
-      if (isTyping()) return;
+      // Close Modals / Focus Panel: Escape
+      if (!ctrlCmdKey && !altKey && !shiftKey && e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        if (state.contextMenu) {
+          dispatch({ type: "SET_CONTEXT_MENU", payload: null });
+        } else if (state.isSearchModalOpen) {
+          dispatch({ type: "SET_SEARCH_MODAL_OPEN", payload: false });
+        }
+        eventBus.emit(InternalEventTypes.ESCAPE_PRESSED, null);
+        return;
+      }
 
       // Toggle Panel: Ctrl/Cmd + B
       if (ctrlCmdKey && !altKey && !shiftKey && e.key === "b") {
@@ -188,6 +200,10 @@ export function useKeyboardShortcuts({
         onTogglePanel?.();
         return;
       }
+      
+      // TODO Later
+      if (isTyping()) return;
+
 
       // Navigate Canvases: Ctrl/Cmd + Alt + Up/Down
       if (
@@ -203,19 +219,6 @@ export function useKeyboardShortcuts({
         return;
       }
 
-      // Close Modals / Focus Panel: Escape
-      if (!ctrlCmdKey && !altKey && !shiftKey && e.key === "Escape") {
-        e.preventDefault();
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-        if (state.contextMenu) {
-          dispatch({ type: "SET_CONTEXT_MENU", payload: null });
-        } else if (state.isSearchModalOpen) {
-          dispatch({ type: "SET_SEARCH_MODAL_OPEN", payload: false });
-        }
-        eventBus.emit(InternalEventTypes.ESCAPE_PRESSED, null);
-        return;
-      }
 
       // New Canvas: Alt + N
       if (altKey && !ctrlCmdKey && !shiftKey && e.key === "n") {

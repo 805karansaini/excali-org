@@ -194,9 +194,6 @@ export function SearchModal() {
       } else if (e.key === "Enter" && results[selectedIndex]) {
         e.preventDefault();
         handleSelect(results[selectedIndex]);
-      } else if (e.key === "Escape") {
-        e.preventDefault();
-        dispatch({ type: "SET_SEARCH_MODAL_OPEN", payload: false });
       }
     };
 
