@@ -43,6 +43,7 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
   const [isResizing, setIsResizing] = useState(false);
   const [showWidthIndicator, setShowWidthIndicator] = useState(false);
   const [showProjectModal, setShowProjectModal] = useState(false);
+  const [isMouseOverPanel, setIsMouseOverPanel] = useState(false);
 
   const panelRef = useRef<HTMLDivElement>(null);
   const timeoutRef = useRef<number>();
@@ -206,6 +207,31 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
     };
   }, [state.panelWidth, updatePanelSettings, showProjectModal]);
 
+  // Monitor context menu state changes to resume auto-hide when menus close
+  useEffect(() => {
+    // If context menus open, clear any pending auto-hide timer
+    if ((state.contextMenu || state.projectContextMenu) && timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = undefined;
+    }
+    
+    // If context menus were just closed and mouse is not over panel, start auto-hide timer
+    if (!state.contextMenu && !state.projectContextMenu && !state.isPanelPinned && !isResizing && state.isPanelVisible && !isMouseOverPanel) {
+      // Clear any existing timeout first
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+      
+      // Start auto-hide timer (same delay as mouse leave)
+      timeoutRef.current = setTimeout(() => {
+        dispatch({ type: "SET_PANEL_VISIBLE", payload: false });
+        eventBus.emit(InternalEventTypes.PANEL_VISIBILITY_CHANGED, {
+          isVisible: false,
+        });
+      }, 300);
+    }
+  }, [state.contextMenu, state.projectContextMenu, state.isPanelPinned, isResizing, state.isPanelVisible, isMouseOverPanel, dispatch]);
+
   // Panel resize keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -244,6 +270,7 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
     }
+    setIsMouseOverPanel(true);
     dispatch({ type: "SET_PANEL_VISIBLE", payload: true });
     eventBus.emit(InternalEventTypes.PANEL_VISIBILITY_CHANGED, {
       isVisible: true,
@@ -251,7 +278,9 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
   };
 
   const handleMouseLeave = () => {
-    if (!state.isPanelPinned && !isResizing) {
+    setIsMouseOverPanel(false);
+    // Don't auto-hide if panel is pinned, currently resizing, or any context menu is open
+    if (!state.isPanelPinned && !isResizing && !state.contextMenu && !state.projectContextMenu) {
       timeoutRef.current = setTimeout(() => {
         dispatch({ type: "SET_PANEL_VISIBLE", payload: false });
         eventBus.emit(InternalEventTypes.PANEL_VISIBILITY_CHANGED, {
