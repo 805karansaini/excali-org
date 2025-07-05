@@ -32,7 +32,7 @@ export interface ExcalidrawElement {
   updated: number;
   link: string | null;
   locked: boolean;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface AppState {
@@ -48,7 +48,7 @@ export interface AppState {
   selectedElementIds: Record<string, boolean>;
   editingGroupId: string | null;
   viewModeEnabled: boolean;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface BinaryFiles {

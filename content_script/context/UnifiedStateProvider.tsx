@@ -10,6 +10,7 @@ import {
   UnifiedProject,
   SearchResult,
   ContextMenuData,
+  ProjectContextMenuData,
 } from "../../shared/types";
 import {
   canvasOperations,
@@ -38,6 +39,7 @@ interface UnifiedState {
   // UI state
   selectedCanvasId: string | null;
   contextMenu: ContextMenuData | null;
+  projectContextMenu: ProjectContextMenuData | null;
   theme: "light" | "dark";
 
   // Panel state
@@ -62,7 +64,7 @@ type UnifiedAction =
   | { type: "DELETE_CANVAS"; payload: string }
   | { type: "ADD_PROJECT"; payload: UnifiedProject }
   | { type: "UPDATE_PROJECT"; payload: UnifiedProject }
-  | { type: "DELETE_PROJECT"; payload: string }
+  | { type: "DELETE_PROJECT"; payload: string | { projectId: string; canvasAction: 'keep' | 'delete' } }
   | { type: "SET_CURRENT_WORKING_CANVAS"; payload: string | null }
 
   // Search operations
@@ -75,6 +77,7 @@ type UnifiedAction =
   // UI operations
   | { type: "SET_SELECTED_CANVAS"; payload: string | null }
   | { type: "SET_CONTEXT_MENU"; payload: ContextMenuData | null }
+  | { type: "SET_PROJECT_CONTEXT_MENU"; payload: ProjectContextMenuData | null }
   | { type: "SET_THEME"; payload: "light" | "dark" }
   | { type: "TOGGLE_THEME" }
 
@@ -113,6 +116,7 @@ const initialState: UnifiedState = {
   // UI state
   selectedCanvasId: null,
   contextMenu: null,
+  projectContextMenu: null,
   theme: "light",
 
   // Panel state
@@ -187,18 +191,24 @@ function unifiedStateReducer(
       };
 
     case "DELETE_PROJECT":
+      const deletePayload = typeof action.payload === 'string' 
+        ? { projectId: action.payload, canvasAction: 'keep' as const }
+        : action.payload;
+      
       return {
         ...state,
         projects: state.projects.filter(
-          (project) => project.id !== action.payload,
+          (project) => project.id !== deletePayload.projectId,
         ),
-        canvases: state.canvases.map((canvas) =>
-          canvas.projectId === action.payload
-            ? { ...canvas, projectId: undefined }
-            : canvas,
-        ),
+        canvases: deletePayload.canvasAction === 'delete' 
+          ? state.canvases.filter((canvas) => canvas.projectId !== deletePayload.projectId)
+          : state.canvases.map((canvas) =>
+              canvas.projectId === deletePayload.projectId
+                ? { ...canvas, projectId: undefined }
+                : canvas,
+            ),
         collapsedProjects: new Set(
-          [...state.collapsedProjects].filter((id) => id !== action.payload),
+          [...state.collapsedProjects].filter((id) => id !== deletePayload.projectId),
         ),
       };
 
@@ -227,6 +237,9 @@ function unifiedStateReducer(
 
     case "SET_CONTEXT_MENU":
       return { ...state, contextMenu: action.payload };
+
+    case "SET_PROJECT_CONTEXT_MENU":
+      return { ...state, projectContextMenu: action.payload };
 
     case "SET_THEME":
       return { ...state, theme: action.payload };

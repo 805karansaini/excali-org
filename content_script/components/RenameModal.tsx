@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
+import { eventBus, InternalEventTypes } from "../messaging/InternalEventBus";
 
 interface Props {
   currentName: string;
@@ -18,8 +19,13 @@ export function RenameModal({ currentName, onRename, onClose }: Props) {
       inputRef.current?.select();
     }, 100);
 
-    return () => clearTimeout(focusTimeout);
-  }, []);
+    const unsubscribe = eventBus.on(InternalEventTypes.ESCAPE_PRESSED, onClose);
+
+    return () => {
+      clearTimeout(focusTimeout);
+      unsubscribe();
+    };
+  }, [onClose]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

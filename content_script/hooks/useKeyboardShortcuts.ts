@@ -138,7 +138,7 @@ export function useKeyboardShortcuts({
 
       if (visibleCanvases.length === 0) return;
 
-      let currentIndex = state.selectedCanvasId
+      const currentIndex = state.selectedCanvasId
         ?
         visibleCanvases.findIndex((c) => c.id === state.selectedCanvasId)
         : -1;
