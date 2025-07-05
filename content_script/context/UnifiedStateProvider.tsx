@@ -4,13 +4,16 @@ import React, {
   useReducer,
   useEffect,
   useCallback,
+  useRef,
 } from "react";
+import { useInstantThemeSync } from "../hooks/useInstantThemeSync";
 import {
   UnifiedCanvas,
   UnifiedProject,
   SearchResult,
   ContextMenuData,
   ProjectContextMenuData,
+  UnifiedAction,
 } from "../../shared/types";
 import {
   canvasOperations,
@@ -55,52 +58,42 @@ interface UnifiedState {
   dbError: boolean;
 }
 
-type UnifiedAction =
-  // Data operations
-  | { type: "SET_PROJECTS"; payload: UnifiedProject[] }
-  | { type: "SET_CANVASES"; payload: UnifiedCanvas[] }
-  | { type: "ADD_CANVAS"; payload: UnifiedCanvas }
-  | { type: "UPDATE_CANVAS"; payload: UnifiedCanvas }
-  | { type: "DELETE_CANVAS"; payload: string }
-  | { type: "ADD_PROJECT"; payload: UnifiedProject }
-  | { type: "UPDATE_PROJECT"; payload: UnifiedProject }
-  | { type: "DELETE_PROJECT"; payload: string | { projectId: string; canvasAction: 'keep' | 'delete' } }
-  | { type: "SET_CURRENT_WORKING_CANVAS"; payload: string | null }
 
-  // Search operations
-  | { type: "SET_SEARCH_QUERY"; payload: string }
-  | { type: "SET_SEARCH_RESULTS"; payload: SearchResult[] }
-  | { type: "TOGGLE_SEARCH_MODAL" }
-  | { type: "SET_SEARCH_MODAL"; payload: boolean }
-  | { type: "SET_SEARCH_MODAL_OPEN"; payload: boolean }
 
-  // UI operations
-  | { type: "SET_SELECTED_CANVAS"; payload: string | null }
-  | { type: "SET_CONTEXT_MENU"; payload: ContextMenuData | null }
-  | { type: "SET_PROJECT_CONTEXT_MENU"; payload: ProjectContextMenuData | null }
-  | { type: "SET_THEME"; payload: "light" | "dark" }
-  | { type: "TOGGLE_THEME" }
-
-  // Panel operations
-  | { type: "SET_PANEL_VISIBLE"; payload: boolean }
-  | { type: "SET_PANEL_PINNED"; payload: boolean }
-  | { type: "SET_PANEL_WIDTH"; payload: number }
-  | { type: "TOGGLE_PROJECT_COLLAPSED"; payload: string }
-  | { type: "SET_COLLAPSED_PROJECTS"; payload: Set<string> }
-
-  // System operations
-  | { type: "SET_LOADING"; payload: boolean }
-  | { type: "SET_LOADING_CANVAS"; payload: string | null }
-  | { type: "SET_ERROR"; payload: string | null }
-  | { type: "SET_DB_ERROR"; payload: boolean }
-  | {
-      type: "ADD_CANVAS_TO_PROJECT";
-      payload: { canvasId: string; projectId: string };
+// Helper function to detect initial theme synchronously
+const detectInitialTheme = (): "light" | "dark" => {
+  try {
+    // Method 1: Official Excalidraw theme storage
+    const excalidrawState = localStorage.getItem("excalidraw-state");
+    if (excalidrawState) {
+      const state = JSON.parse(excalidrawState);
+      if (state.theme === "dark" || state.theme === "light") {
+        return state.theme;
+      }
     }
-  | {
-      type: "REMOVE_CANVAS_FROM_PROJECT";
-      payload: { canvasId: string; projectId: string };
-    };
+
+    // Method 2: Check appState in localStorage
+    const excalidrawData = localStorage.getItem("excalidraw");
+    if (excalidrawData) {
+      const data = JSON.parse(excalidrawData);
+      if (data.appState?.theme) {
+        return data.appState.theme;
+      }
+    }
+
+    // Method 3: System preference fallback
+    const systemDark = window.matchMedia?.("(prefers-color-scheme: dark)").matches;
+    if (systemDark) {
+      return "dark";
+    }
+
+    // Default to light (matches Excalidraw.com)
+    return "light";
+  } catch (error) {
+    console.error("Initial theme detection failed:", error);
+    return "light"; // Safe fallback
+  }
+};
 
 const initialState: UnifiedState = {
   // Core data
@@ -117,7 +110,7 @@ const initialState: UnifiedState = {
   selectedCanvasId: null,
   contextMenu: null,
   projectContextMenu: null,
-  theme: "light",
+  theme: detectInitialTheme(),
 
   // Panel state
   isPanelVisible: false,
@@ -131,6 +124,9 @@ const initialState: UnifiedState = {
   error: null,
   dbError: false,
 };
+
+// Set the initial theme attribute synchronously
+document.documentElement.setAttribute("data-theme", initialState.theme);
 
 function unifiedStateReducer(
   state: UnifiedState,
@@ -190,27 +186,28 @@ function unifiedStateReducer(
         ),
       };
 
-    case "DELETE_PROJECT":
-      const deletePayload = typeof action.payload === 'string' 
+    case "DELETE_PROJECT": {
+      const deletePayload = typeof action.payload === 'string'
         ? { projectId: action.payload, canvasAction: 'keep' as const }
         : action.payload;
-      
+
       return {
         ...state,
         projects: state.projects.filter(
           (project) => project.id !== deletePayload.projectId,
         ),
-        canvases: deletePayload.canvasAction === 'delete' 
+        canvases: deletePayload.canvasAction === 'delete'
           ? state.canvases.filter((canvas) => canvas.projectId !== deletePayload.projectId)
           : state.canvases.map((canvas) =>
-              canvas.projectId === deletePayload.projectId
-                ? { ...canvas, projectId: undefined }
-                : canvas,
-            ),
+            canvas.projectId === deletePayload.projectId
+              ? { ...canvas, projectId: undefined }
+              : canvas,
+          ),
         collapsedProjects: new Set(
           [...state.collapsedProjects].filter((id) => id !== deletePayload.projectId),
         ),
       };
+    }
 
     case "SET_CURRENT_WORKING_CANVAS":
       return { ...state, currentWorkingCanvasId: action.payload };
@@ -294,9 +291,9 @@ function unifiedStateReducer(
         projects: state.projects.map((project) =>
           project.id === action.payload.projectId
             ? {
-                ...project,
-                canvasIds: [...project.canvasIds, action.payload.canvasId],
-              }
+              ...project,
+              canvasIds: [...project.canvasIds, action.payload.canvasId],
+            }
             : project,
         ),
       };
@@ -312,11 +309,11 @@ function unifiedStateReducer(
         projects: state.projects.map((project) =>
           project.id === action.payload.projectId
             ? {
-                ...project,
-                canvasIds: project.canvasIds.filter(
-                  (id) => id !== action.payload.canvasId,
-                ),
-              }
+              ...project,
+              canvasIds: project.canvasIds.filter(
+                (id) => id !== action.payload.canvasId,
+              ),
+            }
             : project,
         ),
       };
@@ -362,205 +359,16 @@ export function UnifiedStateProvider({
   children: React.ReactNode;
 }) {
   const [state, dispatch] = useReducer(unifiedStateReducer, initialState);
+  const currentThemeRef = useRef(state.theme);
 
-  // Initialize theme synchronization with Excalidraw
+  // Update theme ref whenever state theme changes
   useEffect(() => {
-    let themeObserver: MutationObserver | null = null;
-    let intervalId: number | null = null;
+    currentThemeRef.current = state.theme;
+  }, [state.theme]);
 
-    const detectExcalidrawTheme = (): "light" | "dark" => {
-      try {
-        // Method 1: Official Excalidraw theme storage
-        const excalidrawState = localStorage.getItem("excalidraw-state");
-        if (excalidrawState) {
-          const state = JSON.parse(excalidrawState);
-          console.log("Theme detection - excalidraw-state:", state.theme);
-          if (state.theme === "dark" || state.theme === "light") {
-            return state.theme;
-          }
-        }
-
-        // Method 2: Check appState in localStorage
-        const excalidrawData = localStorage.getItem("excalidraw");
-        if (excalidrawData) {
-          const data = JSON.parse(excalidrawData);
-          console.log(
-            "Theme detection - excalidraw appState:",
-            data.appState?.theme,
-          );
-          if (data.appState?.theme) {
-            return data.appState.theme;
-          }
-        }
-
-        // Method 3: System preference fallback
-        const systemDark = window.matchMedia?.(
-          "(prefers-color-scheme: dark)",
-        ).matches;
-        console.log(
-          "Theme detection - system preference:",
-          systemDark ? "dark" : "light",
-        );
-        if (systemDark) {
-          return "dark";
-        }
-
-        // Default to light (matches Excalidraw.com)
-        console.log("Theme detection - using default: light");
-        return "light";
-      } catch (error) {
-        console.error("Theme detection failed:", error);
-        return "light"; // Safe fallback
-      }
-    };
-
-    const updateTheme = () => {
-      try {
-        const detectedTheme = detectExcalidrawTheme();
-
-        if (detectedTheme !== state.theme) {
-          console.log(
-            `Theme change detected: ${state.theme} → ${detectedTheme}`,
-          );
-          dispatch({ type: "SET_THEME", payload: detectedTheme });
-          globalEventBus.emit(InternalEventTypes.THEME_CHANGED, detectedTheme);
-          // Set data-theme attribute on document root for CSS variables to work globally
-          document.documentElement.setAttribute("data-theme", detectedTheme);
-          console.log(
-            `Set document.documentElement data-theme to: ${detectedTheme}`,
-          );
-        }
-      } catch (error) {
-        console.error("Error detecting theme:", error);
-      }
-    };
-
-    // Initial theme detection
-    console.log("Starting initial theme detection...");
-    updateTheme();
-
-    // Ensure document has the initial theme attribute set (fallback)
-    setTimeout(() => {
-      const currentAttribute =
-        document.documentElement.getAttribute("data-theme");
-      if (!currentAttribute) {
-        const fallbackTheme = detectExcalidrawTheme();
-        document.documentElement.setAttribute("data-theme", fallbackTheme);
-        console.log(
-          `Fallback: Set initial theme to ${fallbackTheme} (attribute was null)`,
-        );
-      } else {
-        console.log(`Initial theme attribute already set: ${currentAttribute}`);
-      }
-    }, 100);
-
-    // Method 1: Use MutationObserver to watch for class changes
-    themeObserver = new MutationObserver((mutations) => {
-      let shouldUpdate = false;
-
-      mutations.forEach((mutation) => {
-        if (mutation.type === "attributes") {
-          const attributeName = mutation.attributeName;
-          const target = mutation.target as Element;
-          console.log(
-            `DOM mutation detected: ${attributeName} on ${target.tagName}`,
-          );
-
-          if (attributeName === "class" || attributeName === "data-theme") {
-            shouldUpdate = true;
-            console.log(`Theme-relevant attribute changed: ${attributeName}`);
-          }
-        }
-      });
-
-      if (shouldUpdate) {
-        console.log("Triggering theme update due to DOM mutation");
-        // Debounce the update
-        setTimeout(updateTheme, 100);
-      }
-    });
-
-    // Observe changes on relevant elements
-    themeObserver.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["class", "data-theme"],
-    });
-
-    themeObserver.observe(document.body, {
-      attributes: true,
-      attributeFilter: ["class", "data-theme"],
-    });
-
-    // Method 2: Periodic check as fallback
-    intervalId = setInterval(updateTheme, 2000);
-
-    // Method 3: Listen for system theme changes
-    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
-    const handleSystemThemeChange = () => {
-      setTimeout(updateTheme, 100);
-    };
-
-    if (mediaQuery.addEventListener) {
-      mediaQuery.addEventListener("change", handleSystemThemeChange);
-    } else {
-      // Fallback for older browsers
-      mediaQuery.addListener(handleSystemThemeChange);
-    }
-
-    // Method 4: Listen for storage events (in case theme is stored)
-    const handleStorageChange = (e: StorageEvent) => {
-      if (
-        e.key === "excalidraw-theme" ||
-        e.key === "theme" ||
-        e.key === "excalidraw-state"
-      ) {
-        console.log(`Storage change detected for key: ${e.key}`);
-        if (e.key === "excalidraw-state" && e.newValue) {
-          try {
-            const newState = JSON.parse(e.newValue);
-            console.log(`New excalidraw-state theme: ${newState.theme}`);
-          } catch {
-            console.log("Could not parse new storage value");
-          }
-        }
-        setTimeout(updateTheme, 100);
-      }
-    };
-
-    window.addEventListener("storage", handleStorageChange);
-
-    // Method 5: Listen for custom events that might indicate theme change
-    const handleCustomThemeEvent = () => {
-      setTimeout(updateTheme, 100);
-    };
-
-    window.addEventListener("theme-changed", handleCustomThemeEvent);
-    window.addEventListener("excalidraw-theme-changed", handleCustomThemeEvent);
-
-    // Cleanup
-    return () => {
-      if (themeObserver) {
-        themeObserver.disconnect();
-      }
-
-      if (intervalId) {
-        clearInterval(intervalId);
-      }
-
-      if (mediaQuery.removeEventListener) {
-        mediaQuery.removeEventListener("change", handleSystemThemeChange);
-      } else {
-        mediaQuery.removeListener(handleSystemThemeChange);
-      }
-
-      window.removeEventListener("storage", handleStorageChange);
-      window.removeEventListener("theme-changed", handleCustomThemeEvent);
-      window.removeEventListener(
-        "excalidraw-theme-changed",
-        handleCustomThemeEvent,
-      );
-    };
-  }, [state.theme, dispatch]);
+  // INSTANTANEOUS THEME SYNC INTEGRATION
+  // Use the new instant theme sync hook
+  useInstantThemeSync({ theme: state.theme, dispatch });
 
   // Initialize data and settings from IndexedDB
   const loadInitialData = useCallback(async () => {

@@ -150,6 +150,31 @@ export class ExcalidrawDataBridge {
         locked: element.locked ?? false,
       }));
 
+      // Preserve current Excalidraw theme to prevent flicker during canvas loading
+      const getCurrentTheme = (): "light" | "dark" => {
+        try {
+          // Check current excalidraw-state first
+          const excalidrawState = localStorage.getItem("excalidraw-state");
+          if (excalidrawState) {
+            const state = JSON.parse(excalidrawState);
+            if (state.theme === "dark" || state.theme === "light") {
+              return state.theme;
+            }
+          }
+          
+          // Check document data-theme attribute
+          const documentTheme = document.documentElement.getAttribute("data-theme");
+          if (documentTheme === "dark" || documentTheme === "light") {
+            return documentTheme;
+          }
+          
+          // Fallback to system preference
+          return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        } catch {
+          return "light";
+        }
+      };
+
       const excalidrawData: ExcalidrawData = {
         elements: elements,
         appState: canvas.appState || {
@@ -159,7 +184,7 @@ export class ExcalidrawDataBridge {
           width: window.innerWidth,
           height: window.innerHeight,
           viewBackgroundColor: "#ffffff",
-          theme: "light" as const,
+          theme: getCurrentTheme(), // Use current theme instead of hardcoded "light"
           selectedElementIds: {},
           editingGroupId: null,
           viewModeEnabled: false,
@@ -344,7 +369,7 @@ export class ExcalidrawDataBridge {
       // Store appState separately if it exists (Excalidraw uses excalidraw-state for this)
       if (data.appState && Object.keys(data.appState).length > 0) {
         // Get existing state and merge with our appState
-        let existingState = {};
+        let existingState: Record<string, unknown> = {};
         try {
           const existing = localStorage.getItem("excalidraw-state");
           if (existing) {
@@ -356,9 +381,14 @@ export class ExcalidrawDataBridge {
           );
         }
 
+        // Exclude theme from canvas appState to preserve current Excalidraw theme
+        const { theme: _theme, ...appStateWithoutTheme } = data.appState;
+        
         const mergedState = {
           ...existingState,
-          ...data.appState,
+          ...appStateWithoutTheme, // Merge everything except theme
+          // Preserve existing theme (don't overwrite with canvas data)
+          theme: (existingState.theme as string) || _theme || "light"
         };
 
         localStorage.setItem("excalidraw-state", JSON.stringify(mergedState));
