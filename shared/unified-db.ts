@@ -12,6 +12,14 @@ export interface AppSettings {
   updatedAt: Date;
 }
 
+// Project export data interface
+export interface ProjectExportData {
+  project: UnifiedProject;
+  canvases: UnifiedCanvas[];
+  exportedAt: Date;
+  format: 'json' | 'zip';
+}
+
 // Database version and schema
 export class UnifiedDexie extends Dexie {
   canvases!: Table<UnifiedCanvas>;
@@ -283,6 +291,144 @@ export const projectOperations = {
     } catch (error) {
       console.error("Failed to delete project:", error);
       throw new Error("Database error: Could not delete project");
+    }
+  },
+
+  /**
+   * Enhanced delete project with canvas handling options
+   */
+  async deleteProjectWithOptions(
+    id: string,
+    canvasAction: 'keep' | 'delete' = 'keep'
+  ): Promise<{ deletedCanvasCount: number }> {
+    try {
+      // Get project to find associated canvases
+      const project = await unifiedDb.projects.get(id);
+      if (!project) {
+        throw new Error(`Project ${id} not found`);
+      }
+
+      let deletedCanvasCount = 0;
+
+      // Handle canvas actions
+      if (project.canvasIds.length > 0) {
+        const canvases = await unifiedDb.canvases
+          .where("id")
+          .anyOf(project.canvasIds)
+          .toArray();
+
+        if (canvasAction === 'delete') {
+          // Delete all canvases in the project
+          await unifiedDb.canvases.bulkDelete(project.canvasIds);
+          deletedCanvasCount = canvases.length;
+        } else {
+          // Keep canvases but remove project association
+          for (const canvas of canvases) {
+            canvas.projectId = undefined;
+            await unifiedDb.canvases.put(canvas);
+          }
+        }
+      }
+
+      // Delete the project
+      await unifiedDb.projects.delete(id);
+
+      return { deletedCanvasCount };
+    } catch (error) {
+      console.error("Failed to delete project with options:", error);
+      throw new Error("Database error: Could not delete project");
+    }
+  },
+
+  /**
+   * Rename project with validation
+   */
+  async renameProject(projectId: string, newName: string): Promise<UnifiedProject> {
+    try {
+      // Validate new name
+      const trimmedName = newName.trim();
+      if (!trimmedName) {
+        throw new Error("Project name cannot be empty");
+      }
+
+      // Check for duplicate names
+      const isDuplicate = await this.validateProjectName(trimmedName, projectId);
+      if (!isDuplicate) {
+        throw new Error("A project with this name already exists");
+      }
+
+      // Get and update project
+      const project = await unifiedDb.projects.get(projectId);
+      if (!project) {
+        throw new Error(`Project ${projectId} not found`);
+      }
+
+      project.name = trimmedName;
+      project.updatedAt = new Date();
+
+      await unifiedDb.projects.put(project);
+
+      return project;
+    } catch (error) {
+      console.error("Failed to rename project:", error);
+      throw new Error("Database error: Could not rename project");
+    }
+  },
+
+  /**
+   * Validate project name (returns true if valid/unique)
+   */
+  async validateProjectName(name: string, excludeId?: string): Promise<boolean> {
+    try {
+      const trimmedName = name.trim();
+      if (!trimmedName) {
+        return false;
+      }
+
+      // Check for existing project with same name
+      const existingProjects = await unifiedDb.projects
+        .where("name")
+        .equalsIgnoreCase(trimmedName)
+        .toArray();
+
+      // If excluding an ID, filter it out
+      const duplicates = excludeId 
+        ? existingProjects.filter(p => p.id !== excludeId)
+        : existingProjects;
+
+      return duplicates.length === 0;
+    } catch (error) {
+      console.error("Failed to validate project name:", error);
+      return false;
+    }
+  },
+
+  /**
+   * Export project data with all associated canvases
+   */
+  async exportProject(projectId: string): Promise<ProjectExportData> {
+    try {
+      // Get project
+      const project = await unifiedDb.projects.get(projectId);
+      if (!project) {
+        throw new Error(`Project ${projectId} not found`);
+      }
+
+      // Get all canvases for this project
+      const canvases = await unifiedDb.canvases
+        .where("id")
+        .anyOf(project.canvasIds)
+        .toArray();
+
+      return {
+        project,
+        canvases,
+        exportedAt: new Date(),
+        format: 'zip'
+      };
+    } catch (error) {
+      console.error("Failed to export project:", error);
+      throw new Error("Database error: Could not export project");
     }
   },
 

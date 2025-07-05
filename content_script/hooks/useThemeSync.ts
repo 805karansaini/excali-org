@@ -190,8 +190,7 @@ export function useThemeSync() {
           try {
             const newState = JSON.parse(e.newValue);
             console.log(`New excalidraw-state theme: ${newState.theme}`);
-          } catch (error: unknown) {
-            // eslint-disable-line @typescript-eslint/no-unused-vars
+          } catch {
             console.log("Could not parse new storage value");
           }
         }

@@ -14,6 +14,7 @@
     "@excalidraw/excalidraw": "^0.18.0",
     "dexie": "^4.0.11",
     "framer-motion": "^12.19.2",
+    "jszip": "^3.10.1",
     "lucide-react": "^0.525.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

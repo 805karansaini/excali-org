@@ -8,6 +8,7 @@ import {
   Folder,
   FileText,
   FolderPlus,
+  ChevronRight,
 } from "lucide-react";
 import { useUnifiedState } from "../context/UnifiedStateProvider";
 import { eventBus, InternalEventTypes } from "../messaging/InternalEventBus";
@@ -18,8 +19,9 @@ import {
 import { SearchModal } from "./SearchModal";
 import { ProjectModal } from "./ProjectModal";
 import { ContextMenu } from "./ContextMenu";
-import { UnifiedCanvas } from "../../shared/types";
-import { canvasOperations } from "../../shared/unified-db";
+import { ProjectContextMenu } from "./ProjectContextMenu";
+import { UnifiedCanvas, UnifiedProject } from "../../shared/types";
+import { canvasOperations, settingsOperations } from "../../shared/unified-db";
 import { v4 as uuidv4 } from "uuid";
 
 interface Props {
@@ -377,11 +379,28 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
     handleTouchEnd,
   ]);
 
-  const toggleProject = (projectId: string) => {
+  const toggleProject = useCallback(async (projectId: string) => {
+    // First update the local state
     dispatch({ type: "TOGGLE_PROJECT_COLLAPSED", payload: projectId });
-    const collapsedArray = Array.from(state.collapsedProjects);
-    updatePanelSettings({ collapsedProjects: collapsedArray });
-  };
+    
+    // Calculate what the new state will be
+    const newCollapsed = new Set(state.collapsedProjects);
+    if (newCollapsed.has(projectId)) {
+      newCollapsed.delete(projectId);
+    } else {
+      newCollapsed.add(projectId);
+    }
+    
+    // Save to persistent storage (but don't dispatch again to avoid conflicts)
+    try {
+      await settingsOperations.setSetting(
+        "collapsedProjects",
+        Array.from(newCollapsed)
+      );
+    } catch (error) {
+      console.error("Failed to save collapsed projects:", error);
+    }
+  }, [state.collapsedProjects, dispatch]);
 
   const handleCanvasRightClick = (
     e: React.MouseEvent,
@@ -391,6 +410,17 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
     dispatch({
       type: "SET_CONTEXT_MENU",
       payload: { x: e.clientX, y: e.clientY, canvas },
+    });
+  };
+
+  const handleProjectRightClick = (
+    e: React.MouseEvent,
+    project: UnifiedProject,
+  ) => {
+    e.preventDefault();
+    dispatch({
+      type: "SET_PROJECT_CONTEXT_MENU",
+      payload: { x: e.clientX, y: e.clientY, project },
     });
   };
 
@@ -709,13 +739,12 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
                             style={{
                               display: "flex",
                               alignItems: "center",
-                              gap: "8px",
-                              padding: "8px",
+                              gap: "4px",
+                              padding: "4px",
                               borderRadius: "6px",
-                              cursor: "pointer",
                               transition: "background-color 0.2s ease",
                             }}
-                            onClick={() => toggleProject(project.id)}
+                            onContextMenu={(e) => handleProjectRightClick(e, project)}
                             onMouseEnter={(e) => {
                               e.currentTarget.style.background =
                                 "var(--theme-bg-hover)";
@@ -724,36 +753,101 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
                               e.currentTarget.style.background = "transparent";
                             }}
                           >
+                            {/* Expand/Collapse Button */}
+                            <button
+                              style={{
+                                background: "none",
+                                border: "none",
+                                padding: "4px",
+                                cursor: "pointer",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                borderRadius: "4px",
+                                color: "var(--theme-text-secondary)",
+                                transition: "all 0.15s ease",
+                                width: "20px",
+                                height: "20px",
+                              }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleProject(project.id);
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.background = "var(--theme-bg-secondary)";
+                                e.currentTarget.style.color = "var(--theme-text-primary)";
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.background = "none";
+                                e.currentTarget.style.color = "var(--theme-text-secondary)";
+                              }}
+                              title={isCollapsed ? "Expand project" : "Collapse project"}
+                            >
+                              <motion.div
+                                animate={{ rotate: isCollapsed ? 0 : 90 }}
+                                transition={{ duration: 0.15, ease: "easeOut" }}
+                                style={{ display: "flex", alignItems: "center", justifyContent: "center" }}
+                              >
+                                <ChevronRight size={12} />
+                              </motion.div>
+                            </button>
+
+                            {/* Project Info Area */}
                             <div
                               style={{
-                                width: "12px",
-                                height: "12px",
-                                borderRadius: "2px",
-                                backgroundColor: project.color,
-                                flexShrink: 0,
-                              }}
-                            />
-                            <Folder size={16} />
-                            <span
-                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "8px",
                                 flex: 1,
-                                fontWeight: "500",
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                                whiteSpace: "nowrap",
+                                padding: "4px",
+                                borderRadius: "4px",
+                                cursor: "pointer",
+                                transition: "background-color 0.15s ease",
+                              }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                // Optional: Add project selection logic here
+                                // For now, we'll just expand/collapse as well
+                                toggleProject(project.id);
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.background = "var(--theme-bg-secondary)";
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.background = "transparent";
                               }}
                             >
-                              {project.name}
-                            </span>
-                            <span
-                              style={{
-                                fontSize: "12px",
-                                color: "var(--theme-text-secondary)",
-                                flexShrink: 0,
-                              }}
-                            >
-                              {projectCanvases.length}
-                            </span>
+                              <div
+                                style={{
+                                  width: "12px",
+                                  height: "12px",
+                                  borderRadius: "2px",
+                                  backgroundColor: project.color,
+                                  flexShrink: 0,
+                                }}
+                              />
+                              <Folder size={16} />
+                              <span
+                                style={{
+                                  flex: 1,
+                                  fontWeight: "500",
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                {project.name}
+                              </span>
+                              <span
+                                style={{
+                                  fontSize: "12px",
+                                  color: "var(--theme-text-secondary)",
+                                  flexShrink: 0,
+                                }}
+                              >
+                                {projectCanvases.length}
+                              </span>
+                            </div>
                           </div>
 
                           <AnimatePresence>
@@ -960,6 +1054,19 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
             canvas={state.contextMenu.canvas}
             onClose={() =>
               dispatch({ type: "SET_CONTEXT_MENU", payload: null })
+            }
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {state.projectContextMenu && (
+          <ProjectContextMenu
+            x={state.projectContextMenu.x}
+            y={state.projectContextMenu.y}
+            project={state.projectContextMenu.project}
+            onClose={() =>
+              dispatch({ type: "SET_PROJECT_CONTEXT_MENU", payload: null })
             }
           />
         )}

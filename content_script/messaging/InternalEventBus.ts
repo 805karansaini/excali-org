@@ -40,6 +40,15 @@ export enum InternalEventTypes {
   SHOW_CONTEXT_MENU = "SHOW_CONTEXT_MENU",
   HIDE_CONTEXT_MENU = "HIDE_CONTEXT_MENU",
 
+  // Project context menu
+  PROJECT_CONTEXT_MENU_SHOW = "PROJECT_CONTEXT_MENU_SHOW",
+  PROJECT_CONTEXT_MENU_HIDE = "PROJECT_CONTEXT_MENU_HIDE",
+
+  // Project operations
+  PROJECT_RENAME_REQUEST = "PROJECT_RENAME_REQUEST",
+  PROJECT_DELETE_REQUEST = "PROJECT_DELETE_REQUEST",
+  PROJECT_EXPORT_REQUEST = "PROJECT_EXPORT_REQUEST",
+
   // Keyboard shortcuts and actions
   ESCAPE_PRESSED = "ESCAPE_PRESSED",
   SELECT_ALL_REQUEST = "SELECT_ALL_REQUEST",
@@ -92,6 +101,26 @@ export interface EventPayloads {
   };
   [InternalEventTypes.HIDE_CONTEXT_MENU]: null;
 
+  [InternalEventTypes.PROJECT_CONTEXT_MENU_SHOW]: {
+    x: number;
+    y: number;
+    project: UnifiedProject;
+  };
+  [InternalEventTypes.PROJECT_CONTEXT_MENU_HIDE]: null;
+
+  [InternalEventTypes.PROJECT_RENAME_REQUEST]: {
+    projectId: string;
+    oldName: string;
+    newName: string;
+  };
+  [InternalEventTypes.PROJECT_DELETE_REQUEST]: {
+    project: UnifiedProject;
+    canvasAction: 'keep' | 'delete';
+  };
+  [InternalEventTypes.PROJECT_EXPORT_REQUEST]: {
+    project: UnifiedProject;
+  };
+
   [InternalEventTypes.ESCAPE_PRESSED]: null;
   [InternalEventTypes.SELECT_ALL_REQUEST]: null;
   [InternalEventTypes.SHOW_HELP_OVERLAY]: null;
@@ -112,7 +141,9 @@ type EventHandler<T extends InternalEventTypes> = (
  * Provides type-safe event emission and subscription
  */
 export class InternalEventBus {
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
   private listeners: Map<string, Set<Function>> = new Map();
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
   private onceListeners: Map<string, Set<Function>> = new Map();
   private debugMode: boolean = false;
 

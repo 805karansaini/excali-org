@@ -84,6 +84,12 @@ export interface ContextMenuData {
   canvas: UnifiedCanvas;
 }
 
+export interface ProjectContextMenuData {
+  x: number;
+  y: number;
+  project: UnifiedProject;
+}
+
 export type File = UnifiedCanvas;
 export type Collection = UnifiedProject;
 export type Canvas = UnifiedCanvas;
