@@ -65,44 +65,36 @@ export function ProjectContextMenu({ x, y, project, onClose }: Props) {
       if (
         menuRef.current &&
         !menuRef.current.contains(e.target as Node) &&
-        deleteModalRef.current &&
-        !deleteModalRef.current.contains(e.target as Node)
+        (!deleteModalRef.current || !deleteModalRef.current.contains(e.target as Node))
       ) {
         onClose();
+      }
+    };
+
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (showDeleteConfirm) {
+          setShowDeleteConfirm(false);
+        } else if (isRenameModalOpen) {
+          setRenameModalOpen(false);
+        } else {
+          onClose();
+        }
       }
     };
 
     // Delay adding listeners to prevent immediate close
     const timeoutId = setTimeout(() => {
       document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener("keydown", handleEscape);
     }, 100);
 
     return () => {
       clearTimeout(timeoutId);
       document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
     };
-  }, [onClose]);
-
-  useEffect(() => {
-    const handleEscape = () => {
-      if (showDeleteConfirm) {
-        setShowDeleteConfirm(false);
-      } else if (isRenameModalOpen) {
-        setRenameModalOpen(false);
-      } else {
-        onClose();
-      }
-    };
-
-    const unsubscribe = eventBus.on(
-      InternalEventTypes.ESCAPE_PRESSED,
-      handleEscape,
-    );
-
-    return () => {
-      unsubscribe();
-    };
-  }, [showDeleteConfirm, isRenameModalOpen, onClose]);
+  }, [onClose, showDeleteConfirm, isRenameModalOpen]);
 
   // Focus management for delete modal
   useEffect(() => {
