@@ -846,16 +846,7 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
                                 e.currentTarget.style.background = "transparent";
                               }}
                             >
-                              <div
-                                style={{
-                                  width: "12px",
-                                  height: "12px",
-                                  borderRadius: "2px",
-                                  backgroundColor: project.color,
-                                  flexShrink: 0,
-                                }}
-                              />
-                              <Folder size={16} />
+                              <Folder size={16} color={project.color} fill={project.color} style={{ flexShrink: 0 }} />
                               <span
                                 style={{
                                   flex: 1,
