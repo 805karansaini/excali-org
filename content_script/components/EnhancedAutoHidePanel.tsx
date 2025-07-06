@@ -598,16 +598,28 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
                     marginBottom: "12px",
                   }}
                 >
-                  <h2
+                  <a
+                    href="https://excali.org"
+                    target="_blank"
+                    rel="noopener noreferrer"
                     style={{
                       fontSize: "16px",
                       fontWeight: "600",
                       margin: 0,
                       color: "var(--theme-text-primary)",
+                      textDecoration: "none",
+                      cursor: "pointer",
+                      transition: "opacity 0.2s ease",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.opacity = "0.7";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.opacity = "1";
                     }}
                   >
-                    Excalidraw
-                  </h2>
+                    Excali Organizer
+                  </a>
                   <button
                     style={{
                       background: "transparent",

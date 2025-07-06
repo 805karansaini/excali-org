@@ -85,7 +85,7 @@ export default defineConfig({
   define: {
     // Environment variables
     __DEV__: process.env.NODE_ENV === "development",
-    __VERSION__: JSON.stringify(process.env.npm_package_version || "0.0.0"),
+    __VERSION__: JSON.stringify(process.env.npm_package_version || "1.0.0"),
 
     // Feature flags
     __ENABLE_DEV_TOOLS__: process.env.NODE_ENV === "development",
