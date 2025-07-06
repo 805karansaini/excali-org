@@ -341,37 +341,53 @@ export const projectOperations = {
   },
 
   /**
-   * Rename project with validation
+   * Rename project with validation (backward compatibility)
    */
   async renameProject(projectId: string, newName: string): Promise<UnifiedProject> {
+    return this.updateProjectFields(projectId, { name: newName });
+  },
+
+  /**
+   * Update project with validation (name and/or color)
+   */
+  async updateProjectFields(projectId: string, updates: { name?: string; color?: string }): Promise<UnifiedProject> {
     try {
-      // Validate new name
-      const trimmedName = newName.trim();
-      if (!trimmedName) {
-        throw new Error("Project name cannot be empty");
-      }
-
-      // Check for duplicate names
-      const isDuplicate = await this.validateProjectName(trimmedName, projectId);
-      if (!isDuplicate) {
-        throw new Error("A project with this name already exists");
-      }
-
-      // Get and update project
+      // Get existing project
       const project = await unifiedDb.projects.get(projectId);
       if (!project) {
         throw new Error(`Project ${projectId} not found`);
       }
 
-      project.name = trimmedName;
+      // Validate name if provided
+      if (updates.name !== undefined) {
+        const trimmedName = updates.name.trim();
+        if (!trimmedName) {
+          throw new Error("Project name cannot be empty");
+        }
+
+        // Check for duplicate names
+        const isDuplicate = await this.validateProjectName(trimmedName, projectId);
+        if (!isDuplicate) {
+          throw new Error("A project with this name already exists");
+        }
+
+        project.name = trimmedName;
+      }
+
+      // Update color if provided
+      if (updates.color !== undefined) {
+        project.color = updates.color;
+      }
+
+      // Update timestamp
       project.updatedAt = new Date();
 
       await unifiedDb.projects.put(project);
 
       return project;
     } catch (error) {
-      console.error("Failed to rename project:", error);
-      throw new Error("Database error: Could not rename project");
+      console.error("Failed to update project:", error);
+      throw new Error("Database error: Could not update project");
     }
   },
 
