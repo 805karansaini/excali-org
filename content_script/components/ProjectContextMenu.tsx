@@ -10,7 +10,7 @@ import {
 import JSZip from "jszip";
 import { useUnifiedState } from "../context/UnifiedStateProvider";
 import { eventBus, InternalEventTypes } from "../messaging/InternalEventBus";
-import { RenameModal } from "./RenameModal";
+import { ProjectEditModal } from "./ProjectEditModal";
 import { UnifiedProject } from "../../shared/types";
 import { projectOperations } from "../../shared/unified-db";
 
@@ -103,9 +103,12 @@ export function ProjectContextMenu({ x, y, project, onClose }: Props) {
     }
   }, [showDeleteConfirm]);
 
-  const handleRename = async (newName: string) => {
+  const handleRename = async (newName: string, newColor: string) => {
     try {
-      const updatedProject = await projectOperations.renameProject(project.id, newName);
+      const updatedProject = await projectOperations.updateProjectFields(project.id, {
+        name: newName,
+        color: newColor,
+      });
 
       // Update state
       dispatch({ type: "UPDATE_PROJECT", payload: updatedProject });
@@ -117,10 +120,10 @@ export function ProjectContextMenu({ x, y, project, onClose }: Props) {
         newName: newName,
       });
 
-      console.log("Project renamed successfully:", newName);
+      console.log("Project updated successfully:", { name: newName, color: newColor });
     } catch (error) {
-      console.error("Failed to rename project:", error);
-      alert("Failed to rename project. Please try again.");
+      console.error("Failed to update project:", error);
+      alert("Failed to update project. Please try again.");
     }
   };
 
@@ -352,7 +355,7 @@ export function ProjectContextMenu({ x, y, project, onClose }: Props) {
           }}
         >
           <Edit3 size={16} />
-          Rename
+          Edit Project
           <span
             style={{
               marginLeft: "auto",
@@ -433,10 +436,10 @@ export function ProjectContextMenu({ x, y, project, onClose }: Props) {
         </button>
       </motion.div>
 
-      {/* Rename Modal */}
+      {/* Edit Modal */}
       {isRenameModalOpen && (
-        <RenameModal
-          currentName={project.name}
+        <ProjectEditModal
+          project={project}
           onRename={handleRename}
           onClose={() => setRenameModalOpen(false)}
         />

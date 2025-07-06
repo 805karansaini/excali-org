@@ -1,11 +1,13 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
 import { X } from "lucide-react";
-import { useUnifiedState } from "../context/UnifiedStateProvider";
 import { eventBus, InternalEventTypes } from "../messaging/InternalEventBus";
+import { UnifiedProject } from "../../shared/types";
 
 interface Props {
+  project: UnifiedProject;
+  onRename: (newName: string, newColor: string) => void;
   onClose: () => void;
 }
 
@@ -24,21 +26,44 @@ const projectColors = [
   "#a855f7", // Violet
 ];
 
-export function ProjectModal({ onClose }: Props) {
-  const { state, createProject } = useUnifiedState();
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [selectedColor, setSelectedColor] = useState(projectColors[0]);
+export function ProjectEditModal({ project, onRename, onClose }: Props) {
+  const [name, setName] = useState(project.name);
+  const [selectedColor, setSelectedColor] = useState(project.color || projectColors[0]);
   const [customColor, setCustomColor] = useState("");
   const [showCustomPicker, setShowCustomPicker] = useState(false);
-  const [selectedColorIndex, setSelectedColorIndex] = useState(0);
+  const [selectedColorIndex, setSelectedColorIndex] = useState(
+    projectColors.indexOf(project.color || projectColors[0])
+  );
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const focusTimeout = setTimeout(() => {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    }, 100);
+
+    const unsubscribe = eventBus.on(InternalEventTypes.ESCAPE_PRESSED, onClose);
+
+    return () => {
+      clearTimeout(focusTimeout);
+      unsubscribe();
+    };
+  }, [onClose]);
+
+  // If current color is not in the predefined colors, treat it as custom
+  useEffect(() => {
+    if (project.color && !projectColors.includes(project.color)) {
+      setShowCustomPicker(true);
+      setCustomColor(project.color);
+      setSelectedColorIndex(0); // Default to first color index for keyboard navigation
+    }
+  }, [project.color]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    // Validate name
+    
     if (!name.trim()) {
       setError("Project name is required");
       return;
@@ -49,38 +74,20 @@ export function ProjectModal({ onClose }: Props) {
       return;
     }
 
-    // Check for duplicate names
-    const existingProject = state.projects.find(
-      (project) => project.name.toLowerCase() === name.trim().toLowerCase(),
-    );
-
-    if (existingProject) {
-      setError("A project with this name already exists");
+    // Only proceed if name or color has changed
+    if (name.trim() === project.name && selectedColor === project.color) {
+      onClose();
       return;
     }
 
     setIsLoading(true);
-
+    
     try {
-      // Create new project using the state provider method (saves to database)
-      const newProject = await createProject({
-        name: name.trim(),
-        description: description.trim() || undefined,
-        canvasIds: [],
-        fileIds: [], // Backward compatibility
-        color: selectedColor,
-        updatedAt: new Date(),
-      });
-
-      // Emit project creation event
-      eventBus.emit(InternalEventTypes.PROJECT_CREATED, newProject);
-
-      console.log("Project created and saved to database:", newProject);
-      
+      await onRename(name.trim(), selectedColor);
       onClose();
     } catch (err) {
-      setError("Failed to create project. Please try again.");
-      console.error("Error creating project:", err);
+      setError("Failed to update project. Please try again.");
+      console.error("Error updating project:", err);
     } finally {
       setIsLoading(false);
     }
@@ -89,13 +96,6 @@ export function ProjectModal({ onClose }: Props) {
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setName(e.target.value);
     if (error) setError("");
-  };
-
-  const handleDescriptionChange = (
-    e: React.ChangeEvent<HTMLTextAreaElement>,
-  ) => {
-    setDescription(e.target.value);
-    if (error && error.includes("description")) setError("");
   };
 
   const overlayStyles: React.CSSProperties = {
@@ -140,13 +140,6 @@ export function ProjectModal({ onClose }: Props) {
     transition: "border-color 0.2s ease",
   };
 
-  const textareaStyles: React.CSSProperties = {
-    ...inputStyles,
-    minHeight: "80px",
-    resize: "vertical" as const,
-    fontFamily: "inherit",
-  };
-
   return createPortal(
     <motion.div
       style={overlayStyles}
@@ -183,7 +176,7 @@ export function ProjectModal({ onClose }: Props) {
                 margin: 0,
               }}
             >
-              Create New Project
+              Edit Project
             </h2>
             <button
               onClick={onClose}
@@ -211,7 +204,7 @@ export function ProjectModal({ onClose }: Props) {
               lineHeight: 1.5,
             }}
           >
-            Organize your canvases into projects for better management
+            Update the project name and color
           </p>
         </div>
 
@@ -230,6 +223,7 @@ export function ProjectModal({ onClose }: Props) {
                 Project Name *
               </label>
               <input
+                ref={inputRef}
                 type="text"
                 style={{
                   ...inputStyles,
@@ -243,7 +237,6 @@ export function ProjectModal({ onClose }: Props) {
                 placeholder="Enter project name..."
                 value={name}
                 onChange={handleNameChange}
-                autoFocus
                 maxLength={50}
                 disabled={isLoading}
               />
@@ -258,38 +251,6 @@ export function ProjectModal({ onClose }: Props) {
               >
                 <span>{error && error.includes("name") ? error : ""}</span>
                 <span>{name.length}/50</span>
-              </div>
-            </div>
-
-            <div style={{ marginBottom: "20px" }}>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: "14px",
-                  fontWeight: 500,
-                  color: "var(--theme-text-primary)",
-                  marginBottom: "8px",
-                }}
-              >
-                Description (Optional)
-              </label>
-              <textarea
-                style={textareaStyles}
-                placeholder="Describe your project..."
-                value={description}
-                onChange={handleDescriptionChange}
-                maxLength={200}
-                disabled={isLoading}
-              />
-              <div
-                style={{
-                  fontSize: "12px",
-                  color: "var(--theme-text-secondary)",
-                  marginTop: "4px",
-                  textAlign: "right",
-                }}
-              >
-                {description.length}/200
               </div>
             </div>
 
@@ -456,8 +417,7 @@ export function ProjectModal({ onClose }: Props) {
             </div>
 
             {error &&
-              !error.includes("name") &&
-              !error.includes("description") && (
+              !error.includes("name") && (
                 <div
                   style={{
                     background: "var(--theme-error-bg, rgba(239, 68, 68, 0.1))",
@@ -539,10 +499,10 @@ export function ProjectModal({ onClose }: Props) {
                       animation: "spin 1s linear infinite",
                     }}
                   />
-                  Creating...
+                  Updating...
                 </>
               ) : (
-                "Create Project"
+                "Update Project"
               )}
             </button>
           </div>

@@ -396,22 +396,16 @@ export function SearchModal() {
                   style={{
                     width: "32px",
                     height: "32px",
-                    borderRadius: "8px",
-                    background:
-                      result.type === "canvas"
-                        ? "linear-gradient(135deg, #6366f1, #8b5cf6)"
-                        : `linear-gradient(135deg, ${(result.item as UnifiedProject).color || "#6366f1"}, #8b5cf6)`,
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    color: "white",
                     flexShrink: 0,
                   }}
                 >
                   {result.type === "canvas" ? (
-                    <FileText size={16} />
+                    <FileText size={16} color="var(--theme-accent-primary, #6366f1)" />
                   ) : (
-                    <Folder size={16} />
+                    <Folder size={16} color={(result.item as UnifiedProject).color || "#6366f1"} fill={(result.item as UnifiedProject).color || "#6366f1"} />
                   )}
                 </div>
 
