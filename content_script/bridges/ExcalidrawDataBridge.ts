@@ -25,6 +25,9 @@ export interface ExcalidrawSyncOptions {
   autoSave: boolean;
   syncInterval: number; // milliseconds
   debounceDelay: number; // milliseconds
+  maxRetries: number;
+  retryDelay: number; // milliseconds
+  deepChangeDetection: boolean;
 }
 
 /**
@@ -36,12 +39,20 @@ export class ExcalidrawDataBridge {
   private debounceTimeout: number | null = null;
   private isLoading: boolean = false;
   private options: ExcalidrawSyncOptions;
+  private retryCount: number = 0;
+  private lastSyncTimestamp: number = 0;
+  private storageEventQueue: StorageEvent[] = [];
+  private processingQueue: boolean = false;
+  private syncInProgress: boolean = false;
 
   constructor(options: Partial<ExcalidrawSyncOptions> = {}) {
     this.options = {
       autoSave: true,
-      syncInterval: 5000, // 5 seconds
-      debounceDelay: 1000, // 1 second
+      syncInterval: 1000, // Reduced to 1 second for faster detection
+      debounceDelay: 350, // Aligned with Excalidraw's 300ms + buffer
+      maxRetries: 3,
+      retryDelay: 500,
+      deepChangeDetection: true,
       ...options,
     };
 
@@ -81,7 +92,7 @@ export class ExcalidrawDataBridge {
   }
 
   /**
-   * Cleanup bridge resources
+   * Enhanced cleanup with queue clearing
    */
   destroy(): void {
     console.log("[ExcalidrawDataBridge] Destroying bridge...");
@@ -95,6 +106,9 @@ export class ExcalidrawDataBridge {
       clearTimeout(this.debounceTimeout);
       this.debounceTimeout = null;
     }
+
+    // Clear queue and reset state
+    this.resetSyncState();
 
     // Remove event listeners
     window.removeEventListener("storage", this.handleStorageChange);
@@ -467,7 +481,7 @@ export class ExcalidrawDataBridge {
   }
 
   /**
-   * Check if current data has changed
+   * Check if current data has changed with enhanced detection
    */
   private hasDataChanged(): boolean {
     try {
@@ -487,29 +501,127 @@ export class ExcalidrawDataBridge {
         return true;
       }
 
-      // Compare elements count and IDs for more accurate change detection
-      const currentElementsCount = currentData.elements?.length || 0;
-      const currentElementIds =
-        currentData.elements?.map((el: ExcalidrawElement) => el.id).sort() ||
-        [];
+      // Quick comparison first - if same, no changes
+      const currentDataStr = JSON.stringify(currentData);
+      if (currentDataStr === this.lastSyncData) {
+        return false;
+      }
 
-      let lastElementsCount = 0;
-      let lastElementIds: string[] = [];
+      // Enhanced change detection
+      if (this.options.deepChangeDetection) {
+        return this.hasDeepChanges(currentData);
+      }
 
+      // Fallback to basic detection
+      return this.hasBasicChanges(currentData);
+    } catch (error) {
+      console.error(
+        "[ExcalidrawDataBridge] Error checking data changes:",
+        error,
+      );
+      return true; // Assume changes to be safe
+    }
+  }
+
+  /**
+   * Deep change detection for text elements and properties
+   */
+  private hasDeepChanges(currentData: ExcalidrawData): boolean {
+    try {
+      let lastData: ExcalidrawData;
       try {
-        const lastData = JSON.parse(this.lastSyncData);
-        lastElementsCount = lastData.elements?.length || 0;
-        lastElementIds =
-          lastData.elements?.map((el: ExcalidrawElement) => el.id).sort() || [];
-      } catch (_error: unknown) {
+        lastData = JSON.parse(this.lastSyncData!);
+      } catch {
+        return true; // Parse error, assume changes
+      }
+
+      const currentElements = currentData.elements || [];
+      const lastElements = lastData.elements || [];
+
+      // Check element count first
+      if (currentElements.length !== lastElements.length) {
         console.log(
-          "[ExcalidrawDataBridge] Failed to parse last sync data, considering as changed.",
-          _error,
+          "[ExcalidrawDataBridge] Element count changed:",
+          lastElements.length,
+          "->",
+          currentElements.length,
         );
         return true;
       }
 
-      // Check if count changed
+      // Create maps for efficient comparison
+      const currentElementsMap = new Map(currentElements.map(el => [el.id, el]));
+      const lastElementsMap = new Map(lastElements.map(el => [el.id, el]));
+
+      // Check for new or removed elements
+      for (const id of currentElementsMap.keys()) {
+        if (!lastElementsMap.has(id)) {
+          console.log("[ExcalidrawDataBridge] New element detected:", id);
+          return true;
+        }
+      }
+
+      for (const id of lastElementsMap.keys()) {
+        if (!currentElementsMap.has(id)) {
+          console.log("[ExcalidrawDataBridge] Element removed:", id);
+          return true;
+        }
+      }
+
+      // Deep comparison of element properties
+      for (const [id, currentElement] of currentElementsMap) {
+        const lastElement = lastElementsMap.get(id)!;
+        
+        // Check critical properties that indicate content changes
+        const criticalProps = [
+          'text', 'rawText', 'originalText', // Text content
+          'x', 'y', 'width', 'height', // Position/size
+          'angle', 'strokeColor', 'backgroundColor', // Styling
+          'versionNonce', 'updated' // Version tracking
+        ];
+
+        for (const prop of criticalProps) {
+          if ((currentElement as any)[prop] !== (lastElement as any)[prop]) {
+            console.log(
+              `[ExcalidrawDataBridge] Element ${id} property '${prop}' changed:`,
+              (lastElement as any)[prop],
+              "->",
+              (currentElement as any)[prop],
+            );
+            return true;
+          }
+        }
+      }
+
+      // Check app state changes
+      const appStateChanged = this.hasAppStateChanged(currentData.appState, lastData.appState);
+      if (appStateChanged) {
+        console.log("[ExcalidrawDataBridge] App state changed");
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      console.error("[ExcalidrawDataBridge] Error in deep change detection:", error);
+      return true; // Assume changes to be safe
+    }
+  }
+
+  /**
+   * Basic change detection (fallback)
+   */
+  private hasBasicChanges(currentData: ExcalidrawData): boolean {
+    try {
+      let lastData: ExcalidrawData;
+      try {
+        lastData = JSON.parse(this.lastSyncData!);
+      } catch {
+        return true;
+      }
+
+      const currentElementsCount = currentData.elements?.length || 0;
+      const lastElementsCount = lastData.elements?.length || 0;
+      
       if (currentElementsCount !== lastElementsCount) {
         console.log(
           "[ExcalidrawDataBridge] Element count changed:",
@@ -520,23 +632,39 @@ export class ExcalidrawDataBridge {
         return true;
       }
 
-      // Check if element IDs changed (elements added/removed/modified)
-      const idsChanged =
-        JSON.stringify(currentElementIds) !== JSON.stringify(lastElementIds);
+      // Check element IDs
+      const currentElementIds = currentData.elements?.map(el => el.id).sort() || [];
+      const lastElementIds = lastData.elements?.map(el => el.id).sort() || [];
+      
+      const idsChanged = JSON.stringify(currentElementIds) !== JSON.stringify(lastElementIds);
       if (idsChanged) {
         console.log("[ExcalidrawDataBridge] Element IDs changed");
         return true;
       }
 
-      // No significant changes detected
       return false;
     } catch (error) {
-      console.error(
-        "[ExcalidrawDataBridge] Error checking data changes:",
-        error,
-      );
-      return false;
+      console.error("[ExcalidrawDataBridge] Error in basic change detection:", error);
+      return true;
     }
+  }
+
+  /**
+   * Check if app state has meaningful changes
+   */
+  private hasAppStateChanged(currentAppState: AppState, lastAppState: AppState): boolean {
+    // Ignore transient properties that don't affect the saved state
+    const ignoreProps = ['selectedElementIds', 'editingGroupId', 'scrollX', 'scrollY', 'zoom'];
+    
+    const currentFiltered = { ...currentAppState };
+    const lastFiltered = { ...lastAppState };
+    
+    for (const prop of ignoreProps) {
+      delete (currentFiltered as any)[prop];
+      delete (lastFiltered as any)[prop];
+    }
+    
+    return JSON.stringify(currentFiltered) !== JSON.stringify(lastFiltered);
   }
 
   /**
@@ -557,7 +685,7 @@ export class ExcalidrawDataBridge {
   }
 
   /**
-   * Debounced sync to avoid excessive saves
+   * Enhanced debounced sync with retry logic
    */
   private debouncedSync(): void {
     if (this.debounceTimeout) {
@@ -565,38 +693,181 @@ export class ExcalidrawDataBridge {
     }
 
     this.debounceTimeout = setTimeout(async () => {
-      try {
-        const currentData = this.getExcalidrawData();
-        if (currentData) {
-          await globalEventBus.emit(InternalEventTypes.SYNC_EXCALIDRAW_DATA, {
-            elements: currentData.elements,
-            appState: currentData.appState,
-          });
-
-          this.lastSyncData = JSON.stringify(currentData);
-        }
-      } catch (error) {
-        console.error("[ExcalidrawDataBridge] Auto-sync failed:", error);
-      }
+      await this.performSync();
     }, this.options.debounceDelay);
   }
 
   /**
-   * Setup localStorage change listener
+   * Perform sync with retry logic and error handling
    */
-  private setupStorageListener(): void {
-    window.addEventListener("storage", this.handleStorageChange);
+  private async performSync(): Promise<void> {
+    if (this.syncInProgress) {
+      console.log("[ExcalidrawDataBridge] Sync already in progress, skipping");
+      return;
+    }
+
+    this.syncInProgress = true;
+    const startTime = Date.now();
+
+    try {
+      const currentData = this.getExcalidrawData();
+      if (!currentData) {
+        console.log("[ExcalidrawDataBridge] No data to sync");
+        return;
+      }
+
+      // Validate data integrity
+      if (!this.validateDataIntegrity(currentData)) {
+        console.warn("[ExcalidrawDataBridge] Data integrity check failed, skipping sync");
+        return;
+      }
+
+      // Emit sync event
+      await globalEventBus.emit(InternalEventTypes.SYNC_EXCALIDRAW_DATA, {
+        elements: currentData.elements,
+        appState: currentData.appState,
+      });
+
+      // Update last sync data and timestamp
+      this.lastSyncData = JSON.stringify(currentData);
+      this.lastSyncTimestamp = Date.now();
+      this.retryCount = 0;
+
+      console.log(
+        `[ExcalidrawDataBridge] Sync completed successfully in ${Date.now() - startTime}ms`,
+        {
+          elements: currentData.elements?.length || 0,
+          timestamp: new Date().toISOString(),
+        },
+      );
+    } catch (error) {
+      console.error("[ExcalidrawDataBridge] Sync failed:", error);
+      
+      // Retry logic
+      if (this.retryCount < this.options.maxRetries) {
+        this.retryCount++;
+        console.log(`[ExcalidrawDataBridge] Retrying sync (${this.retryCount}/${this.options.maxRetries})`);
+        
+        setTimeout(() => {
+          this.performSync();
+        }, this.options.retryDelay * this.retryCount); // Exponential backoff
+      } else {
+        console.error("[ExcalidrawDataBridge] Max retries exceeded, sync failed permanently");
+        this.retryCount = 0;
+        
+        // Emit error event
+        await globalEventBus.emit(InternalEventTypes.ERROR_OCCURRED, {
+          error: "Auto-sync failed after multiple retries",
+          details: error,
+        });
+      }
+    } finally {
+      this.syncInProgress = false;
+    }
   }
 
   /**
-   * Handle localStorage changes
+   * Validate data integrity before sync
+   */
+  private validateDataIntegrity(data: ExcalidrawData): boolean {
+    try {
+      // Check if elements array is valid
+      if (!Array.isArray(data.elements)) {
+        console.warn("[ExcalidrawDataBridge] Invalid elements array");
+        return false;
+      }
+
+      // Check if all elements have required properties
+      for (const element of data.elements) {
+        if (!element.id || !element.type) {
+          console.warn("[ExcalidrawDataBridge] Invalid element missing id or type:", element);
+          return false;
+        }
+      }
+
+      // Check if appState is valid
+      if (!data.appState || typeof data.appState !== 'object') {
+        console.warn("[ExcalidrawDataBridge] Invalid appState");
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      console.error("[ExcalidrawDataBridge] Data integrity check failed:", error);
+      return false;
+    }
+  }
+
+  /**
+   * Setup localStorage change listener with enhanced handling
+   */
+  private setupStorageListener(): void {
+    window.addEventListener("storage", this.handleStorageChange);
+    
+    // Also listen for direct storage mutations (for same-tab changes)
+    const originalSetItem = localStorage.setItem;
+    localStorage.setItem = (key: string, value: string) => {
+      const result = originalSetItem.call(localStorage, key, value);
+      if (key === "excalidraw" || key === "excalidraw-state") {
+        // Small delay to ensure storage is written
+        setTimeout(() => {
+          this.handleStorageChange({ key, newValue: value, oldValue: null } as StorageEvent);
+        }, 10);
+      }
+      return result;
+    };
+  }
+
+  /**
+   * Enhanced storage change handler with queuing
    */
   private handleStorageChange = (event: StorageEvent): void => {
     if (event.key === "excalidraw" || event.key === "excalidraw-state") {
       console.log("[ExcalidrawDataBridge] Storage change detected:", event.key);
-      this.debouncedSync();
+      
+      // Queue the event for processing
+      this.storageEventQueue.push(event);
+      
+      // Process queue if not already processing
+      if (!this.processingQueue) {
+        this.processStorageEventQueue();
+      }
     }
   };
+
+  /**
+   * Process storage events in queue to avoid race conditions
+   */
+  private async processStorageEventQueue(): Promise<void> {
+    if (this.processingQueue) {
+      return;
+    }
+
+    this.processingQueue = true;
+
+    try {
+      while (this.storageEventQueue.length > 0) {
+        const event = this.storageEventQueue.shift()!;
+        console.log("[ExcalidrawDataBridge] Processing storage event:", event.key);
+        
+        // Small delay to ensure Excalidraw has finished writing
+        await new Promise(resolve => setTimeout(resolve, 50));
+        
+        // Check if data has actually changed before syncing
+        if (this.hasDataChanged()) {
+          this.debouncedSync();
+          break; // One sync per batch
+        }
+      }
+    } finally {
+      this.processingQueue = false;
+      
+      // If more events were queued while processing, process them
+      if (this.storageEventQueue.length > 0) {
+        setTimeout(() => this.processStorageEventQueue(), 100);
+      }
+    }
+  }
 
   /**
    * Setup event listeners
@@ -612,19 +883,51 @@ export class ExcalidrawDataBridge {
   }
 
   /**
-   * Get bridge statistics
+   * Get enhanced bridge statistics
    */
   getStats(): {
     isInitialized: boolean;
     autoSyncEnabled: boolean;
     lastSyncTime: string | null;
     hasCurrentData: boolean;
+    retryCount: number;
+    syncInProgress: boolean;
+    queuedEvents: number;
+    options: ExcalidrawSyncOptions;
   } {
     return {
       isInitialized: this.syncInterval !== null,
       autoSyncEnabled: this.options.autoSave,
-      lastSyncTime: this.lastSyncData ? new Date().toISOString() : null,
+      lastSyncTime: this.lastSyncTimestamp ? new Date(this.lastSyncTimestamp).toISOString() : null,
       hasCurrentData: this.getExcalidrawData() !== null,
+      retryCount: this.retryCount,
+      syncInProgress: this.syncInProgress,
+      queuedEvents: this.storageEventQueue.length,
+      options: this.options,
     };
+  }
+
+  /**
+   * Force immediate sync (for testing/debugging)
+   */
+  async forceSync(): Promise<void> {
+    console.log("[ExcalidrawDataBridge] Force sync requested");
+    await this.performSync();
+  }
+
+  /**
+   * Clear sync queue and reset state
+   */
+  resetSyncState(): void {
+    console.log("[ExcalidrawDataBridge] Resetting sync state");
+    this.storageEventQueue = [];
+    this.retryCount = 0;
+    this.syncInProgress = false;
+    this.processingQueue = false;
+    
+    if (this.debounceTimeout) {
+      clearTimeout(this.debounceTimeout);
+      this.debounceTimeout = null;
+    }
   }
 }
