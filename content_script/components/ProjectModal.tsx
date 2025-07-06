@@ -10,18 +10,18 @@ interface Props {
 }
 
 const projectColors = [
-  "#6366f1",
-  "#8b5cf6",
-  "#06b6d4",
-  "#10b981",
-  "#f59e0b",
-  "#ef4444",
-  "#ec4899",
-  "#84cc16",
-  "#f97316",
-  "#3b82f6",
-  "#8b5cf6",
-  "#14b8a6",
+  "#6366f1", // Indigo
+  "#8b5cf6", // Purple
+  "#06b6d4", // Cyan
+  "#10b981", // Emerald
+  "#f59e0b", // Amber
+  "#ef4444", // Red
+  "#ec4899", // Pink
+  "#84cc16", // Lime
+  "#f97316", // Orange
+  "#3b82f6", // Blue
+  "#14b8a6", // Teal
+  "#a855f7", // Violet
 ];
 
 export function ProjectModal({ onClose }: Props) {
@@ -29,6 +29,9 @@ export function ProjectModal({ onClose }: Props) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [selectedColor, setSelectedColor] = useState(projectColors[0]);
+  const [customColor, setCustomColor] = useState("");
+  const [showCustomPicker, setShowCustomPicker] = useState(false);
+  const [selectedColorIndex, setSelectedColorIndex] = useState(0);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -304,34 +307,151 @@ export function ProjectModal({ onClose }: Props) {
               </label>
               <div
                 style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(6, 1fr)",
-                  gap: "8px",
-                  maxWidth: "200px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "12px",
                 }}
               >
-                {projectColors.map((color) => (
+                <div
+                  tabIndex={0}
+                  role="radiogroup"
+                  aria-label="Choose project color"
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(6, 1fr)",
+                    gap: "8px",
+                    maxWidth: "200px",
+                    padding: "4px",
+                    borderRadius: "8px",
+                    border: "2px solid transparent",
+                    outline: "none",
+                    transition: "border-color 0.2s ease",
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+                      e.preventDefault();
+                      const nextIndex = (selectedColorIndex + 1) % projectColors.length;
+                      setSelectedColorIndex(nextIndex);
+                      setSelectedColor(projectColors[nextIndex]);
+                      setShowCustomPicker(false);
+                    } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+                      e.preventDefault();
+                      const prevIndex = selectedColorIndex === 0 ? projectColors.length - 1 : selectedColorIndex - 1;
+                      setSelectedColorIndex(prevIndex);
+                      setSelectedColor(projectColors[prevIndex]);
+                      setShowCustomPicker(false);
+                    } else if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      // Color is already selected, no additional action needed
+                    }
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = "var(--theme-accent-primary, #6366f1)";
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = "transparent";
+                  }}
+                >
+                  {projectColors.map((color, index) => (
+                    <button
+                      key={color}
+                      type="button"
+                      tabIndex={-1}
+                      role="radio"
+                      aria-checked={selectedColor === color && !showCustomPicker}
+                      style={{
+                        width: "28px",
+                        height: "28px",
+                        borderRadius: "6px",
+                        backgroundColor: color,
+                        border:
+                          selectedColor === color && !showCustomPicker
+                            ? `3px solid var(--theme-text-primary)`
+                            : "2px solid transparent",
+                        cursor: "pointer",
+                        transition: "all 0.2s ease",
+                        boxSizing: "border-box",
+                      }}
+                      onClick={() => {
+                        setSelectedColorIndex(index);
+                        setSelectedColor(color);
+                        setShowCustomPicker(false);
+                      }}
+                      disabled={isLoading}
+                      aria-label={`Select color ${color}`}
+                    />
+                  ))}
+                </div>
+                
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                   <button
-                    key={color}
                     type="button"
+                    onClick={() => setShowCustomPicker(!showCustomPicker)}
+                    disabled={isLoading}
                     style={{
-                      width: "28px",
-                      height: "28px",
-                      borderRadius: "6px",
-                      backgroundColor: color,
-                      border:
-                        selectedColor === color
-                          ? `3px solid var(--theme-text-primary)`
-                          : "2px solid transparent",
+                      padding: "6px 12px",
+                      fontSize: "12px",
+                      background: showCustomPicker ? "var(--theme-accent-primary, #6366f1)" : "var(--theme-bg-tertiary, #f8f9fa)",
+                      color: showCustomPicker ? "var(--theme-text-on-accent, #ffffff)" : "var(--theme-text-secondary, #6b7280)",
+                      border: "1px solid var(--theme-border-primary)",
+                      borderRadius: "4px",
                       cursor: "pointer",
                       transition: "all 0.2s ease",
-                      boxSizing: "border-box",
                     }}
-                    onClick={() => setSelectedColor(color)}
-                    disabled={isLoading}
-                    aria-label={`Select color ${color}`}
-                  />
-                ))}
+                  >
+                    Custom Color
+                  </button>
+                  {showCustomPicker && (
+                    <>
+                      <input
+                        type="color"
+                        value={customColor || selectedColor}
+                        onChange={(e) => {
+                          setCustomColor(e.target.value);
+                          setSelectedColor(e.target.value);
+                        }}
+                        disabled={isLoading}
+                        style={{
+                          width: "32px",
+                          height: "32px",
+                          border: "2px solid var(--theme-border-primary)",
+                          borderRadius: "4px",
+                          cursor: "pointer",
+                          background: "transparent",
+                        }}
+                      />
+                      <input
+                        type="text"
+                        value={customColor || selectedColor}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          if (value.match(/^#[0-9A-Fa-f]{0,6}$/)) {
+                            setCustomColor(value);
+                            if (value.length === 7) {
+                              setSelectedColor(value);
+                            }
+                          }
+                        }}
+                        placeholder="#000000"
+                        disabled={isLoading}
+                        style={{
+                          width: "80px",
+                          padding: "6px 8px",
+                          fontSize: "12px",
+                          background: "var(--theme-bg-tertiary)",
+                          border: "1px solid var(--theme-border-primary)",
+                          borderRadius: "4px",
+                          color: "var(--theme-text-primary)",
+                          fontFamily: "monospace",
+                        }}
+                      />
+                    </>
+                  )}
+                </div>
+                
+                <div style={{ fontSize: "12px", color: "var(--theme-text-secondary)" }}>
+                  Use arrow keys to navigate colors, or choose a custom color
+                </div>
               </div>
             </div>
 
