@@ -55,14 +55,56 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
     setShowProjectModal(true);
   }, []);
 
-  // Handle panel toggle
+  // Handle panel toggle with VS Code-like pin/unpin behavior
   const handleTogglePanel = useCallback(() => {
-    const newVisible = !state.isPanelVisible;
-    dispatch({ type: "SET_PANEL_VISIBLE", payload: newVisible });
-    eventBus.emit(InternalEventTypes.PANEL_VISIBILITY_CHANGED, {
-      isVisible: newVisible,
-    });
-  }, [state.isPanelVisible, dispatch]);
+    // If panel is hidden, show and pin it
+    if (!state.isPanelVisible) {
+      dispatch({ type: "SET_PANEL_VISIBLE", payload: true });
+      dispatch({ type: "SET_PANEL_PINNED", payload: true });
+      updatePanelSettings({ isPinned: true });
+      
+      eventBus.emit(InternalEventTypes.PANEL_VISIBILITY_CHANGED, {
+        isVisible: true,
+      });
+      eventBus.emit(InternalEventTypes.PANEL_PINNED_CHANGED, {
+        isPinned: true,
+      });
+    } 
+    // If panel is visible and pinned, unpin it (allowing auto-hide)
+    else if (state.isPanelVisible && state.isPanelPinned) {
+      dispatch({ type: "SET_PANEL_PINNED", payload: false });
+      updatePanelSettings({ isPinned: false });
+      
+      eventBus.emit(InternalEventTypes.PANEL_PINNED_CHANGED, {
+        isPinned: false,
+      });
+      
+      // If mouse is not over panel, start auto-hide timer
+      if (!isMouseOverPanel) {
+        timeoutRef.current = setTimeout(() => {
+          dispatch({ type: "SET_PANEL_VISIBLE", payload: false });
+          eventBus.emit(InternalEventTypes.PANEL_VISIBILITY_CHANGED, {
+            isVisible: false,
+          });
+        }, 300);
+      }
+    }
+    // If panel is visible but not pinned, pin it
+    else if (state.isPanelVisible && !state.isPanelPinned) {
+      dispatch({ type: "SET_PANEL_PINNED", payload: true });
+      updatePanelSettings({ isPinned: true });
+      
+      eventBus.emit(InternalEventTypes.PANEL_PINNED_CHANGED, {
+        isPinned: true,
+      });
+      
+      // Clear any pending auto-hide timer
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = undefined;
+      }
+    }
+  }, [state.isPanelVisible, state.isPanelPinned, isMouseOverPanel, dispatch, updatePanelSettings]);
 
   const shortcuts = getExtensionShortcuts().shortcuts;
 
