@@ -12,7 +12,7 @@ import {
 import { useUnifiedState } from "../context/UnifiedStateProvider";
 import { eventBus, InternalEventTypes } from "../messaging/InternalEventBus";
 import { RenameModal } from "./RenameModal";
-import { getExtensionShortcuts } from "../hooks/useKeyboardShortcuts";
+// import { getExtensionShortcuts } from "../hooks/useKeyboardShortcuts";
 import { UnifiedCanvas, UnifiedProject } from "../../shared/types";
 
 interface Props {
@@ -285,7 +285,7 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
     ? state.projects.find((p) => p.id === canvas.projectId)
     : null;
 
-  const shortcuts = getExtensionShortcuts().shortcuts;
+  // const shortcuts = getExtensionShortcuts().shortcuts;
 
   const menuStyles: React.CSSProperties = {
     position: "fixed",
@@ -373,15 +373,15 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
         >
           <Edit3 size={16} />
           Rename
-          <span
-            style={{
-              marginLeft: "auto",
-              fontSize: "12px",
-              color: "var(--theme-text-secondary)",
-            }}
-          >
-            {shortcuts["Rename Canvas"]}
-          </span>
+          {/* <span */}
+            {/* style={{ */}
+              {/* marginLeft: "auto", */}
+              {/* fontSize: "12px", */}
+              {/* color: "var(--theme-text-secondary)", */}
+            {/* }} */}
+          {/* > */}
+            {/* {shortcuts["Rename Canvas"]} */}
+          {/* </span> */}
         </button>
 
         <button
@@ -396,15 +396,15 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
         >
           <Copy size={16} />
           Duplicate
-          <span
-            style={{
-              marginLeft: "auto",
-              fontSize: "12px",
-              color: "var(--theme-text-secondary)",
-            }}
-          >
-            {shortcuts["Duplicate Canvas"]}
-          </span>
+          {/* <span */}
+            {/* style={{ */}
+              {/* marginLeft: "auto", */}
+              {/* fontSize: "12px", */}
+              {/* color: "var(--theme-text-secondary)", */}
+            {/* }} */}
+          {/* > */}
+            {/* {shortcuts["Duplicate Canvas"]} */}
+          {/* </span> */}
         </button>
 
         <div
@@ -542,15 +542,15 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
         >
           <Trash2 size={16} />
           Delete
-          <span
-            style={{
-              marginLeft: "auto",
-              fontSize: "12px",
-              opacity: 0.7,
-            }}
-          >
-            {shortcuts["Delete Canvas"]}
-          </span>
+          {/* <span */}
+            {/* style={{ */}
+              {/* marginLeft: "auto", */}
+              {/* fontSize: "12px", */}
+              {/* opacity: 0.7, */}
+            {/* }} */}
+          {/* > */}
+            {/* {shortcuts["Delete Canvas"]} */}
+          {/* </span> */}
         </button>
       </motion.div>
       {isRenameModalOpen && (

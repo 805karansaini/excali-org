@@ -356,15 +356,15 @@ export function ProjectContextMenu({ x, y, project, onClose }: Props) {
         >
           <Edit3 size={16} />
           Edit Project
-          <span
-            style={{
-              marginLeft: "auto",
-              fontSize: "12px",
-              color: "var(--theme-text-secondary)",
-            }}
-          >
-            F2
-          </span>
+          {/* <span */}
+            {/* style={{ */}
+              {/* marginLeft: "auto", */}
+              {/* fontSize: "12px", */}
+              {/* color: "var(--theme-text-secondary)", */}
+            {/* }} */}
+          {/* > */}
+            {/* F2 */}
+          {/* </span> */}
         </button>
 
         <div
@@ -387,15 +387,15 @@ export function ProjectContextMenu({ x, y, project, onClose }: Props) {
         >
           <Download size={16} />
           Export Project
-          <span
-            style={{
-              marginLeft: "auto",
-              fontSize: "12px",
-              color: "var(--theme-text-secondary)",
-            }}
-          >
-            Ctrl+E
-          </span>
+          {/* <span */}
+            {/* style={{ */}
+              {/* marginLeft: "auto", */}
+              {/* fontSize: "12px", */}
+              {/* color: "var(--theme-text-secondary)", */}
+            {/* }} */}
+          {/* > */}
+            {/* Ctrl+E */}
+          {/* </span> */}
         </button>
 
         <div
@@ -424,15 +424,15 @@ export function ProjectContextMenu({ x, y, project, onClose }: Props) {
         >
           <Trash2 size={16} />
           Delete Project
-          <span
-            style={{
-              marginLeft: "auto",
-              fontSize: "12px",
-              opacity: 0.7,
-            }}
-          >
-            Delete
-          </span>
+          {/* <span */}
+            {/* style={{ */}
+              {/* marginLeft: "auto", */}
+              {/* fontSize: "12px", */}
+              {/* opacity: 0.7, */}
+            {/* }} */}
+          {/* > */}
+            {/* Delete */}
+          {/* </span> */}
         </button>
       </motion.div>
 
