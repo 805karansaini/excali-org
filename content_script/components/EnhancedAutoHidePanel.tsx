@@ -17,6 +17,7 @@ import {
   getExtensionShortcuts,
 } from "../hooks/useKeyboardShortcuts";
 import { SearchModal } from "./SearchModal";
+import { HelpOverlay } from "./HelpOverlay";
 import { ProjectModal } from "./ProjectModal";
 import { ContextMenu } from "./ContextMenu";
 import { ProjectContextMenu } from "./ProjectContextMenu";
@@ -1112,6 +1113,7 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
       {/* Modals */}
       <AnimatePresence>
         {state.isSearchModalOpen && <SearchModal />}
+        {state.isHelpModalOpen && <HelpOverlay />}
       </AnimatePresence>
 
       <AnimatePresence>

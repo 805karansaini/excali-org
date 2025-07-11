@@ -43,13 +43,8 @@ export function useKeyboardShortcuts({
     useUnifiedState();
 
   const showHelpDialog = useCallback(() => {
-    const shortcuts = getExtensionShortcuts();
-    const helpText = Object.entries(shortcuts.shortcuts)
-      .map(([action, shortcut]) => `${action}: ${shortcut}`)
-      .join('\n');
-
-    alert(`Excali Organizer Keyboard Shortcuts:\n\n${helpText}`);
-  }, []);
+    dispatch({ type: "SET_HELP_MODAL_OPEN", payload: true });
+  }, [dispatch]);
 
   const handleNewCanvasShortcut = useCallback(async () => {
     try {
@@ -314,6 +309,8 @@ export function useKeyboardShortcuts({
         e.stopImmediatePropagation();
         if (state.contextMenu) {
           dispatch({ type: "SET_CONTEXT_MENU", payload: null });
+        } else if (state.isHelpModalOpen) {
+          dispatch({ type: "SET_HELP_MODAL_OPEN", payload: false });
         } else if (state.isSearchModalOpen) {
           dispatch({ type: "SET_SEARCH_MODAL_OPEN", payload: false });
         }
@@ -424,6 +421,7 @@ export function useKeyboardShortcuts({
   }, [
     state.contextMenu,
     state.isSearchModalOpen,
+    state.isHelpModalOpen,
     isTyping,
     dispatch,
     onNewCanvas,
