@@ -33,8 +33,8 @@ export class UnifiedDexie extends Dexie {
       // Canvases table with indexes for performance
       canvases: "id, name, projectId, createdAt, updatedAt, lastModified",
 
-      // Projects table with indexes
-      projects: "id, name, createdAt, updatedAt, color",
+      // Projects table with indexes (name is unique)
+      projects: "id, &name, createdAt, updatedAt, color",
 
       // Settings table for app preferences
       settings: "key, updatedAt",
@@ -115,21 +115,25 @@ export const canvasOperations = {
    */
   async deleteCanvas(id: string): Promise<void> {
     try {
-      await unifiedDb.canvases.delete(id);
+      await unifiedDb.transaction('rw', unifiedDb.canvases, unifiedDb.projects, async () => {
+        // First get the canvas to find its projectId
+        const canvas = await unifiedDb.canvases.get(id);
+        
+        // Delete the canvas
+        await unifiedDb.canvases.delete(id);
 
-      // Remove canvas from all projects
-      const projects = await unifiedDb.projects.toArray();
-      for (const project of projects) {
-        if (project.canvasIds.includes(id)) {
-          project.canvasIds = project.canvasIds.filter(
-            (canvasId) => canvasId !== id,
-          );
-          if (project.fileIds) {
-            project.fileIds = project.fileIds.filter((fileId) => fileId !== id);
+        // If canvas was in a project, remove it from that project only
+        if (canvas?.projectId) {
+          const project = await unifiedDb.projects.get(canvas.projectId);
+          if (project) {
+            project.canvasIds = project.canvasIds.filter(canvasId => canvasId !== id);
+            if (project.fileIds) {
+              project.fileIds = project.fileIds.filter(fileId => fileId !== id);
+            }
+            await unifiedDb.projects.put(project);
           }
-          await unifiedDb.projects.put(project);
         }
-      }
+      });
     } catch (error) {
       console.error("Failed to delete canvas:", error);
       throw new Error("Database error: Could not delete canvas");
@@ -157,10 +161,7 @@ export const canvasOperations = {
   async getUnorganizedCanvases(): Promise<UnifiedCanvas[]> {
     try {
       return await unifiedDb.canvases
-        .where("projectId")
-        .equals("")
-        .or("projectId")
-        .below("")
+        .filter(canvas => !canvas.projectId || canvas.projectId === "")
         .sortBy("updatedAt");
     } catch (error) {
       console.error("Failed to get unorganized canvases:", error);
@@ -175,26 +176,34 @@ export const canvasOperations = {
    */
   async bulkDeleteCanvases(canvasIds: string[]): Promise<void> {
     try {
-      await unifiedDb.canvases.bulkDelete(canvasIds);
+      await unifiedDb.transaction('rw', unifiedDb.canvases, unifiedDb.projects, async () => {
+        // Get canvases to find their projectIds
+        const canvases = await unifiedDb.canvases.bulkGet(canvasIds);
+        const projectIds = new Set(canvases.filter(c => c?.projectId).map(c => c!.projectId));
+        
+        // Delete the canvases
+        await unifiedDb.canvases.bulkDelete(canvasIds);
 
-      // Remove canvases from all projects
-      const projects = await unifiedDb.projects.toArray();
-      for (const project of projects) {
-        const originalLength = project.canvasIds.length;
-        project.canvasIds = project.canvasIds.filter(
-          (id) => !canvasIds.includes(id),
-        );
-        if (project.fileIds) {
-          project.fileIds = project.fileIds.filter(
-            (id) => !canvasIds.includes(id),
-          );
-        }
+        // Update only the affected projects
+        if (projectIds.size > 0) {
+          const projects = await unifiedDb.projects.bulkGet(Array.from(projectIds));
+          const updatedProjects = projects
+            .filter(project => project !== undefined)
+            .map(project => {
+              const originalLength = project!.canvasIds.length;
+              project!.canvasIds = project!.canvasIds.filter(id => !canvasIds.includes(id));
+              if (project!.fileIds) {
+                project!.fileIds = project!.fileIds.filter(id => !canvasIds.includes(id));
+              }
+              return project!.canvasIds.length !== originalLength ? project! : null;
+            })
+            .filter(project => project !== null) as UnifiedProject[];
 
-        // Only update if changes were made
-        if (project.canvasIds.length !== originalLength) {
-          await unifiedDb.projects.put(project);
+          if (updatedProjects.length > 0) {
+            await unifiedDb.projects.bulkPut(updatedProjects);
+          }
         }
-      }
+      });
     } catch (error) {
       console.error("Failed to bulk delete canvases:", error);
       throw new Error("Database error: Could not delete canvases");
@@ -271,23 +280,27 @@ export const projectOperations = {
    */
   async deleteProject(id: string): Promise<void> {
     try {
-      // Get project to find associated canvases
-      const project = await unifiedDb.projects.get(id);
+      await unifiedDb.transaction('rw', unifiedDb.projects, unifiedDb.canvases, async () => {
+        // Get project to find associated canvases
+        const project = await unifiedDb.projects.get(id);
 
-      await unifiedDb.projects.delete(id);
+        await unifiedDb.projects.delete(id);
 
-      // Remove project association from canvases
-      if (project && project.canvasIds.length > 0) {
-        const canvases = await unifiedDb.canvases
-          .where("id")
-          .anyOf(project.canvasIds)
-          .toArray();
+        // Remove project association from canvases
+        if (project && project.canvasIds.length > 0) {
+          const canvases = await unifiedDb.canvases
+            .where("id")
+            .anyOf(project.canvasIds)
+            .toArray();
 
-        for (const canvas of canvases) {
-          canvas.projectId = undefined;
-          await unifiedDb.canvases.put(canvas);
+          const updatedCanvases = canvases.map(canvas => ({
+            ...canvas,
+            projectId: undefined
+          }));
+
+          await unifiedDb.canvases.bulkPut(updatedCanvases);
         }
-      }
+      });
     } catch (error) {
       console.error("Failed to delete project:", error);
       throw new Error("Database error: Could not delete project");
@@ -302,38 +315,41 @@ export const projectOperations = {
     canvasAction: 'keep' | 'delete' = 'keep'
   ): Promise<{ deletedCanvasCount: number }> {
     try {
-      // Get project to find associated canvases
-      const project = await unifiedDb.projects.get(id);
-      if (!project) {
-        throw new Error(`Project ${id} not found`);
-      }
+      return await unifiedDb.transaction('rw', unifiedDb.projects, unifiedDb.canvases, async () => {
+        // Get project to find associated canvases
+        const project = await unifiedDb.projects.get(id);
+        if (!project) {
+          throw new Error(`Project ${id} not found`);
+        }
 
-      let deletedCanvasCount = 0;
+        let deletedCanvasCount = 0;
 
-      // Handle canvas actions
-      if (project.canvasIds.length > 0) {
-        const canvases = await unifiedDb.canvases
-          .where("id")
-          .anyOf(project.canvasIds)
-          .toArray();
+        // Handle canvas actions
+        if (project.canvasIds.length > 0) {
+          const canvases = await unifiedDb.canvases
+            .where("id")
+            .anyOf(project.canvasIds)
+            .toArray();
 
-        if (canvasAction === 'delete') {
-          // Delete all canvases in the project
-          await unifiedDb.canvases.bulkDelete(project.canvasIds);
-          deletedCanvasCount = canvases.length;
-        } else {
-          // Keep canvases but remove project association
-          for (const canvas of canvases) {
-            canvas.projectId = undefined;
-            await unifiedDb.canvases.put(canvas);
+          if (canvasAction === 'delete') {
+            // Delete all canvases in the project
+            await unifiedDb.canvases.bulkDelete(project.canvasIds);
+            deletedCanvasCount = canvases.length;
+          } else {
+            // Keep canvases but remove project association
+            const updatedCanvases = canvases.map(canvas => ({
+              ...canvas,
+              projectId: undefined
+            }));
+            await unifiedDb.canvases.bulkPut(updatedCanvases);
           }
         }
-      }
 
-      // Delete the project
-      await unifiedDb.projects.delete(id);
+        // Delete the project
+        await unifiedDb.projects.delete(id);
 
-      return { deletedCanvasCount };
+        return { deletedCanvasCount };
+      });
     } catch (error) {
       console.error("Failed to delete project with options:", error);
       throw new Error("Database error: Could not delete project");
@@ -453,28 +469,30 @@ export const projectOperations = {
    */
   async addCanvasToProject(canvasId: string, projectId: string): Promise<void> {
     try {
-      // Update canvas
-      const canvas = await unifiedDb.canvases.get(canvasId);
-      if (!canvas) {
-        throw new Error(`Canvas ${canvasId} not found`);
-      }
-
-      canvas.projectId = projectId;
-      await unifiedDb.canvases.put(canvas);
-
-      // Update project
-      const project = await unifiedDb.projects.get(projectId);
-      if (!project) {
-        throw new Error(`Project ${projectId} not found`);
-      }
-
-      if (!project.canvasIds.includes(canvasId)) {
-        project.canvasIds.push(canvasId);
-        if (project.fileIds && !project.fileIds.includes(canvasId)) {
-          project.fileIds.push(canvasId);
+      await unifiedDb.transaction('rw', unifiedDb.canvases, unifiedDb.projects, async () => {
+        // Update canvas
+        const canvas = await unifiedDb.canvases.get(canvasId);
+        if (!canvas) {
+          throw new Error(`Canvas ${canvasId} not found`);
         }
-        await unifiedDb.projects.put(project);
-      }
+
+        canvas.projectId = projectId;
+        await unifiedDb.canvases.put(canvas);
+
+        // Update project
+        const project = await unifiedDb.projects.get(projectId);
+        if (!project) {
+          throw new Error(`Project ${projectId} not found`);
+        }
+
+        if (!project.canvasIds.includes(canvasId)) {
+          project.canvasIds.push(canvasId);
+          if (project.fileIds && !project.fileIds.includes(canvasId)) {
+            project.fileIds.push(canvasId);
+          }
+          await unifiedDb.projects.put(project);
+        }
+      });
     } catch (error) {
       console.error("Failed to add canvas to project:", error);
       throw new Error("Database error: Could not add canvas to project");
@@ -489,22 +507,24 @@ export const projectOperations = {
     projectId: string,
   ): Promise<void> {
     try {
-      // Update canvas
-      const canvas = await unifiedDb.canvases.get(canvasId);
-      if (canvas && canvas.projectId === projectId) {
-        canvas.projectId = undefined;
-        await unifiedDb.canvases.put(canvas);
-      }
-
-      // Update project
-      const project = await unifiedDb.projects.get(projectId);
-      if (project) {
-        project.canvasIds = project.canvasIds.filter((id) => id !== canvasId);
-        if (project.fileIds) {
-          project.fileIds = project.fileIds.filter((id) => id !== canvasId);
+      await unifiedDb.transaction('rw', unifiedDb.canvases, unifiedDb.projects, async () => {
+        // Update canvas
+        const canvas = await unifiedDb.canvases.get(canvasId);
+        if (canvas && canvas.projectId === projectId) {
+          canvas.projectId = undefined;
+          await unifiedDb.canvases.put(canvas);
         }
-        await unifiedDb.projects.put(project);
-      }
+
+        // Update project
+        const project = await unifiedDb.projects.get(projectId);
+        if (project) {
+          project.canvasIds = project.canvasIds.filter((id) => id !== canvasId);
+          if (project.fileIds) {
+            project.fileIds = project.fileIds.filter((id) => id !== canvasId);
+          }
+          await unifiedDb.projects.put(project);
+        }
+      });
     } catch (error) {
       console.error("Failed to remove canvas from project:", error);
       throw new Error("Database error: Could not remove canvas from project");

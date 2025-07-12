@@ -10,7 +10,7 @@ import {
 import JSZip from "jszip";
 import { useUnifiedState } from "../context/UnifiedStateProvider";
 import { eventBus, InternalEventTypes } from "../messaging/InternalEventBus";
-import { ProjectEditModal } from "./ProjectEditModal";
+import { ProjectFormModal } from "./ProjectFormModal";
 import { UnifiedProject } from "../../shared/types";
 import { projectOperations } from "../../shared/unified-db";
 
@@ -439,7 +439,8 @@ export function ProjectContextMenu({ x, y, project, onClose }: Props) {
 
       {/* Edit Modal */}
       {isEditModalOpen && (
-        <ProjectEditModal
+        <ProjectFormModal
+          mode="edit"
           project={project}
           onEdit={handleEdit}
           onClose={() => {

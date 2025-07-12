@@ -581,13 +581,10 @@ export class ExcalidrawDataBridge {
         ];
 
         for (const prop of criticalProps) {
-          if ((currentElement as any)[prop] !== (lastElement as any)[prop]) {
-            console.log(
-              `[ExcalidrawDataBridge] Element ${id} property '${prop}' changed:`,
-              (lastElement as any)[prop],
-              "->",
-              (currentElement as any)[prop],
-            );
+          const currentValue = (currentElement as Record<string, unknown>)[prop];
+          const lastValue = (lastElement as Record<string, unknown>)[prop];
+          if (currentValue !== lastValue) {
+            // Development logging removed for production build
             return true;
           }
         }
@@ -660,8 +657,8 @@ export class ExcalidrawDataBridge {
     const lastFiltered = { ...lastAppState };
     
     for (const prop of ignoreProps) {
-      delete (currentFiltered as any)[prop];
-      delete (lastFiltered as any)[prop];
+      delete (currentFiltered as Record<string, unknown>)[prop];
+      delete (lastFiltered as Record<string, unknown>)[prop];
     }
     
     return JSON.stringify(currentFiltered) !== JSON.stringify(lastFiltered);

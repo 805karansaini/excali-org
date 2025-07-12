@@ -36,7 +36,6 @@ const injectFallbackCSS = () => {
     }
   `;
   document.head.appendChild(style);
-  console.log("Conditional fallback CSS injected to prevent translucency");
 };
 import React from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -67,8 +66,6 @@ let dataBridge: ExcalidrawDataBridge | null = null;
  */
 async function initializeUnifiedApp(): Promise<void> {
   try {
-    console.log("Initializing Excali Organizer Extension...");
-
     // Inject fallback CSS immediately to prevent any translucency
     injectFallbackCSS();
 
@@ -79,11 +76,9 @@ async function initializeUnifiedApp(): Promise<void> {
 
     // 1. Initialize the database
     await initializeDatabase();
-    console.log("Database initialized");
 
     // 2. Wait for Excalidraw to be ready
     await waitForExcalidrawReady();
-    console.log("Excalidraw detected");
 
     // 3. Initialize data bridge
     dataBridge = new ExcalidrawDataBridge({
@@ -92,12 +87,10 @@ async function initializeUnifiedApp(): Promise<void> {
       debounceDelay: 1000,
     });
     dataBridge.initialize();
-    console.log("Data bridge initialized");
 
     // 4. Initialize Excalidraw integration
     excalidrawIntegration = new ExcalidrawIntegration();
     await excalidrawIntegration.initialize();
-    console.log("Excalidraw integration initialized");
 
     // 5. Load initial canvas and update file name
     const currentCanvasId = await settingsOperations.getSetting(
@@ -113,25 +106,20 @@ async function initializeUnifiedApp(): Promise<void> {
     } else {
       await dataBridge.updateFileNameOnLoad(null);
     }
-    console.log("Initial canvas loaded and file name updated");
 
     // 6. Setup event handlers
     setupEventHandlers();
-    console.log("Event handlers setup");
 
     // 7. Create and mount the panel with state provider
     await createAndMountPanel();
-    console.log("Panel mounted successfully");
 
     // 8. Setup cleanup handlers
     setupCleanupHandlers();
-    console.log("Cleanup handlers registered");
 
     // Emit completion
     await globalEventBus.emit(InternalEventTypes.LOADING_STATE_CHANGED, {
       isLoading: false,
     });
-    console.log("Excali Organizer extension loaded successfully");
   } catch (error) {
     console.error("Failed to initialize unified app:", error);
 
@@ -153,8 +141,6 @@ function setupEventHandlers(): void {
   // Handle canvas selection events
   globalEventBus.on(InternalEventTypes.CANVAS_SELECTED, async (canvas) => {
     try {
-      console.log("Canvas selected:", canvas.name);
-
       if (dataBridge) {
         await dataBridge.loadCanvasToExcalidraw(canvas);
       }
@@ -170,15 +156,12 @@ function setupEventHandlers(): void {
   // Handle canvas updates (including renames)
   globalEventBus.on(InternalEventTypes.CANVAS_UPDATED, async (canvas) => {
     try {
-      console.log("Canvas updated:", canvas.name);
-
       // Check if this is the currently active canvas
       const currentCanvasId = await settingsOperations.getSetting("currentWorkingCanvasId");
       
       if (currentCanvasId === canvas.id && dataBridge) {
         // Update file name display for the current canvas
         await dataBridge.updateFileNameDisplay(canvas.name);
-        console.log("File name display updated for current canvas:", canvas.name);
       }
     } catch (error) {
       console.error("Failed to handle canvas update:", error);
@@ -200,35 +183,15 @@ function setupEventHandlers(): void {
   );
 
   // Handle theme changes - theme attribute is now set in useThemeSync hook
-  globalEventBus.on(InternalEventTypes.THEME_CHANGED, (theme) => {
-    console.log(`Theme changed globally: ${theme}`);
-
-    // Debug: Check if CSS variables are properly applied
-    const debugElement = document.createElement("div");
-    debugElement.style.background = "var(--theme-bg-primary)";
-    document.body.appendChild(debugElement);
-    const computedStyle = window.getComputedStyle(debugElement);
-    const bgColor = computedStyle.backgroundColor;
-    document.body.removeChild(debugElement);
-
-    console.log(`Theme Debug - ${theme} mode:`, {
-      "data-theme": document.documentElement.getAttribute("data-theme"),
-      "--theme-bg-primary": bgColor,
-      "Expected (light)":
-        theme === "light" ? "rgb(255, 255, 255)" : "should not match",
-      "Expected (dark)":
-        theme === "dark" ? "rgb(26, 27, 35)" : "should not match",
-    });
+  globalEventBus.on(InternalEventTypes.THEME_CHANGED, (_theme) => {
+    // Theme change handled by instant theme sync hook
   });
 
   globalEventBus.on(
     InternalEventTypes.SYNC_EXCALIDRAW_DATA,
-    async ({ elements }) => {
+    async (_payload) => {
       try {
-        console.log("Syncing current canvas data to database");
-        console.log("Excalidraw data sync:", {
-          elementCount: elements?.length || 0,
-        });
+        // Sync handled by state provider
       } catch (error) {
         console.error("Failed to sync Excalidraw data:", error);
       }
@@ -237,14 +200,9 @@ function setupEventHandlers(): void {
 
   globalEventBus.on(
     InternalEventTypes.SAVE_EXCALIDRAW_DATA,
-    async ({ canvasId, elements }) => {
+    async (_payload) => {
       try {
-        console.log("Saving canvas data explicitly:", canvasId);
-        // This will be handled by the unified state provider
-        console.log("Save request:", {
-          canvasId,
-          elementCount: elements?.length || 0,
-        });
+        // Save handled by unified state provider
       } catch (error) {
         console.error("Failed to save canvas data:", error);
       }
@@ -256,8 +214,6 @@ function setupEventHandlers(): void {
     console.error("Error reported:", error, details);
     showErrorNotification(error);
   });
-
-  console.log("Event handlers setup complete");
 }
 
 /**
@@ -318,13 +274,11 @@ async function createAndMountPanel(): Promise<void> {
     // Enhanced canvas creation function
     const handleNewCanvas = async () => {
       try {
-        console.log("handleNewCanvas called from unified-entry");
         await globalEventBus.emit(InternalEventTypes.LOADING_STATE_CHANGED, {
           isLoading: true,
         });
 
         // This will be handled by the enhanced panel component
-        console.log("New canvas creation delegated to enhanced panel");
 
         await globalEventBus.emit(InternalEventTypes.LOADING_STATE_CHANGED, {
           isLoading: false,
@@ -336,7 +290,6 @@ async function createAndMountPanel(): Promise<void> {
 
     const handleCanvasSelect = async (canvas: UnifiedCanvas) => {
       try {
-        console.log("handleCanvasSelect called from unified-entry:", canvas);
         await globalEventBus.emit(InternalEventTypes.CANVAS_SELECTED, canvas);
       } catch (error) {
         console.error("Error in handleCanvasSelect:", error);
@@ -368,7 +321,6 @@ async function createAndMountPanel(): Promise<void> {
 function setupCleanupHandlers(): void {
   // Handle page navigation
   const handlePageNavigation = () => {
-    console.log("Page navigation detected, cleaning up...");
     cleanup();
   };
 
@@ -394,7 +346,6 @@ function setupCleanupHandlers(): void {
   chrome.runtime.onConnect.addListener((port) => {
     port.onDisconnect.addListener(() => {
       if (chrome.runtime.lastError) {
-        console.log("Extension context invalidated, cleaning up...");
         cleanup();
       }
     });
@@ -406,8 +357,6 @@ function setupCleanupHandlers(): void {
  */
 function cleanup(): void {
   try {
-    console.log("Starting extension cleanup...");
-
     // Unmount React application
     if (panelRoot) {
       panelRoot.unmount();
@@ -428,8 +377,6 @@ function cleanup(): void {
 
     // Clear event listeners
     globalEventBus.removeAllListeners();
-
-    console.log("Extension cleanup completed");
   } catch (error) {
     console.error("Error during cleanup:", error);
   }
@@ -543,9 +490,6 @@ function isValidExcalidrawPage(): boolean {
 (async function main() {
   // Check if we're on a valid Excalidraw page
   if (!isValidExcalidrawPage()) {
-    console.log(
-      "Not on a valid Excalidraw page, skipping extension initialization",
-    );
     return;
   }
 
