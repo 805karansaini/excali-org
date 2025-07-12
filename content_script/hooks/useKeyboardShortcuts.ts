@@ -42,6 +42,73 @@ export function useKeyboardShortcuts({
   const { state, dispatch, saveCanvas, removeCanvas, createCanvas } =
     useUnifiedState();
 
+  const showHelpDialog = useCallback(() => {
+    dispatch({ type: "SET_HELP_MODAL_OPEN", payload: true });
+  }, [dispatch]);
+
+  const handleNewCanvasShortcut = useCallback(async () => {
+    try {
+      console.log("Creating new canvas from keyboard shortcut...");
+
+      const existingNames = state.canvases.map((c) => c.name);
+      const baseName = "Untitled Canvas";
+      let counter = 1;
+      let finalName = baseName;
+
+      // Find unique name
+      while (existingNames.includes(finalName)) {
+        finalName = `${baseName} ${counter}`;
+        counter++;
+      }
+
+      const newCanvas = {
+        name: finalName,
+        elements: [],
+        excalidraw: [], // Required for backward compatibility
+        appState: {
+          zoom: { value: 1 },
+          scrollX: 0,
+          scrollY: 0,
+          width: window.innerWidth,
+          height: window.innerHeight,
+          viewBackgroundColor: "#ffffff",
+          theme: "light" as const,
+          selectedElementIds: {},
+          editingGroupId: null,
+          viewModeEnabled: false,
+          currentItemFontSize: 20,
+          currentItemStrokeColor: "#000000",
+        },
+        lastModified: new Date().toISOString(),
+        projectId: undefined,
+      };
+
+      console.log("New canvas created:", newCanvas);
+
+      // Create the canvas using the existing createCanvas function
+      const createdCanvas = await createCanvas(newCanvas);
+      console.log("Canvas created successfully:", createdCanvas);
+
+      // Select the new canvas
+      dispatch({ type: "SET_SELECTED_CANVAS", payload: createdCanvas.id });
+
+      // Emit events
+      eventBus.emit(InternalEventTypes.CANVAS_CREATED, createdCanvas);
+      eventBus.emit(InternalEventTypes.LOAD_CANVAS_TO_EXCALIDRAW, createdCanvas);
+
+      console.log("Canvas creation completed successfully via keyboard shortcut");
+    } catch (error) {
+      console.error("Error creating new canvas via keyboard shortcut:", error);
+      // Show error to user
+      dispatch({
+        type: "SET_ERROR",
+        payload:
+          "Failed to create canvas: " +
+          (error instanceof Error ? error.message : String(error)),
+      });
+    }
+  }, [state.canvases, dispatch, createCanvas]);
+
   const isTyping = useCallback(() => {
     const activeElement = document.activeElement;
     return (
@@ -79,19 +146,41 @@ export function useKeyboardShortcuts({
   }, [state.selectedCanvasId, state.canvases, removeCanvas, dispatch]);
 
   const handleDuplicateSelected = useCallback(async () => {
-    if (!state.selectedCanvasId) return;
-    const canvas = state.canvases.find((c) => c.id === state.selectedCanvasId);
-    if (!canvas) return;
+    console.log("DEBUG: handleDuplicateSelected called");
+    console.log("DEBUG: selectedCanvasId:", state.selectedCanvasId);
+    console.log("DEBUG: currentWorkingCanvasId:", state.currentWorkingCanvasId);
+    console.log("DEBUG: canvases length:", state.canvases.length);
+
+    // Try to use currentWorkingCanvasId first (the canvas that's currently loaded in Excalidraw)
+    // If that's not available, fall back to selectedCanvasId
+    const canvasIdToUse = state.currentWorkingCanvasId || state.selectedCanvasId;
+
+    if (!canvasIdToUse) {
+      console.log("DEBUG: No current working canvas or selected canvas, cannot duplicate");
+      alert("Please load a canvas first to duplicate it.");
+      return;
+    }
+
+    const canvas = state.canvases.find((c) => c.id === canvasIdToUse);
+    if (!canvas) {
+      console.log("DEBUG: Canvas not found in state, ID:", canvasIdToUse);
+      alert("Current canvas not found.");
+      return;
+    }
 
     try {
+      console.log("DEBUG: Duplicating canvas:", canvas.name);
       const newCanvas = await createCanvas({
         ...canvas,
         name: `${canvas.name} (Copy)`,
         projectId: undefined,
         elements: canvas.elements || [],
+        excalidraw: canvas.excalidraw || [],
         appState: canvas.appState,
       });
+      console.log("DEBUG: Canvas duplicated successfully:", newCanvas);
       eventBus.emit(InternalEventTypes.CANVAS_CREATED, newCanvas);
+      eventBus.emit(InternalEventTypes.LOAD_CANVAS_TO_EXCALIDRAW, newCanvas);
       dispatch({ type: "SET_SELECTED_CANVAS", payload: newCanvas.id });
     } catch (error) {
       console.error(
@@ -100,7 +189,7 @@ export function useKeyboardShortcuts({
       );
       alert("Failed to duplicate canvas. Please try again.");
     }
-  }, [state.selectedCanvasId, state.canvases, createCanvas, dispatch]);
+  }, [state.selectedCanvasId, state.currentWorkingCanvasId, state.canvases, createCanvas, dispatch]);
 
   const handleRenameSelected = useCallback(async () => {
     if (!state.selectedCanvasId) return;
@@ -169,12 +258,47 @@ export function useKeyboardShortcuts({
       const ctrlCmdKey = isMac ? e.metaKey : e.ctrlKey;
       const shiftKey = e.shiftKey;
 
+      // Debug: Log all key combinations with Alt or Cmd+Shift
+      if (altKey || (ctrlCmdKey && shiftKey)) {
+        console.log("DEBUG: Key combination detected:", {
+          key: e.key,
+          code: e.code,
+          keyCode: e.keyCode,
+          altKey,
+          shiftKey,
+          ctrlCmdKey,
+          metaKey: e.metaKey,
+          ctrlKey: e.ctrlKey,
+          target: (e.target as HTMLElement)?.tagName,
+          currentTarget: (e.currentTarget as HTMLElement)?.tagName,
+          isTyping: isTyping()
+        });
+      }
+
       // Universal Search Shortcut (works even when typing)
       if (ctrlCmdKey && shiftKey && !altKey && e.key.toLowerCase() === "f") {
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();
         dispatch({ type: "SET_SEARCH_MODAL_OPEN", payload: true });
+        return;
+      }
+
+      // New Project: Alt/Option + Shift + N (works even when typing)
+      if (altKey && shiftKey && !ctrlCmdKey && (e.key.toLowerCase() === "n" || e.code === "KeyN")) {
+        console.log("DEBUG: New Project shortcut triggered!", {
+          onNewProject: typeof onNewProject,
+          onNewProjectFunction: onNewProject.toString()
+        });
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        try {
+          onNewProject();
+          console.log("DEBUG: onNewProject() called successfully");
+        } catch (error) {
+          console.error("DEBUG: Error calling onNewProject:", error);
+        }
         return;
       }
 
@@ -185,6 +309,8 @@ export function useKeyboardShortcuts({
         e.stopImmediatePropagation();
         if (state.contextMenu) {
           dispatch({ type: "SET_CONTEXT_MENU", payload: null });
+        } else if (state.isHelpModalOpen) {
+          dispatch({ type: "SET_HELP_MODAL_OPEN", payload: false });
         } else if (state.isSearchModalOpen) {
           dispatch({ type: "SET_SEARCH_MODAL_OPEN", payload: false });
         }
@@ -200,10 +326,45 @@ export function useKeyboardShortcuts({
         onTogglePanel?.();
         return;
       }
-      
+
+      // New Canvas: Alt + N (works even when typing)
+      if (altKey && !ctrlCmdKey && !shiftKey && (e.key.toLowerCase() === "n" || e.code === "KeyN")) {
+        console.log("DEBUG: Alt + N shortcut triggered!");
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        handleNewCanvasShortcut();
+        return;
+      }
+
+      // Duplicate Canvas: Ctrl/Cmd + Shift + D (works even when typing)
+      if (ctrlCmdKey && shiftKey && !altKey && e.key.toLowerCase() === "d") {
+        console.log("DEBUG: Cmd + Shift + D shortcut triggered!");
+        console.log("DEBUG: handleDuplicateSelected function:", handleDuplicateSelected);
+        console.log("DEBUG: selectedCanvasId:", state.selectedCanvasId);
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        try {
+          handleDuplicateSelected();
+          console.log("DEBUG: handleDuplicateSelected() called successfully");
+        } catch (error) {
+          console.error("DEBUG: Error calling handleDuplicateSelected:", error);
+        }
+        return;
+      }
+
+      // Help: F1 (works even when typing)
+      if (!altKey && !ctrlCmdKey && !shiftKey && e.key === "F1") {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        showHelpDialog();
+        return;
+      }
+
       // TODO Later
       if (isTyping()) return;
-
 
       // Navigate Canvases: Ctrl/Cmd + Alt + Up/Down
       if (
@@ -220,23 +381,6 @@ export function useKeyboardShortcuts({
       }
 
 
-      // New Canvas: Alt + N
-      if (altKey && !ctrlCmdKey && !shiftKey && e.key === "n") {
-        e.preventDefault();
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-        onNewCanvas();
-        return;
-      }
-
-      // Duplicate Canvas: Ctrl/Cmd + Shift + D
-      if (ctrlCmdKey && shiftKey && !altKey && e.key.toLowerCase() === "d") {
-        e.preventDefault();
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-        handleDuplicateSelected();
-        return;
-      }
 
       // Delete Canvas: Alt + Delete
       if (altKey && !ctrlCmdKey && !shiftKey && e.key === "Delete") {
@@ -256,14 +400,6 @@ export function useKeyboardShortcuts({
         return;
       }
 
-      // New Project: Alt + Shift + N
-      if (altKey && shiftKey && !ctrlCmdKey && e.key.toLowerCase() === "n") {
-        e.preventDefault();
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-        onNewProject();
-        return;
-      }
 
       // Refresh Data: Alt + F5
       if (altKey && !ctrlCmdKey && !shiftKey && e.key === "F5") {
@@ -274,23 +410,18 @@ export function useKeyboardShortcuts({
         return;
       }
 
-      // Help: F1
-      if (!altKey && !ctrlCmdKey && !shiftKey && e.key === "F1") {
-        e.preventDefault();
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-        eventBus.emit(InternalEventTypes.SHOW_HELP_OVERLAY, null);
-        return;
-      }
     };
 
+    console.log("DEBUG: Setting up keyboard shortcuts event listener");
     document.addEventListener("keydown", handleKeyDown, true);
     return () => {
+      console.log("DEBUG: Removing keyboard shortcuts event listener");
       document.removeEventListener("keydown", handleKeyDown, true);
     };
   }, [
     state.contextMenu,
     state.isSearchModalOpen,
+    state.isHelpModalOpen,
     isTyping,
     dispatch,
     onNewCanvas,
@@ -300,6 +431,8 @@ export function useKeyboardShortcuts({
     handleDuplicateSelected,
     handleRenameSelected,
     handleNavigateCanvases,
+    showHelpDialog,
+    handleNewCanvasShortcut,
   ]);
 
   return getExtensionShortcuts();

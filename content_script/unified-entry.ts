@@ -167,6 +167,28 @@ function setupEventHandlers(): void {
     }
   });
 
+  // Handle canvas updates (including renames)
+  globalEventBus.on(InternalEventTypes.CANVAS_UPDATED, async (canvas) => {
+    try {
+      console.log("Canvas updated:", canvas.name);
+
+      // Check if this is the currently active canvas
+      const currentCanvasId = await settingsOperations.getSetting("currentWorkingCanvasId");
+      
+      if (currentCanvasId === canvas.id && dataBridge) {
+        // Update file name display for the current canvas
+        await dataBridge.updateFileNameDisplay(canvas.name);
+        console.log("File name display updated for current canvas:", canvas.name);
+      }
+    } catch (error) {
+      console.error("Failed to handle canvas update:", error);
+      await globalEventBus.emit(InternalEventTypes.ERROR_OCCURRED, {
+        error: "Failed to update canvas display",
+        details: error,
+      });
+    }
+  });
+
   // Handle panel visibility changes
   globalEventBus.on(
     InternalEventTypes.PANEL_VISIBILITY_CHANGED,

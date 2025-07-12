@@ -23,7 +23,7 @@ interface Props {
 
 export function ProjectContextMenu({ x, y, project, onClose }: Props) {
   const { dispatch } = useUnifiedState();
-  const [isRenameModalOpen, setRenameModalOpen] = useState(false);
+  const [isEditModalOpen, setEditModalOpen] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteCanvasAction, setDeleteCanvasAction] = useState<'keep' | 'delete'>('keep');
   const menuRef = useRef<HTMLDivElement>(null);
@@ -65,7 +65,8 @@ export function ProjectContextMenu({ x, y, project, onClose }: Props) {
       if (
         menuRef.current &&
         !menuRef.current.contains(e.target as Node) &&
-        (!deleteModalRef.current || !deleteModalRef.current.contains(e.target as Node))
+        (!deleteModalRef.current || !deleteModalRef.current.contains(e.target as Node)) &&
+        !isEditModalOpen // Don't close if edit modal is open
       ) {
         onClose();
       }
@@ -75,8 +76,8 @@ export function ProjectContextMenu({ x, y, project, onClose }: Props) {
       if (e.key === "Escape") {
         if (showDeleteConfirm) {
           setShowDeleteConfirm(false);
-        } else if (isRenameModalOpen) {
-          setRenameModalOpen(false);
+        } else if (isEditModalOpen) {
+          setEditModalOpen(false);
         } else {
           onClose();
         }
@@ -94,7 +95,7 @@ export function ProjectContextMenu({ x, y, project, onClose }: Props) {
       document.removeEventListener("mousedown", handleClickOutside);
       document.removeEventListener("keydown", handleEscape);
     };
-  }, [onClose, showDeleteConfirm, isRenameModalOpen]);
+  }, [onClose, showDeleteConfirm, isEditModalOpen]);
 
   // Focus management for delete modal
   useEffect(() => {
@@ -103,7 +104,7 @@ export function ProjectContextMenu({ x, y, project, onClose }: Props) {
     }
   }, [showDeleteConfirm]);
 
-  const handleRename = async (newName: string, newColor: string) => {
+  const handleEdit = async (newName: string, newColor: string) => {
     try {
       const updatedProject = await projectOperations.updateProjectFields(project.id, {
         name: newName,
@@ -346,7 +347,7 @@ export function ProjectContextMenu({ x, y, project, onClose }: Props) {
       >
         <button
           style={menuItemStyles}
-          onClick={() => setRenameModalOpen(true)}
+          onClick={() => setEditModalOpen(true)}
           onMouseEnter={(e) => {
             e.currentTarget.style.background = "var(--theme-bg-hover)";
           }}
@@ -356,15 +357,15 @@ export function ProjectContextMenu({ x, y, project, onClose }: Props) {
         >
           <Edit3 size={16} />
           Edit Project
-          <span
-            style={{
-              marginLeft: "auto",
-              fontSize: "12px",
-              color: "var(--theme-text-secondary)",
-            }}
-          >
-            F2
-          </span>
+          {/* <span */}
+            {/* style={{ */}
+              {/* marginLeft: "auto", */}
+              {/* fontSize: "12px", */}
+              {/* color: "var(--theme-text-secondary)", */}
+            {/* }} */}
+          {/* > */}
+            {/* F2 */}
+          {/* </span> */}
         </button>
 
         <div
@@ -387,15 +388,15 @@ export function ProjectContextMenu({ x, y, project, onClose }: Props) {
         >
           <Download size={16} />
           Export Project
-          <span
-            style={{
-              marginLeft: "auto",
-              fontSize: "12px",
-              color: "var(--theme-text-secondary)",
-            }}
-          >
-            Ctrl+E
-          </span>
+          {/* <span */}
+            {/* style={{ */}
+              {/* marginLeft: "auto", */}
+              {/* fontSize: "12px", */}
+              {/* color: "var(--theme-text-secondary)", */}
+            {/* }} */}
+          {/* > */}
+            {/* Ctrl+E */}
+          {/* </span> */}
         </button>
 
         <div
@@ -424,24 +425,27 @@ export function ProjectContextMenu({ x, y, project, onClose }: Props) {
         >
           <Trash2 size={16} />
           Delete Project
-          <span
-            style={{
-              marginLeft: "auto",
-              fontSize: "12px",
-              opacity: 0.7,
-            }}
-          >
-            Delete
-          </span>
+          {/* <span */}
+            {/* style={{ */}
+              {/* marginLeft: "auto", */}
+              {/* fontSize: "12px", */}
+              {/* opacity: 0.7, */}
+            {/* }} */}
+          {/* > */}
+            {/* Delete */}
+          {/* </span> */}
         </button>
       </motion.div>
 
       {/* Edit Modal */}
-      {isRenameModalOpen && (
+      {isEditModalOpen && (
         <ProjectEditModal
           project={project}
-          onRename={handleRename}
-          onClose={() => setRenameModalOpen(false)}
+          onEdit={handleEdit}
+          onClose={() => {
+            setEditModalOpen(false);
+            onClose(); // Close the context menu as well
+          }}
         />
       )}
 

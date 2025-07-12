@@ -38,6 +38,7 @@ interface UnifiedState {
   searchQuery: string;
   searchResults: SearchResult[];
   isSearchModalOpen: boolean;
+  isHelpModalOpen: boolean;
 
   // UI state
   selectedCanvasId: string | null;
@@ -105,6 +106,7 @@ const initialState: UnifiedState = {
   searchQuery: "",
   searchResults: [],
   isSearchModalOpen: false,
+  isHelpModalOpen: false,
 
   // UI state
   selectedCanvasId: null,
@@ -227,6 +229,8 @@ function unifiedStateReducer(
 
     case "SET_SEARCH_MODAL_OPEN":
       return { ...state, isSearchModalOpen: action.payload };
+    case "SET_HELP_MODAL_OPEN":
+      return { ...state, isHelpModalOpen: action.payload };
 
     // UI operations
     case "SET_SELECTED_CANVAS":

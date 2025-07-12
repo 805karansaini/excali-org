@@ -17,6 +17,7 @@ import {
   getExtensionShortcuts,
 } from "../hooks/useKeyboardShortcuts";
 import { SearchModal } from "./SearchModal";
+import { HelpOverlay } from "./HelpOverlay";
 import { ProjectModal } from "./ProjectModal";
 import { ContextMenu } from "./ContextMenu";
 import { ProjectContextMenu } from "./ProjectContextMenu";
@@ -55,14 +56,56 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
     setShowProjectModal(true);
   }, []);
 
-  // Handle panel toggle
+  // Handle panel toggle with VS Code-like pin/unpin behavior
   const handleTogglePanel = useCallback(() => {
-    const newVisible = !state.isPanelVisible;
-    dispatch({ type: "SET_PANEL_VISIBLE", payload: newVisible });
-    eventBus.emit(InternalEventTypes.PANEL_VISIBILITY_CHANGED, {
-      isVisible: newVisible,
-    });
-  }, [state.isPanelVisible, dispatch]);
+    // If panel is hidden, show and pin it
+    if (!state.isPanelVisible) {
+      dispatch({ type: "SET_PANEL_VISIBLE", payload: true });
+      dispatch({ type: "SET_PANEL_PINNED", payload: true });
+      updatePanelSettings({ isPinned: true });
+      
+      eventBus.emit(InternalEventTypes.PANEL_VISIBILITY_CHANGED, {
+        isVisible: true,
+      });
+      eventBus.emit(InternalEventTypes.PANEL_PINNED_CHANGED, {
+        isPinned: true,
+      });
+    } 
+    // If panel is visible and pinned, unpin it (allowing auto-hide)
+    else if (state.isPanelVisible && state.isPanelPinned) {
+      dispatch({ type: "SET_PANEL_PINNED", payload: false });
+      updatePanelSettings({ isPinned: false });
+      
+      eventBus.emit(InternalEventTypes.PANEL_PINNED_CHANGED, {
+        isPinned: false,
+      });
+      
+      // If mouse is not over panel, start auto-hide timer
+      if (!isMouseOverPanel) {
+        timeoutRef.current = setTimeout(() => {
+          dispatch({ type: "SET_PANEL_VISIBLE", payload: false });
+          eventBus.emit(InternalEventTypes.PANEL_VISIBILITY_CHANGED, {
+            isVisible: false,
+          });
+        }, 300);
+      }
+    }
+    // If panel is visible but not pinned, pin it
+    else if (state.isPanelVisible && !state.isPanelPinned) {
+      dispatch({ type: "SET_PANEL_PINNED", payload: true });
+      updatePanelSettings({ isPinned: true });
+      
+      eventBus.emit(InternalEventTypes.PANEL_PINNED_CHANGED, {
+        isPinned: true,
+      });
+      
+      // Clear any pending auto-hide timer
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = undefined;
+      }
+    }
+  }, [state.isPanelVisible, state.isPanelPinned, isMouseOverPanel, dispatch, updatePanelSettings]);
 
   const shortcuts = getExtensionShortcuts().shortcuts;
 
@@ -598,16 +641,28 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
                     marginBottom: "12px",
                   }}
                 >
-                  <h2
+                  <a
+                    href="https://excali.org"
+                    target="_blank"
+                    rel="noopener noreferrer"
                     style={{
                       fontSize: "16px",
                       fontWeight: "600",
                       margin: 0,
                       color: "var(--theme-text-primary)",
+                      textDecoration: "none",
+                      cursor: "pointer",
+                      transition: "opacity 0.2s ease",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.opacity = "0.7";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.opacity = "1";
                     }}
                   >
-                    Excalidraw
-                  </h2>
+                    Excali Organizer
+                  </a>
                   <button
                     style={{
                       background: "transparent",
@@ -1058,6 +1113,7 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
       {/* Modals */}
       <AnimatePresence>
         {state.isSearchModalOpen && <SearchModal />}
+        {state.isHelpModalOpen && <HelpOverlay />}
       </AnimatePresence>
 
       <AnimatePresence>

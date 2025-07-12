@@ -7,7 +7,7 @@ import { UnifiedProject } from "../../shared/types";
 
 interface Props {
   project: UnifiedProject;
-  onRename: (newName: string, newColor: string) => void;
+  onEdit: (newName: string, newColor: string) => void;
   onClose: () => void;
 }
 
@@ -26,7 +26,7 @@ const projectColors = [
   "#a855f7", // Violet
 ];
 
-export function ProjectEditModal({ project, onRename, onClose }: Props) {
+export function ProjectEditModal({ project, onEdit, onClose }: Props) {
   const [name, setName] = useState(project.name);
   const [selectedColor, setSelectedColor] = useState(project.color || projectColors[0]);
   const [customColor, setCustomColor] = useState("");
@@ -83,7 +83,7 @@ export function ProjectEditModal({ project, onRename, onClose }: Props) {
     setIsLoading(true);
     
     try {
-      await onRename(name.trim(), selectedColor);
+      await onEdit(name.trim(), selectedColor);
       onClose();
     } catch (err) {
       setError("Failed to update project. Please try again.");

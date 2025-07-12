@@ -115,6 +115,7 @@ export type UnifiedAction =
   | { type: "TOGGLE_SEARCH_MODAL" }
   | { type: "SET_SEARCH_MODAL"; payload: boolean }
   | { type: "SET_SEARCH_MODAL_OPEN"; payload: boolean }
+  | { type: "SET_HELP_MODAL_OPEN"; payload: boolean }
   // UI operations
   | { type: "SET_SELECTED_CANVAS"; payload: string | null }
   | { type: "SET_CONTEXT_MENU"; payload: ContextMenuData | null }

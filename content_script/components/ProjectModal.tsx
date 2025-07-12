@@ -165,6 +165,7 @@ export function ProjectModal({ onClose }: Props) {
         animate={{ scale: 1, y: 0 }}
         exit={{ scale: 0.9, y: -50 }}
         transition={{ type: "spring", damping: 30, stiffness: 400 }}
+        onClick={(e) => e.stopPropagation()}
       >
         <div style={headerStyles}>
           <div
