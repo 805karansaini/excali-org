@@ -84,6 +84,7 @@ export interface EventPayloads {
   [InternalEventTypes.SYNC_EXCALIDRAW_DATA]: {
     elements: readonly ExcalidrawElement[];
     appState: AppState;
+    canvasId?: string; // Optional canvas context for validation
   };
 
   [InternalEventTypes.PANEL_VISIBILITY_CHANGED]: { isVisible: boolean };

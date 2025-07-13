@@ -29,6 +29,13 @@ export interface ExcalidrawSyncOptions {
   retryDelay: number; // milliseconds
 }
 
+interface PendingOperation {
+  canvasId: string;
+  operationType: 'auto-save' | 'manual-save' | 'load';
+  timestamp: number;
+  debounceTimeout?: number;
+}
+
 /**
  * Bridge class for Excalidraw integration
  */
@@ -43,6 +50,10 @@ export class ExcalidrawDataBridge {
   private storageEventQueue: StorageEvent[] = [];
   private processingQueue: boolean = false;
   private syncInProgress: boolean = false;
+  
+  // Canvas operation coordination
+  private pendingOperations: Map<string, PendingOperation> = new Map();
+  private currentCanvasContext: string | null = null;
 
   constructor(options: Partial<ExcalidrawSyncOptions> = {}) {
     this.options = {
@@ -105,6 +116,9 @@ export class ExcalidrawDataBridge {
       this.debounceTimeout = null;
     }
 
+    // Cancel all pending operations
+    this.cancelAllPendingOperations();
+
     // Clear queue and reset state
     this.resetSyncState();
 
@@ -113,18 +127,72 @@ export class ExcalidrawDataBridge {
   }
 
   /**
-   * Load a canvas into Excalidraw
+   * Cancel all pending operations
+   */
+  private cancelAllPendingOperations(): void {
+    console.log("[ExcalidrawDataBridge] Cancelling all pending operations");
+    
+    for (const [canvasId, operation] of this.pendingOperations) {
+      if (operation.debounceTimeout) {
+        clearTimeout(operation.debounceTimeout);
+      }
+      console.log(`[ExcalidrawDataBridge] Cancelled ${operation.operationType} for canvas ${canvasId}`);
+    }
+    
+    this.pendingOperations.clear();
+  }
+
+  /**
+   * Cancel operations for a specific canvas
+   */
+  private cancelCanvasOperations(canvasId: string): void {
+    const operation = this.pendingOperations.get(canvasId);
+    if (operation) {
+      if (operation.debounceTimeout) {
+        clearTimeout(operation.debounceTimeout);
+      }
+      this.pendingOperations.delete(canvasId);
+      console.log(`[ExcalidrawDataBridge] Cancelled ${operation.operationType} for canvas ${canvasId}`);
+    }
+  }
+
+  /**
+   * Set canvas context for operation coordination
+   */
+  private setCanvasContext(canvasId: string): void {
+    if (this.currentCanvasContext !== canvasId) {
+      console.log(`[ExcalidrawDataBridge] Canvas context changed: ${this.currentCanvasContext} -> ${canvasId}`);
+      this.currentCanvasContext = canvasId;
+    }
+  }
+
+  /**
+   * Load a canvas into Excalidraw with atomic operation coordination
    */
   async loadCanvasToExcalidraw(
     canvas: UnifiedCanvas,
     forceReload: boolean = false,
   ): Promise<void> {
+    const operationId = `load_${canvas.id}_${Date.now()}`;
+    
     try {
       console.log(
-        `[ExcalidrawDataBridge] Loading canvas to Excalidraw: ${canvas.name} (forceReload: ${forceReload})`,
+        `[ExcalidrawDataBridge] Starting atomic canvas load: ${canvas.name} (forceReload: ${forceReload}) [${operationId}]`,
       );
 
+      // STEP 1: Cancel ALL pending operations for ALL canvases to prevent race conditions
+      this.cancelAllPendingOperations();
+      
+      // STEP 2: Set loading state and canvas context
       this.isLoading = true;
+      this.setCanvasContext(canvas.id);
+      
+      // STEP 3: Register this load operation
+      this.pendingOperations.set(canvas.id, {
+        canvasId: canvas.id,
+        operationType: 'load',
+        timestamp: Date.now()
+      });
 
       // Prepare Excalidraw data with proper element structure
       let elements = canvas.elements || canvas.excalidraw || [];
@@ -204,17 +272,23 @@ export class ExcalidrawDataBridge {
         files: {}, // Files are handled separately in Excalidraw
       };
 
-      // Set Excalidraw localStorage
+      // STEP 4: Perform atomic localStorage update
+      console.log(`[ExcalidrawDataBridge] Writing canvas data to localStorage [${operationId}]`);
       this.setExcalidrawData(excalidrawData);
 
-      // Store current canvas data for sync comparison
+      // STEP 5: Update bridge state to reflect the new canvas
       this.lastSyncData = JSON.stringify(excalidrawData);
+      console.log(`[ExcalidrawDataBridge] Updated lastSyncData for canvas ${canvas.id} [${operationId}]`);
 
-      // Emit loading event
+      // STEP 6: Emit events (canvas loading complete)
       await globalEventBus.emit(InternalEventTypes.CANVAS_LOADED, canvas);
 
-      // Update file name display
+      // STEP 7: Update file name display
       await this.updateFileNameDisplay(canvas.name);
+      
+      // STEP 8: Mark operation as complete
+      this.pendingOperations.delete(canvas.id);
+      console.log(`[ExcalidrawDataBridge] Canvas load operation completed [${operationId}]`);
 
       // Reload if forced
       if (forceReload) {
@@ -228,7 +302,11 @@ export class ExcalidrawDataBridge {
         }, 100);
       }
     } catch (error) {
-      console.error("[ExcalidrawDataBridge] Failed to load canvas:", error);
+      console.error(`[ExcalidrawDataBridge] Failed to load canvas [${operationId}]:`, error);
+      
+      // Clean up failed operation
+      this.pendingOperations.delete(canvas.id);
+      
       await globalEventBus.emit(InternalEventTypes.ERROR_OCCURRED, {
         error: "Failed to load canvas into Excalidraw",
         details: error,
@@ -680,22 +758,59 @@ export class ExcalidrawDataBridge {
   /**
    * Enhanced debounced sync with retry logic
    */
+  /**
+   * Canvas-aware debounced sync that prevents race conditions
+   */
   private debouncedSync(): void {
-    if (this.debounceTimeout) {
-      clearTimeout(this.debounceTimeout);
+    // Only sync if we have a valid canvas context and not loading
+    if (!this.currentCanvasContext || this.isLoading) {
+      console.log("[ExcalidrawDataBridge] Skipping sync - no canvas context or loading in progress");
+      return;
     }
 
-    this.debounceTimeout = setTimeout(async () => {
-      await this.performSync();
-    }, this.options.debounceDelay);
+    this.debouncedSyncForCanvas(this.currentCanvasContext);
   }
 
   /**
-   * Perform sync with retry logic and error handling
+   * Canvas-specific debounced sync
    */
-  private async performSync(): Promise<void> {
+  private debouncedSyncForCanvas(canvasId: string): void {
+    // Cancel any existing operations for this canvas
+    this.cancelCanvasOperations(canvasId);
+    
+    console.log(`[ExcalidrawDataBridge] Scheduling auto-save for canvas ${canvasId}`);
+    
+    const timeout = setTimeout(async () => {
+      await this.performSyncForCanvas(canvasId);
+      this.pendingOperations.delete(canvasId);
+    }, this.options.debounceDelay);
+    
+    this.pendingOperations.set(canvasId, {
+      canvasId,
+      operationType: 'auto-save',
+      timestamp: Date.now(),
+      debounceTimeout: timeout
+    });
+  }
+
+  /**
+   * Canvas-aware sync that prevents cross-canvas data corruption
+   */
+  private async performSyncForCanvas(canvasId: string): Promise<void> {
     if (this.syncInProgress) {
       console.log("[ExcalidrawDataBridge] Sync already in progress, skipping");
+      return;
+    }
+
+    // Validate canvas context hasn't changed
+    if (this.currentCanvasContext !== canvasId) {
+      console.log(`[ExcalidrawDataBridge] Canvas context changed during sync (expected: ${canvasId}, current: ${this.currentCanvasContext}), aborting`);
+      return;
+    }
+
+    // Check if loading in progress
+    if (this.isLoading) {
+      console.log("[ExcalidrawDataBridge] Canvas loading in progress, aborting sync");
       return;
     }
 
@@ -705,20 +820,29 @@ export class ExcalidrawDataBridge {
     try {
       const currentData = this.getExcalidrawData();
       if (!currentData) {
-        console.log("[ExcalidrawDataBridge] No data to sync");
+        console.log(`[ExcalidrawDataBridge] No data to sync for canvas ${canvasId}`);
         return;
       }
 
       // Validate data integrity
       if (!this.validateDataIntegrity(currentData)) {
-        console.warn("[ExcalidrawDataBridge] Data integrity check failed, skipping sync");
+        console.warn(`[ExcalidrawDataBridge] Data integrity check failed for canvas ${canvasId}, skipping sync`);
         return;
       }
 
-      // Emit sync event
+      // Final validation: ensure canvas context is still valid
+      if (this.currentCanvasContext !== canvasId) {
+        console.log(`[ExcalidrawDataBridge] Canvas context changed during validation (expected: ${canvasId}, current: ${this.currentCanvasContext}), aborting sync`);
+        return;
+      }
+
+      console.log(`[ExcalidrawDataBridge] Performing auto-save for canvas ${canvasId} with ${currentData.elements?.length || 0} elements`);
+
+      // Emit sync event with canvas context
       await globalEventBus.emit(InternalEventTypes.SYNC_EXCALIDRAW_DATA, {
         elements: currentData.elements,
         appState: currentData.appState,
+        canvasId: canvasId, // Include canvas context for validation
       });
 
       // Update last sync data and timestamp
@@ -727,35 +851,51 @@ export class ExcalidrawDataBridge {
       this.retryCount = 0;
 
       console.log(
-        `[ExcalidrawDataBridge] Sync completed successfully in ${Date.now() - startTime}ms`,
+        `[ExcalidrawDataBridge] Canvas-aware sync completed successfully for ${canvasId} in ${Date.now() - startTime}ms`,
         {
           elements: currentData.elements?.length || 0,
           timestamp: new Date().toISOString(),
         },
       );
     } catch (error) {
-      console.error("[ExcalidrawDataBridge] Sync failed:", error);
+      console.error(`[ExcalidrawDataBridge] Sync failed for canvas ${canvasId}:`, error);
 
-      // Retry logic
-      if (this.retryCount < this.options.maxRetries) {
+      // Retry logic with canvas context validation
+      if (this.retryCount < this.options.maxRetries && this.currentCanvasContext === canvasId) {
         this.retryCount++;
-        console.log(`[ExcalidrawDataBridge] Retrying sync (${this.retryCount}/${this.options.maxRetries})`);
+        console.log(`[ExcalidrawDataBridge] Retrying sync for canvas ${canvasId} (${this.retryCount}/${this.options.maxRetries})`);
 
         setTimeout(() => {
-          this.performSync();
+          // Re-validate canvas context before retry
+          if (this.currentCanvasContext === canvasId) {
+            this.performSyncForCanvas(canvasId);
+          } else {
+            console.log(`[ExcalidrawDataBridge] Canvas context changed during retry, aborting retry for ${canvasId}`);
+          }
         }, this.options.retryDelay * this.retryCount); // Exponential backoff
       } else {
-        console.error("[ExcalidrawDataBridge] Max retries exceeded, sync failed permanently");
+        console.error(`[ExcalidrawDataBridge] Max retries exceeded for canvas ${canvasId}, sync failed permanently`);
         this.retryCount = 0;
 
         // Emit error event
         await globalEventBus.emit(InternalEventTypes.ERROR_OCCURRED, {
-          error: "Auto-sync failed after multiple retries",
+          error: `Auto-sync failed for canvas ${canvasId} after multiple retries`,
           details: error,
         });
       }
     } finally {
       this.syncInProgress = false;
+    }
+  }
+
+  /**
+   * Legacy sync method - delegates to canvas-aware sync
+   */
+  private async performSync(): Promise<void> {
+    if (this.currentCanvasContext) {
+      await this.performSyncForCanvas(this.currentCanvasContext);
+    } else {
+      console.log("[ExcalidrawDataBridge] No canvas context for legacy sync, skipping");
     }
   }
 
@@ -917,10 +1057,14 @@ export class ExcalidrawDataBridge {
     this.retryCount = 0;
     this.syncInProgress = false;
     this.processingQueue = false;
+    this.currentCanvasContext = null;
 
     if (this.debounceTimeout) {
       clearTimeout(this.debounceTimeout);
       this.debounceTimeout = null;
     }
+
+    // Cancel all pending operations
+    this.cancelAllPendingOperations();
   }
 }

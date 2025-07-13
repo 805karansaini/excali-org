@@ -635,30 +635,44 @@ export function UnifiedStateProvider({
     const handleSyncExcalidrawData = async ({
       elements,
       appState,
+      canvasId,
     }: {
       elements: readonly ExcalidrawElement[];
       appState: AppState;
+      canvasId?: string;
     }) => {
       try {
         console.log(
           "Handling SYNC_EXCALIDRAW_DATA event with",
           elements?.length || 0,
           "elements",
+          canvasId ? `for canvas ${canvasId}` : "without canvas context",
         );
 
-        // Only save if we have a current working canvas
-        if (!state.currentWorkingCanvasId) {
-          console.log("No current working canvas - skipping auto-save");
+        // Capture current working canvas at time of event
+        const targetCanvasId = canvasId || state.currentWorkingCanvasId;
+        
+        // Only save if we have a target canvas
+        if (!targetCanvasId) {
+          console.log("No target canvas for auto-save - skipping");
           return;
         }
 
-        // Find the current canvas
+        // Validate canvas context consistency 
+        if (canvasId && state.currentWorkingCanvasId !== canvasId) {
+          console.log(
+            `Canvas context mismatch: sync for ${canvasId} but current working canvas is ${state.currentWorkingCanvasId} - aborting auto-save`,
+          );
+          return;
+        }
+
+        // Find the target canvas
         const currentCanvas = state.canvases.find(
-          (canvas) => canvas.id === state.currentWorkingCanvasId,
+          (canvas) => canvas.id === targetCanvasId,
         );
         if (!currentCanvas) {
           console.log(
-            "Current working canvas not found in canvases array - skipping auto-save",
+            `Target canvas ${targetCanvasId} not found in canvases array - skipping auto-save`,
           );
           console.log(
             "Available canvas IDs:",
@@ -690,20 +704,24 @@ export function UnifiedStateProvider({
           lastModified: new Date().toISOString(),
         };
 
+        // Final validation before database save
+        if (canvasId && state.currentWorkingCanvasId !== canvasId) {
+          console.log(
+            `Canvas context changed during save preparation (expected: ${canvasId}, current: ${state.currentWorkingCanvasId}) - aborting auto-save`,
+          );
+          return;
+        }
+
         // Save to database
         console.log(
-          "Auto-saving canvas:",
-          currentCanvas.name,
-          "with",
-          elements?.length || 0,
-          "elements",
+          `Auto-saving canvas: ${currentCanvas.name} (${targetCanvasId}) with ${elements?.length || 0} elements`,
         );
         await canvasOperations.updateCanvas(updatedCanvas);
 
         // Update state
         dispatch({ type: "UPDATE_CANVAS", payload: updatedCanvas });
 
-        console.log("Canvas auto-saved successfully:", updatedCanvas.name);
+        console.log(`Canvas auto-saved successfully: ${updatedCanvas.name} (${targetCanvasId})`);
       } catch (error) {
         console.error("Failed to auto-save canvas:", error);
         dispatch({
