@@ -446,10 +446,11 @@ export const projectOperations = {
         throw new Error(`Project ${projectId} not found`);
       }
 
-      // Get all canvases for this project
+      // Get all canvases for this project using the authoritative source (canvas.projectId)
+      // This ensures we get the live, up-to-date canvas-project relationships
       const canvases = await unifiedDb.canvases
-        .where("id")
-        .anyOf(project.canvasIds)
+        .where("projectId")
+        .equals(projectId)
         .toArray();
 
       return {

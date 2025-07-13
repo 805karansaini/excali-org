@@ -51,7 +51,7 @@ export function useInstantThemeSync({
       const systemDark = window.matchMedia?.("(prefers-color-scheme: dark)")
         .matches;
       return systemDark ? "dark" : "light";
-    } catch (error) {
+    } catch {
       // Development error logging removed for production build
       return "light"; // Safe fallback
     }
@@ -59,7 +59,7 @@ export function useInstantThemeSync({
 
   // Update theme immediately for instant visual feedback
   const updateThemeInstantly = useCallback(
-    (newTheme: "light" | "dark", _source: string) => {
+    (newTheme: "light" | "dark") => {
       const now = Date.now();
 
       // Prevent excessive updates
@@ -96,9 +96,9 @@ export function useInstantThemeSync({
           const newState = JSON.parse(e.newValue);
           if (newState.theme && newState.theme !== currentTheme) {
             currentTheme = newState.theme;
-            updateThemeInstantly(newState.theme, "direct-storage");
+            updateThemeInstantly(newState.theme);
           }
-        } catch (error) {
+        } catch {
           // Development warning removed for production build
         }
       }
@@ -256,9 +256,9 @@ export function useInstantThemeSync({
         try {
           const detectedTheme = detectExcalidrawTheme();
           if (detectedTheme !== currentThemeRef.current) {
-            updateThemeInstantly(detectedTheme, "fallback-polling");
+            updateThemeInstantly(detectedTheme);
           }
-        } catch (error) {
+        } catch {
           // Development error logging removed for production build
         } finally {
           setIsDetecting(false);

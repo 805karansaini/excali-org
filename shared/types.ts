@@ -1,20 +1,9 @@
 import { ExcalidrawElement, AppState } from "./excalidraw-types";
 
+// Legacy - now handled by InternalEventBus
 export enum STORAGE_KEYS {
   CURRENT_WORKING_FILE_ID = "current-working-file-id",
 }
-
-export enum MessageTypes {
-  LOAD_EXCALIDRAW_FILE = "LOAD_EXCALIDRAW_FILE",
-  PUSH_EXCALIDRAW_FILE = "PUSH_EXCALIDRAW_FILE",
-  PUSH_CURRENT_WORKING_FILE_NAME = "PUSH_CURRENT_WORKING_FILE_NAME",
-  PULL_CURRENT_WORKING_FILE_NAME = "PULL_CURRENT_WORKING_FILE_NAME",
-}
-
-export type Message = {
-  type: MessageTypes;
-  body?: Record<string, unknown>;
-};
 
 export type ExcalidrawType = {
   angle: number;
@@ -90,8 +79,9 @@ export interface ProjectContextMenuData {
   project: UnifiedProject;
 }
 
+// Deprecated type aliases - use UnifiedCanvas and UnifiedProject directly
+// Keeping for backward compatibility only
 export type File = UnifiedCanvas;
-export type Collection = UnifiedProject;
 export type Canvas = UnifiedCanvas;
 export type Project = UnifiedProject;
 

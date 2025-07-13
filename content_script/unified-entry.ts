@@ -183,13 +183,13 @@ function setupEventHandlers(): void {
   );
 
   // Handle theme changes - theme attribute is now set in useThemeSync hook
-  globalEventBus.on(InternalEventTypes.THEME_CHANGED, (_theme) => {
+  globalEventBus.on(InternalEventTypes.THEME_CHANGED, () => {
     // Theme change handled by instant theme sync hook
   });
 
   globalEventBus.on(
     InternalEventTypes.SYNC_EXCALIDRAW_DATA,
-    async (_payload) => {
+    async () => {
       try {
         // Sync handled by state provider
       } catch (error) {
@@ -200,7 +200,7 @@ function setupEventHandlers(): void {
 
   globalEventBus.on(
     InternalEventTypes.SAVE_EXCALIDRAW_DATA,
-    async (_payload) => {
+    async () => {
       try {
         // Save handled by unified state provider
       } catch (error) {

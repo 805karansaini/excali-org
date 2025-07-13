@@ -27,7 +27,6 @@ export interface ExcalidrawSyncOptions {
   debounceDelay: number; // milliseconds
   maxRetries: number;
   retryDelay: number; // milliseconds
-  deepChangeDetection: boolean;
 }
 
 /**
@@ -52,7 +51,6 @@ export class ExcalidrawDataBridge {
       debounceDelay: 350, // Aligned with Excalidraw's 300ms + buffer
       maxRetries: 3,
       retryDelay: 500,
-      deepChangeDetection: true,
       ...options,
     };
 
@@ -175,13 +173,13 @@ export class ExcalidrawDataBridge {
               return state.theme;
             }
           }
-          
+
           // Check document data-theme attribute
           const documentTheme = document.documentElement.getAttribute("data-theme");
           if (documentTheme === "dark" || documentTheme === "light") {
             return documentTheme;
           }
-          
+
           // Fallback to system preference
           return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
         } catch {
@@ -397,7 +395,7 @@ export class ExcalidrawDataBridge {
 
         // Exclude theme from canvas appState to preserve current Excalidraw theme
         const { theme: _theme, ...appStateWithoutTheme } = data.appState;
-        
+
         const mergedState = {
           ...existingState,
           ...appStateWithoutTheme, // Merge everything except theme
@@ -508,9 +506,7 @@ export class ExcalidrawDataBridge {
       }
 
       // Enhanced change detection
-      if (this.options.deepChangeDetection) {
-        return this.hasDeepChanges(currentData);
-      }
+      return this.hasDeepChanges(currentData);
 
       // Fallback to basic detection
       return this.hasBasicChanges(currentData);
@@ -571,7 +567,7 @@ export class ExcalidrawDataBridge {
       // Deep comparison of element properties
       for (const [id, currentElement] of currentElementsMap) {
         const lastElement = lastElementsMap.get(id)!;
-        
+
         // Check critical properties that indicate content changes
         const criticalProps = [
           'text', 'rawText', 'originalText', // Text content
@@ -618,7 +614,7 @@ export class ExcalidrawDataBridge {
 
       const currentElementsCount = currentData.elements?.length || 0;
       const lastElementsCount = lastData.elements?.length || 0;
-      
+
       if (currentElementsCount !== lastElementsCount) {
         console.log(
           "[ExcalidrawDataBridge] Element count changed:",
@@ -632,7 +628,7 @@ export class ExcalidrawDataBridge {
       // Check element IDs
       const currentElementIds = currentData.elements?.map(el => el.id).sort() || [];
       const lastElementIds = lastData.elements?.map(el => el.id).sort() || [];
-      
+
       const idsChanged = JSON.stringify(currentElementIds) !== JSON.stringify(lastElementIds);
       if (idsChanged) {
         console.log("[ExcalidrawDataBridge] Element IDs changed");
@@ -652,15 +648,15 @@ export class ExcalidrawDataBridge {
   private hasAppStateChanged(currentAppState: AppState, lastAppState: AppState): boolean {
     // Ignore transient properties that don't affect the saved state
     const ignoreProps = ['selectedElementIds', 'editingGroupId', 'scrollX', 'scrollY', 'zoom'];
-    
+
     const currentFiltered = { ...currentAppState };
     const lastFiltered = { ...lastAppState };
-    
+
     for (const prop of ignoreProps) {
       delete (currentFiltered as Record<string, unknown>)[prop];
       delete (lastFiltered as Record<string, unknown>)[prop];
     }
-    
+
     return JSON.stringify(currentFiltered) !== JSON.stringify(lastFiltered);
   }
 
@@ -739,19 +735,19 @@ export class ExcalidrawDataBridge {
       );
     } catch (error) {
       console.error("[ExcalidrawDataBridge] Sync failed:", error);
-      
+
       // Retry logic
       if (this.retryCount < this.options.maxRetries) {
         this.retryCount++;
         console.log(`[ExcalidrawDataBridge] Retrying sync (${this.retryCount}/${this.options.maxRetries})`);
-        
+
         setTimeout(() => {
           this.performSync();
         }, this.options.retryDelay * this.retryCount); // Exponential backoff
       } else {
         console.error("[ExcalidrawDataBridge] Max retries exceeded, sync failed permanently");
         this.retryCount = 0;
-        
+
         // Emit error event
         await globalEventBus.emit(InternalEventTypes.ERROR_OCCURRED, {
           error: "Auto-sync failed after multiple retries",
@@ -800,7 +796,7 @@ export class ExcalidrawDataBridge {
    */
   private setupStorageListener(): void {
     window.addEventListener("storage", this.handleStorageChange);
-    
+
     // Also listen for direct storage mutations (for same-tab changes)
     const originalSetItem = localStorage.setItem;
     localStorage.setItem = (key: string, value: string) => {
@@ -821,10 +817,10 @@ export class ExcalidrawDataBridge {
   private handleStorageChange = (event: StorageEvent): void => {
     if (event.key === "excalidraw" || event.key === "excalidraw-state") {
       console.log("[ExcalidrawDataBridge] Storage change detected:", event.key);
-      
+
       // Queue the event for processing
       this.storageEventQueue.push(event);
-      
+
       // Process queue if not already processing
       if (!this.processingQueue) {
         this.processStorageEventQueue();
@@ -846,10 +842,10 @@ export class ExcalidrawDataBridge {
       while (this.storageEventQueue.length > 0) {
         const event = this.storageEventQueue.shift()!;
         console.log("[ExcalidrawDataBridge] Processing storage event:", event.key);
-        
+
         // Small delay to ensure Excalidraw has finished writing
         await new Promise(resolve => setTimeout(resolve, 50));
-        
+
         // Check if data has actually changed before syncing
         if (this.hasDataChanged()) {
           this.debouncedSync();
@@ -858,7 +854,7 @@ export class ExcalidrawDataBridge {
       }
     } finally {
       this.processingQueue = false;
-      
+
       // If more events were queued while processing, process them
       if (this.storageEventQueue.length > 0) {
         setTimeout(() => this.processStorageEventQueue(), 100);
@@ -921,7 +917,7 @@ export class ExcalidrawDataBridge {
     this.retryCount = 0;
     this.syncInProgress = false;
     this.processingQueue = false;
-    
+
     if (this.debounceTimeout) {
       clearTimeout(this.debounceTimeout);
       this.debounceTimeout = null;

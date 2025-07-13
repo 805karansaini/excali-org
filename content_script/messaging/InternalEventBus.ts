@@ -141,10 +141,10 @@ type EventHandler<T extends InternalEventTypes> = (
  * Provides type-safe event emission and subscription
  */
 export class InternalEventBus {
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
-  private listeners: Map<string, Set<Function>> = new Map();
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
-  private onceListeners: Map<string, Set<Function>> = new Map();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private listeners: Map<string, Set<EventHandler<any>>> = new Map();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private onceListeners: Map<string, Set<EventHandler<any>>> = new Map();
   private debugMode: boolean = false;
 
   constructor(debug: boolean = false) {

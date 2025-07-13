@@ -182,17 +182,33 @@ export const ProjectFormModal = React.memo(function ProjectFormModal(props: Prop
   }, [showCustomPicker]);
 
   const handleKeyboardNavigation = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+    const GRID_COLS = 6; // Number of columns in the color grid
+    
+    if (e.key === "ArrowRight") {
       e.preventDefault();
       const nextIndex = (selectedColorIndex + 1) % projectColors.length;
       setSelectedColorIndex(nextIndex);
       setSelectedColor(projectColors[nextIndex]);
       setShowCustomPicker(false);
-    } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+    } else if (e.key === "ArrowLeft") {
       e.preventDefault();
       const prevIndex = selectedColorIndex === 0 ? projectColors.length - 1 : selectedColorIndex - 1;
       setSelectedColorIndex(prevIndex);
       setSelectedColor(projectColors[prevIndex]);
+      setShowCustomPicker(false);
+    } else if (e.key === "ArrowDown") {
+      e.preventDefault();
+      const nextRowIndex = (selectedColorIndex + GRID_COLS) % projectColors.length;
+      setSelectedColorIndex(nextRowIndex);
+      setSelectedColor(projectColors[nextRowIndex]);
+      setShowCustomPicker(false);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      const prevRowIndex = selectedColorIndex - GRID_COLS < 0 
+        ? projectColors.length - (GRID_COLS - selectedColorIndex)
+        : selectedColorIndex - GRID_COLS;
+      setSelectedColorIndex(prevRowIndex);
+      setSelectedColor(projectColors[prevRowIndex]);
       setShowCustomPicker(false);
     } else if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
