@@ -712,11 +712,28 @@ export function UnifiedStateProvider({
           return;
         }
 
-        // Save to database
+        // Atomic validation just before database operation
+        const currentWorkingCanvasAtSave = state.currentWorkingCanvasId;
+        if (canvasId && currentWorkingCanvasAtSave !== canvasId) {
+          console.log(
+            `Canvas context changed immediately before save (expected: ${canvasId}, current: ${currentWorkingCanvasAtSave}) - aborting auto-save`,
+          );
+          return;
+        }
+
+        // Save to database with context tracking
         console.log(
           `Auto-saving canvas: ${currentCanvas.name} (${targetCanvasId}) with ${elements?.length || 0} elements`,
         );
         await canvasOperations.updateCanvas(updatedCanvas);
+
+        // Validate context hasn't changed during async database operation
+        if (canvasId && state.currentWorkingCanvasId !== canvasId) {
+          console.warn(
+            `Canvas context changed during database save (expected: ${canvasId}, current: ${state.currentWorkingCanvasId}) - save completed but context is stale`,
+          );
+          // Continue with state update since database save succeeded
+        }
 
         // Update state
         dispatch({ type: "UPDATE_CANVAS", payload: updatedCanvas });
