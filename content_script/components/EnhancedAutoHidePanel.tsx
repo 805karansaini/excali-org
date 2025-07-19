@@ -762,6 +762,16 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
                 >
                   <Plus size={16} />
                   <span>New Canvas</span>
+                  <span
+                    style={{
+                      marginLeft: "auto",
+                      fontSize: "12px",
+                      opacity: 0.8,
+                      fontFamily: "monospace",
+                    }}
+                  >
+                    {shortcuts["New Canvas"]}
+                  </span>
                 </button>
 
                 <button
@@ -790,6 +800,16 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
                 >
                   <FolderPlus size={16} />
                   <span>New Project</span>
+                  <span
+                    style={{
+                      marginLeft: "auto",
+                      fontSize: "12px",
+                      opacity: 0.7,
+                      fontFamily: "monospace",
+                    }}
+                  >
+                    {shortcuts["New Project"]}
+                  </span>
                 </button>
 
                 <button
