@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "build": "tsc && vite build --config vite-unified-content.config.ts && vite build --config vite-background.config.ts",
+    "build": "vite build --config vite-unified-content.config.ts && vite build --config vite-background.config.ts",
     "package": "cd dist && zip -r ../excali-org.zip .",
     "lint": "eslint . --report-unused-disable-directives --max-warnings 0",
     "analyze": "vite build --config vite-unified-content.config.ts --mode analyze",

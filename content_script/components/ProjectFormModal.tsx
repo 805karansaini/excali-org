@@ -1,13 +1,24 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
 import { X } from "lucide-react";
 import { useUnifiedState } from "../context/UnifiedStateProvider";
 import { eventBus, InternalEventTypes } from "../messaging/InternalEventBus";
+import { UnifiedProject } from "../../shared/types";
 
-interface Props {
+interface CreateProjectProps {
+  mode: "create";
   onClose: () => void;
 }
+
+interface EditProjectProps {
+  mode: "edit";
+  project: UnifiedProject;
+  onEdit: (newName: string, newColor: string) => void;
+  onClose: () => void;
+}
+
+type Props = CreateProjectProps | EditProjectProps;
 
 const projectColors = [
   "#6366f1", // Indigo
@@ -24,79 +35,186 @@ const projectColors = [
   "#a855f7", // Violet
 ];
 
-export function ProjectModal({ onClose }: Props) {
+export const ProjectFormModal = React.memo(function ProjectFormModal(props: Props) {
+  const { mode, onClose } = props;
   const { state, createProject } = useUnifiedState();
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [selectedColor, setSelectedColor] = useState(projectColors[0]);
+  
+  const isEditMode = mode === "edit";
+  const project = isEditMode ? (props as EditProjectProps).project : null;
+  const onEdit = isEditMode ? (props as EditProjectProps).onEdit : null;
+
+  const [name, setName] = useState(project?.name || "");
+  const [description, setDescription] = useState(project?.description || "");
+  const [selectedColor, setSelectedColor] = useState(
+    project?.color || projectColors[0]
+  );
   const [customColor, setCustomColor] = useState("");
   const [showCustomPicker, setShowCustomPicker] = useState(false);
-  const [selectedColorIndex, setSelectedColorIndex] = useState(0);
+  const [selectedColorIndex, setSelectedColorIndex] = useState(
+    project?.color 
+      ? projectColors.indexOf(project.color) >= 0 
+        ? projectColors.indexOf(project.color) 
+        : 0
+      : 0
+  );
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Focus and select text for edit mode
+  useEffect(() => {
+    if (isEditMode) {
+      const focusTimeout = setTimeout(() => {
+        inputRef.current?.focus();
+        inputRef.current?.select();
+      }, 100);
+      return () => clearTimeout(focusTimeout);
+    } else {
+      // Just focus for create mode
+      const focusTimeout = setTimeout(() => {
+        inputRef.current?.focus();
+      }, 100);
+      return () => clearTimeout(focusTimeout);
+    }
+  }, [isEditMode]);
 
-    // Validate name
+  // Handle escape key
+  useEffect(() => {
+    const unsubscribe = eventBus.on(InternalEventTypes.ESCAPE_PRESSED, onClose);
+    return unsubscribe;
+  }, [onClose]);
+
+  // Handle custom color initialization for edit mode
+  useEffect(() => {
+    if (isEditMode && project?.color && !projectColors.includes(project.color)) {
+      setShowCustomPicker(true);
+      setCustomColor(project.color);
+      setSelectedColorIndex(0);
+    }
+  }, [isEditMode, project?.color]);
+
+  const validateForm = useCallback(() => {
     if (!name.trim()) {
       setError("Project name is required");
-      return;
+      return false;
     }
 
     if (name.trim().length > 50) {
       setError("Project name must be 50 characters or less");
+      return false;
+    }
+
+    // Check for duplicate names (only for create mode or if name changed in edit mode)
+    if (mode === "create" || (project && name.trim() !== project.name)) {
+      const existingProject = state.projects.find(
+        (p) => p.name.toLowerCase() === name.trim().toLowerCase(),
+      );
+
+      if (existingProject) {
+        setError("A project with this name already exists");
+        return false;
+      }
+    }
+
+    return true;
+  }, [name, mode, project, state.projects]);
+
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!validateForm()) {
       return;
     }
 
-    // Check for duplicate names
-    const existingProject = state.projects.find(
-      (project) => project.name.toLowerCase() === name.trim().toLowerCase(),
-    );
-
-    if (existingProject) {
-      setError("A project with this name already exists");
+    // For edit mode, check if anything actually changed
+    if (isEditMode && project && name.trim() === project.name && selectedColor === project.color) {
+      onClose();
       return;
     }
 
     setIsLoading(true);
 
     try {
-      // Create new project using the state provider method (saves to database)
-      const newProject = await createProject({
-        name: name.trim(),
-        description: description.trim() || undefined,
-        canvasIds: [],
-        fileIds: [], // Backward compatibility
-        color: selectedColor,
-        updatedAt: new Date(),
-      });
+      if (isEditMode && onEdit) {
+        await onEdit(name.trim(), selectedColor);
+      } else {
+        // Create new project
+        const newProject = await createProject({
+          name: name.trim(),
+          description: description.trim() || undefined,
+          canvasIds: [],
+          fileIds: [], // Backward compatibility
+          color: selectedColor,
+          updatedAt: new Date(),
+        });
 
-      // Emit project creation event
-      eventBus.emit(InternalEventTypes.PROJECT_CREATED, newProject);
-
-      console.log("Project created and saved to database:", newProject);
+        // Emit project creation event
+        eventBus.emit(InternalEventTypes.PROJECT_CREATED, newProject);
+      }
       
       onClose();
     } catch (err) {
-      setError("Failed to create project. Please try again.");
-      console.error("Error creating project:", err);
+      setError(`Failed to ${isEditMode ? 'update' : 'create'} project. Please try again.`);
+      console.error(`Error ${isEditMode ? 'updating' : 'creating'} project:`, err);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [validateForm, isEditMode, project, name, selectedColor, onClose, onEdit, createProject, description]);
 
-  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleNameChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setName(e.target.value);
     if (error) setError("");
-  };
+  }, [error]);
 
-  const handleDescriptionChange = (
-    e: React.ChangeEvent<HTMLTextAreaElement>,
-  ) => {
+  const handleDescriptionChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setDescription(e.target.value);
     if (error && error.includes("description")) setError("");
-  };
+  }, [error]);
+
+  const handleColorSelect = useCallback((color: string, index: number) => {
+    setSelectedColorIndex(index);
+    setSelectedColor(color);
+    setShowCustomPicker(false);
+  }, []);
+
+  const handleCustomColorToggle = useCallback(() => {
+    setShowCustomPicker(!showCustomPicker);
+  }, [showCustomPicker]);
+
+  const handleKeyboardNavigation = useCallback((e: React.KeyboardEvent) => {
+    const GRID_COLS = 6; // Number of columns in the color grid
+    
+    if (e.key === "ArrowRight") {
+      e.preventDefault();
+      const nextIndex = (selectedColorIndex + 1) % projectColors.length;
+      setSelectedColorIndex(nextIndex);
+      setSelectedColor(projectColors[nextIndex]);
+      setShowCustomPicker(false);
+    } else if (e.key === "ArrowLeft") {
+      e.preventDefault();
+      const prevIndex = selectedColorIndex === 0 ? projectColors.length - 1 : selectedColorIndex - 1;
+      setSelectedColorIndex(prevIndex);
+      setSelectedColor(projectColors[prevIndex]);
+      setShowCustomPicker(false);
+    } else if (e.key === "ArrowDown") {
+      e.preventDefault();
+      const nextRowIndex = (selectedColorIndex + GRID_COLS) % projectColors.length;
+      setSelectedColorIndex(nextRowIndex);
+      setSelectedColor(projectColors[nextRowIndex]);
+      setShowCustomPicker(false);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      const prevRowIndex = selectedColorIndex - GRID_COLS < 0 
+        ? projectColors.length - (GRID_COLS - selectedColorIndex)
+        : selectedColorIndex - GRID_COLS;
+      setSelectedColorIndex(prevRowIndex);
+      setSelectedColor(projectColors[prevRowIndex]);
+      setShowCustomPicker(false);
+    } else if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      // Color is already selected, no additional action needed
+    }
+  }, [selectedColorIndex]);
 
   const overlayStyles: React.CSSProperties = {
     position: "fixed",
@@ -184,7 +302,7 @@ export function ProjectModal({ onClose }: Props) {
                 margin: 0,
               }}
             >
-              Create New Project
+              {isEditMode ? "Edit Project" : "Create New Project"}
             </h2>
             <button
               onClick={onClose}
@@ -212,7 +330,10 @@ export function ProjectModal({ onClose }: Props) {
               lineHeight: 1.5,
             }}
           >
-            Organize your canvases into projects for better management
+            {isEditMode 
+              ? "Update the project name and color" 
+              : "Organize your canvases into projects for better management"
+            }
           </p>
         </div>
 
@@ -231,6 +352,7 @@ export function ProjectModal({ onClose }: Props) {
                 Project Name *
               </label>
               <input
+                ref={inputRef}
                 type="text"
                 style={{
                   ...inputStyles,
@@ -244,7 +366,6 @@ export function ProjectModal({ onClose }: Props) {
                 placeholder="Enter project name..."
                 value={name}
                 onChange={handleNameChange}
-                autoFocus
                 maxLength={50}
                 disabled={isLoading}
               />
@@ -262,37 +383,39 @@ export function ProjectModal({ onClose }: Props) {
               </div>
             </div>
 
-            <div style={{ marginBottom: "20px" }}>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: "14px",
-                  fontWeight: 500,
-                  color: "var(--theme-text-primary)",
-                  marginBottom: "8px",
-                }}
-              >
-                Description (Optional)
-              </label>
-              <textarea
-                style={textareaStyles}
-                placeholder="Describe your project..."
-                value={description}
-                onChange={handleDescriptionChange}
-                maxLength={200}
-                disabled={isLoading}
-              />
-              <div
-                style={{
-                  fontSize: "12px",
-                  color: "var(--theme-text-secondary)",
-                  marginTop: "4px",
-                  textAlign: "right",
-                }}
-              >
-                {description.length}/200
+            {!isEditMode && (
+              <div style={{ marginBottom: "20px" }}>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: "14px",
+                    fontWeight: 500,
+                    color: "var(--theme-text-primary)",
+                    marginBottom: "8px",
+                  }}
+                >
+                  Description (Optional)
+                </label>
+                <textarea
+                  style={textareaStyles}
+                  placeholder="Describe your project..."
+                  value={description}
+                  onChange={handleDescriptionChange}
+                  maxLength={200}
+                  disabled={isLoading}
+                />
+                <div
+                  style={{
+                    fontSize: "12px",
+                    color: "var(--theme-text-secondary)",
+                    marginTop: "4px",
+                    textAlign: "right",
+                  }}
+                >
+                  {description.length}/200
+                </div>
               </div>
-            </div>
+            )}
 
             <div style={{ marginBottom: "20px" }}>
               <label
@@ -328,24 +451,7 @@ export function ProjectModal({ onClose }: Props) {
                     outline: "none",
                     transition: "border-color 0.2s ease",
                   }}
-                  onKeyDown={(e) => {
-                    if (e.key === "ArrowRight" || e.key === "ArrowDown") {
-                      e.preventDefault();
-                      const nextIndex = (selectedColorIndex + 1) % projectColors.length;
-                      setSelectedColorIndex(nextIndex);
-                      setSelectedColor(projectColors[nextIndex]);
-                      setShowCustomPicker(false);
-                    } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
-                      e.preventDefault();
-                      const prevIndex = selectedColorIndex === 0 ? projectColors.length - 1 : selectedColorIndex - 1;
-                      setSelectedColorIndex(prevIndex);
-                      setSelectedColor(projectColors[prevIndex]);
-                      setShowCustomPicker(false);
-                    } else if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      // Color is already selected, no additional action needed
-                    }
-                  }}
+                  onKeyDown={handleKeyboardNavigation}
                   onFocus={(e) => {
                     e.currentTarget.style.borderColor = "var(--theme-accent-primary, #6366f1)";
                   }}
@@ -373,11 +479,7 @@ export function ProjectModal({ onClose }: Props) {
                         transition: "all 0.2s ease",
                         boxSizing: "border-box",
                       }}
-                      onClick={() => {
-                        setSelectedColorIndex(index);
-                        setSelectedColor(color);
-                        setShowCustomPicker(false);
-                      }}
+                      onClick={() => handleColorSelect(color, index)}
                       disabled={isLoading}
                       aria-label={`Select color ${color}`}
                     />
@@ -387,7 +489,7 @@ export function ProjectModal({ onClose }: Props) {
                 <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                   <button
                     type="button"
-                    onClick={() => setShowCustomPicker(!showCustomPicker)}
+                    onClick={handleCustomColorToggle}
                     disabled={isLoading}
                     style={{
                       padding: "6px 12px",
@@ -540,10 +642,10 @@ export function ProjectModal({ onClose }: Props) {
                       animation: "spin 1s linear infinite",
                     }}
                   />
-                  Creating...
+                  {isEditMode ? "Updating..." : "Creating..."}
                 </>
               ) : (
-                "Create Project"
+                isEditMode ? "Update Project" : "Create Project"
               )}
             </button>
           </div>
@@ -558,4 +660,4 @@ export function ProjectModal({ onClose }: Props) {
     </motion.div>,
     document.body,
   );
-}
+});

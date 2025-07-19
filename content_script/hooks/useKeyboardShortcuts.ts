@@ -48,8 +48,6 @@ export function useKeyboardShortcuts({
 
   const handleNewCanvasShortcut = useCallback(async () => {
     try {
-      console.log("Creating new canvas from keyboard shortcut...");
-
       const existingNames = state.canvases.map((c) => c.name);
       const baseName = "Untitled Canvas";
       let counter = 1;
@@ -83,11 +81,8 @@ export function useKeyboardShortcuts({
         projectId: undefined,
       };
 
-      console.log("New canvas created:", newCanvas);
-
       // Create the canvas using the existing createCanvas function
       const createdCanvas = await createCanvas(newCanvas);
-      console.log("Canvas created successfully:", createdCanvas);
 
       // Select the new canvas
       dispatch({ type: "SET_SELECTED_CANVAS", payload: createdCanvas.id });
@@ -95,8 +90,6 @@ export function useKeyboardShortcuts({
       // Emit events
       eventBus.emit(InternalEventTypes.CANVAS_CREATED, createdCanvas);
       eventBus.emit(InternalEventTypes.LOAD_CANVAS_TO_EXCALIDRAW, createdCanvas);
-
-      console.log("Canvas creation completed successfully via keyboard shortcut");
     } catch (error) {
       console.error("Error creating new canvas via keyboard shortcut:", error);
       // Show error to user
@@ -146,30 +139,22 @@ export function useKeyboardShortcuts({
   }, [state.selectedCanvasId, state.canvases, removeCanvas, dispatch]);
 
   const handleDuplicateSelected = useCallback(async () => {
-    console.log("DEBUG: handleDuplicateSelected called");
-    console.log("DEBUG: selectedCanvasId:", state.selectedCanvasId);
-    console.log("DEBUG: currentWorkingCanvasId:", state.currentWorkingCanvasId);
-    console.log("DEBUG: canvases length:", state.canvases.length);
-
     // Try to use currentWorkingCanvasId first (the canvas that's currently loaded in Excalidraw)
     // If that's not available, fall back to selectedCanvasId
     const canvasIdToUse = state.currentWorkingCanvasId || state.selectedCanvasId;
 
     if (!canvasIdToUse) {
-      console.log("DEBUG: No current working canvas or selected canvas, cannot duplicate");
       alert("Please load a canvas first to duplicate it.");
       return;
     }
 
     const canvas = state.canvases.find((c) => c.id === canvasIdToUse);
     if (!canvas) {
-      console.log("DEBUG: Canvas not found in state, ID:", canvasIdToUse);
       alert("Current canvas not found.");
       return;
     }
 
     try {
-      console.log("DEBUG: Duplicating canvas:", canvas.name);
       const newCanvas = await createCanvas({
         ...canvas,
         name: `${canvas.name} (Copy)`,
@@ -178,7 +163,6 @@ export function useKeyboardShortcuts({
         excalidraw: canvas.excalidraw || [],
         appState: canvas.appState,
       });
-      console.log("DEBUG: Canvas duplicated successfully:", newCanvas);
       eventBus.emit(InternalEventTypes.CANVAS_CREATED, newCanvas);
       eventBus.emit(InternalEventTypes.LOAD_CANVAS_TO_EXCALIDRAW, newCanvas);
       dispatch({ type: "SET_SELECTED_CANVAS", payload: newCanvas.id });
@@ -258,22 +242,6 @@ export function useKeyboardShortcuts({
       const ctrlCmdKey = isMac ? e.metaKey : e.ctrlKey;
       const shiftKey = e.shiftKey;
 
-      // Debug: Log all key combinations with Alt or Cmd+Shift
-      if (altKey || (ctrlCmdKey && shiftKey)) {
-        console.log("DEBUG: Key combination detected:", {
-          key: e.key,
-          code: e.code,
-          keyCode: e.keyCode,
-          altKey,
-          shiftKey,
-          ctrlCmdKey,
-          metaKey: e.metaKey,
-          ctrlKey: e.ctrlKey,
-          target: (e.target as HTMLElement)?.tagName,
-          currentTarget: (e.currentTarget as HTMLElement)?.tagName,
-          isTyping: isTyping()
-        });
-      }
 
       // Universal Search Shortcut (works even when typing)
       if (ctrlCmdKey && shiftKey && !altKey && e.key.toLowerCase() === "f") {
@@ -286,18 +254,13 @@ export function useKeyboardShortcuts({
 
       // New Project: Alt/Option + Shift + N (works even when typing)
       if (altKey && shiftKey && !ctrlCmdKey && (e.key.toLowerCase() === "n" || e.code === "KeyN")) {
-        console.log("DEBUG: New Project shortcut triggered!", {
-          onNewProject: typeof onNewProject,
-          onNewProjectFunction: onNewProject.toString()
-        });
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();
         try {
           onNewProject();
-          console.log("DEBUG: onNewProject() called successfully");
         } catch (error) {
-          console.error("DEBUG: Error calling onNewProject:", error);
+          console.error("Error calling onNewProject:", error);
         }
         return;
       }
@@ -329,7 +292,6 @@ export function useKeyboardShortcuts({
 
       // New Canvas: Alt + N (works even when typing)
       if (altKey && !ctrlCmdKey && !shiftKey && (e.key.toLowerCase() === "n" || e.code === "KeyN")) {
-        console.log("DEBUG: Alt + N shortcut triggered!");
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();
@@ -339,17 +301,13 @@ export function useKeyboardShortcuts({
 
       // Duplicate Canvas: Ctrl/Cmd + Shift + D (works even when typing)
       if (ctrlCmdKey && shiftKey && !altKey && e.key.toLowerCase() === "d") {
-        console.log("DEBUG: Cmd + Shift + D shortcut triggered!");
-        console.log("DEBUG: handleDuplicateSelected function:", handleDuplicateSelected);
-        console.log("DEBUG: selectedCanvasId:", state.selectedCanvasId);
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();
         try {
           handleDuplicateSelected();
-          console.log("DEBUG: handleDuplicateSelected() called successfully");
         } catch (error) {
-          console.error("DEBUG: Error calling handleDuplicateSelected:", error);
+          console.error("Error calling handleDuplicateSelected:", error);
         }
         return;
       }
@@ -412,10 +370,8 @@ export function useKeyboardShortcuts({
 
     };
 
-    console.log("DEBUG: Setting up keyboard shortcuts event listener");
     document.addEventListener("keydown", handleKeyDown, true);
     return () => {
-      console.log("DEBUG: Removing keyboard shortcuts event listener");
       document.removeEventListener("keydown", handleKeyDown, true);
     };
   }, [

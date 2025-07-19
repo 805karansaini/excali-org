@@ -114,7 +114,7 @@ export function SearchModal() {
           setSelectedIndex(0);
           return;
         }
-        
+
         // Search canvases
         state.canvases.forEach((canvas) => {
           const nameMatch = fuzzyMatch(canvas.name, searchQuery);
@@ -154,7 +154,7 @@ export function SearchModal() {
       } else if (drillDown.mode === 'project-canvases' && drillDown.selectedProject) {
         // Project drill-down mode - search only canvases within the selected project
         const selectedProject = drillDown.selectedProject;
-        const projectCanvases = state.canvases.filter(canvas => 
+        const projectCanvases = state.canvases.filter(canvas =>
           canvas.projectId === selectedProject.id
         );
 
@@ -451,7 +451,7 @@ export function SearchModal() {
             ref={searchInputRef}
             style={searchInputStyles}
             placeholder={
-              drillDown.mode === 'project-canvases' 
+              drillDown.mode === 'project-canvases'
                 ? `Search in ${drillDown.selectedProject?.name || 'project'}...`
                 : "Search canvases and projects..."
             }
@@ -498,10 +498,10 @@ export function SearchModal() {
                   gap: "8px",
                 }}
               >
-                <Folder 
-                  size={14} 
-                  color={drillDown.selectedProject.color || "#6366f1"} 
-                  fill={drillDown.selectedProject.color || "#6366f1"} 
+                <Folder
+                  size={14}
+                  color={drillDown.selectedProject.color || "#6366f1"}
+                  fill={drillDown.selectedProject.color || "#6366f1"}
                 />
                 <span style={{ fontWeight: 500 }}>{drillDown.selectedProject.name}</span>
               </div>
@@ -624,7 +624,7 @@ export function SearchModal() {
                 No results found
               </div>
               <div style={{ fontSize: "14px", lineHeight: 1.5 }}>
-                {drillDown.mode === 'project-canvases' 
+                {drillDown.mode === 'project-canvases'
                   ? `No canvases found in ${drillDown.selectedProject?.name || 'project'} matching "${query}"`
                   : "Try searching for a different canvas or project name"
                 }

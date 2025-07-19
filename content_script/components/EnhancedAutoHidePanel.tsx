@@ -18,7 +18,7 @@ import {
 } from "../hooks/useKeyboardShortcuts";
 import { SearchModal } from "./SearchModal";
 import { HelpOverlay } from "./HelpOverlay";
-import { ProjectModal } from "./ProjectModal";
+import { ProjectFormModal } from "./ProjectFormModal";
 import { ContextMenu } from "./ContextMenu";
 import { ProjectContextMenu } from "./ProjectContextMenu";
 import { UnifiedCanvas, UnifiedProject } from "../../shared/types";
@@ -1118,7 +1118,10 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
 
       <AnimatePresence>
         {showProjectModal && (
-          <ProjectModal onClose={() => setShowProjectModal(false)} />
+          <ProjectFormModal 
+            mode="create" 
+            onClose={() => setShowProjectModal(false)} 
+          />
         )}
       </AnimatePresence>
 

@@ -51,15 +51,15 @@ export function useInstantThemeSync({
       const systemDark = window.matchMedia?.("(prefers-color-scheme: dark)")
         .matches;
       return systemDark ? "dark" : "light";
-    } catch (error) {
-      console.error("Theme detection failed:", error);
+    } catch {
+      // Development error logging removed for production build
       return "light"; // Safe fallback
     }
   }, []);
 
   // Update theme immediately for instant visual feedback
   const updateThemeInstantly = useCallback(
-    (newTheme: "light" | "dark", source: string) => {
+    (newTheme: "light" | "dark") => {
       const now = Date.now();
 
       // Prevent excessive updates
@@ -69,10 +69,6 @@ export function useInstantThemeSync({
       }
 
       if (newTheme !== currentThemeRef.current) {
-        console.log(
-          `🎨 INSTANT theme change: ${currentThemeRef.current} → ${newTheme} (${source})`,
-        );
-
         currentThemeRef.current = newTheme;
         lastDetectionRef.current = now;
 
@@ -84,8 +80,6 @@ export function useInstantThemeSync({
 
         // Emit event
         eventBus.emit(InternalEventTypes.THEME_CHANGED, newTheme);
-
-        console.log(`Theme updated instantly to: ${newTheme}`);
       }
     },
     [dispatch],
@@ -102,20 +96,18 @@ export function useInstantThemeSync({
           const newState = JSON.parse(e.newValue);
           if (newState.theme && newState.theme !== currentTheme) {
             currentTheme = newState.theme;
-            updateThemeInstantly(newState.theme, "direct-storage");
+            updateThemeInstantly(newState.theme);
           }
-        } catch (error) {
-          console.warn("Failed to parse excalidraw-state:", error);
+        } catch {
+          // Development warning removed for production build
         }
       }
     };
 
     window.addEventListener("storage", handleStorageChange);
-    console.log("🎯 Layer 1: Direct storage monitoring activated");
 
     return () => {
       window.removeEventListener("storage", handleStorageChange);
-      console.log("Layer 1: Storage monitoring deactivated");
     };
   }, [detectExcalidrawTheme, updateThemeInstantly]);
 
@@ -136,15 +128,12 @@ export function useInstantThemeSync({
       mediaQuery.addListener(handleSystemThemeChange);
     }
 
-    console.log("Layer 2: System theme monitoring activated");
-
     return () => {
       if (mediaQuery.removeEventListener) {
         mediaQuery.removeEventListener("change", handleSystemThemeChange);
       } else {
         mediaQuery.removeListener(handleSystemThemeChange);
       }
-      console.log("Layer 2: System theme monitoring deactivated");
     };
   }, [updateThemeInstantly]);
 
@@ -157,9 +146,6 @@ export function useInstantThemeSync({
         e.preventDefault(); // Prevent the default action temporarily
         const predictedTheme =
           currentThemeRef.current === "light" ? "dark" : "light";
-        console.log(
-          `Predicting theme change via keyboard: ${currentThemeRef.current} → ${predictedTheme}`,
-        );
 
         // Update immediately, before Excalidraw processes the shortcut
         updateThemeInstantly(predictedTheme, "keyboard-prediction");
@@ -185,9 +171,6 @@ export function useInstantThemeSync({
       if (themeButton) {
         const predictedTheme =
           currentThemeRef.current === "light" ? "dark" : "light";
-        console.log(
-          `Predicting theme change via click: ${currentThemeRef.current} → ${predictedTheme}`,
-        );
         updateThemeInstantly(predictedTheme, "click-prediction");
       }
     };
@@ -195,12 +178,9 @@ export function useInstantThemeSync({
     document.addEventListener("keydown", handleKeyboardShortcut, true);
     document.addEventListener("click", handleClickPrediction, true);
 
-    console.log("Layer 3: Predictive detection activated");
-
     return () => {
       document.removeEventListener("keydown", handleKeyboardShortcut, true);
       document.removeEventListener("click", handleClickPrediction, true);
-      console.log("Layer 3: Predictive detection deactivated");
     };
   }, [updateThemeInstantly]);
 
@@ -260,11 +240,8 @@ export function useInstantThemeSync({
       });
     }
 
-    console.log("Layer 4: Optimized mutation observer activated");
-
     return () => {
       observer.disconnect();
-      console.log("Layer 4: Mutation observer deactivated");
     };
   }, [detectExcalidrawTheme, updateThemeInstantly]);
 
@@ -279,10 +256,10 @@ export function useInstantThemeSync({
         try {
           const detectedTheme = detectExcalidrawTheme();
           if (detectedTheme !== currentThemeRef.current) {
-            updateThemeInstantly(detectedTheme, "fallback-polling");
+            updateThemeInstantly(detectedTheme);
           }
-        } catch (error) {
-          console.error("Polling theme detection failed:", error);
+        } catch {
+          // Development error logging removed for production build
         } finally {
           setIsDetecting(false);
         }
@@ -290,22 +267,14 @@ export function useInstantThemeSync({
     };
 
     const intervalId = setInterval(pollTheme, OPTIMIZED_POLL_INTERVAL);
-    console.log(
-      `Layer 5: Fast fallback polling activated (${OPTIMIZED_POLL_INTERVAL}ms)`,
-    );
 
     return () => {
       clearInterval(intervalId);
-      console.log("Layer 5: Fast polling deactivated");
     };
   }, [detectExcalidrawTheme, updateThemeInstantly, isDetecting]);
 
   // Setup all detection layers
   useEffect(() => {
-    console.log(
-      "Initializing INSTANT theme sync with multi-layer detection...",
-    );
-
     // Clear any existing cleanup functions
     cleanupFunctionsRef.current.forEach((cleanup) => cleanup());
     cleanupFunctionsRef.current = [];
@@ -327,11 +296,8 @@ export function useInstantThemeSync({
 
     cleanupFunctionsRef.current = cleanupFunctions;
 
-    console.log("All 5 detection layers activated - INSTANT theme sync ready!");
-
     // Cleanup function
     return () => {
-      console.log("🧹 Cleaning up INSTANT theme sync...");
       cleanupFunctions.forEach((cleanup) => cleanup());
       cleanupFunctionsRef.current = [];
     };
@@ -348,18 +314,12 @@ export function useInstantThemeSync({
   // Manual theme control functions
   const toggleTheme = useCallback(() => {
     const newTheme = currentThemeRef.current === "light" ? "dark" : "light";
-    console.log(
-      `Manual theme toggle: ${currentThemeRef.current} → ${newTheme}`,
-    );
     updateThemeInstantly(newTheme, "manual-toggle");
   }, [updateThemeInstantly]);
 
   const setTheme = useCallback(
     (theme: "light" | "dark") => {
       if (theme !== currentThemeRef.current) {
-        console.log(
-          `Manual theme set: ${currentThemeRef.current} → ${theme}`,
-        );
         updateThemeInstantly(theme, "manual-set");
       }
     },
