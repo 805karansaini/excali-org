@@ -40,6 +40,8 @@ interface UnifiedState {
   searchResults: SearchResult[];
   isSearchModalOpen: boolean;
   isHelpModalOpen: boolean;
+  isCanvasDeleteModalOpen: boolean;
+  canvasToDelete: UnifiedCanvas | null;
 
   // UI state
   selectedCanvasId: string | null;
@@ -108,6 +110,8 @@ const initialState: UnifiedState = {
   searchResults: [],
   isSearchModalOpen: false,
   isHelpModalOpen: false,
+  isCanvasDeleteModalOpen: false,
+  canvasToDelete: null,
 
   // UI state
   selectedCanvasId: null,
@@ -232,6 +236,10 @@ function unifiedStateReducer(
       return { ...state, isSearchModalOpen: action.payload };
     case "SET_HELP_MODAL_OPEN":
       return { ...state, isHelpModalOpen: action.payload };
+    case "SET_CANVAS_DELETE_MODAL_OPEN":
+      return { ...state, isCanvasDeleteModalOpen: action.payload };
+    case "SET_CANVAS_TO_DELETE":
+      return { ...state, canvasToDelete: action.payload };
 
     // UI operations
     case "SET_SELECTED_CANVAS":
@@ -338,7 +346,7 @@ interface UnifiedStateContextType {
   createCanvas: (
     canvas: Omit<UnifiedCanvas, "id" | "createdAt" | "updatedAt">,
   ) => Promise<UnifiedCanvas>;
-  removeCanvas: (canvasId: string) => Promise<void>;
+  removeCanvas: (canvasId: string, createReplacementFn?: () => Promise<void>) => Promise<void>;
   saveProject: (project: UnifiedProject) => Promise<void>;
   createProject: (
     project: Omit<UnifiedProject, "id" | "createdAt">,
@@ -503,16 +511,27 @@ export function UnifiedStateProvider({
   );
 
   // Remove canvas
-  const removeCanvas = useCallback(async (canvasId: string) => {
+  const removeCanvas = useCallback(async (canvasId: string, createReplacementFn?: () => Promise<void>) => {
     try {
+      // Check if we're deleting the currently active canvas
+      const isDeletingActiveCanvas = state.currentWorkingCanvasId === canvasId;
+      
+      if (isDeletingActiveCanvas && createReplacementFn) {
+        console.log("Deleting currently active canvas - creating replacement canvas first");
+        await createReplacementFn();
+      }
+
+      // Now proceed with deleting the original canvas
       await canvasOperations.deleteCanvas(canvasId);
       dispatch({ type: "DELETE_CANVAS", payload: canvasId });
+      
+      console.log("Canvas deleted successfully:", canvasId);
     } catch (error) {
       console.error("Failed to delete canvas:", error);
       dispatch({ type: "SET_ERROR", payload: "Failed to delete canvas." });
       throw error;
     }
-  }, []);
+  }, [state.currentWorkingCanvasId]);
 
   // Save project with database sync
   const saveProject = useCallback(async (project: UnifiedProject) => {

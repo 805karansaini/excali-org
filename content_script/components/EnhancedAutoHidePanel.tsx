@@ -18,6 +18,7 @@ import {
 } from "../hooks/useKeyboardShortcuts";
 import { SearchModal } from "./SearchModal";
 import { HelpOverlay } from "./HelpOverlay";
+import CanvasDeleteModal from "./CanvasDeleteModal";
 import { ProjectFormModal } from "./ProjectFormModal";
 import { ContextMenu } from "./ContextMenu";
 import { ProjectContextMenu } from "./ProjectContextMenu";
@@ -40,6 +41,7 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
     updatePanelSettings,
     getCanvasesForProject,
     getUnorganizedCanvases,
+    removeCanvas,
   } = useUnifiedState();
   const [isResizing, setIsResizing] = useState(false);
   const [showWidthIndicator, setShowWidthIndicator] = useState(false);
@@ -110,13 +112,6 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
   }, [state.isPanelVisible, state.isPanelPinned, isMouseOverPanel, dispatch, updatePanelSettings]);
 
   const shortcuts = getExtensionShortcuts().shortcuts;
-
-  // Initialize keyboard shortcuts
-  useKeyboardShortcuts({
-    onNewCanvas,
-    onNewProject: handleNewProject,
-    onTogglePanel: handleTogglePanel,
-  });
 
   // Enhanced canvas creation with better naming
   const handleNewCanvasEnhanced = useCallback(async () => {
@@ -226,6 +221,59 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
       onNewCanvas();
     }
   }, [state.canvases, dispatch, onNewCanvas]);
+
+  // Initialize keyboard shortcuts
+  useKeyboardShortcuts({
+    onNewCanvas,
+    onNewProject: handleNewProject,
+    onTogglePanel: handleTogglePanel,
+  });
+
+  // Listen for new canvas requests
+  useEffect(() => {
+    const unsubscribe = eventBus.on(InternalEventTypes.REQUEST_NEW_CANVAS, () => {
+      handleNewCanvasEnhanced();
+    });
+
+    return unsubscribe;
+  }, [handleNewCanvasEnhanced]);
+
+  // Canvas delete handlers
+  const handleConfirmCanvasDelete = useCallback(async () => {
+    if (!state.canvasToDelete) return;
+
+    try {
+      // Create replacement function that uses the event bus
+      const createReplacementCanvas = async () => {
+        await eventBus.emit(InternalEventTypes.REQUEST_NEW_CANVAS, null);
+      };
+
+      // Use existing removeCanvas logic with event-based replacement
+      await removeCanvas(state.canvasToDelete.id, createReplacementCanvas);
+      
+      // Emit deletion event for any listeners
+      eventBus.emit(InternalEventTypes.CANVAS_DELETED, state.canvasToDelete);
+
+      // Close modal
+      dispatch({ type: "SET_CANVAS_DELETE_MODAL_OPEN", payload: false });
+      dispatch({ type: "SET_CANVAS_TO_DELETE", payload: null });
+    } catch (error) {
+      console.error("Failed to delete canvas:", error);
+      // Close modal even on error to avoid stuck state
+      dispatch({ type: "SET_CANVAS_DELETE_MODAL_OPEN", payload: false });
+      dispatch({ type: "SET_CANVAS_TO_DELETE", payload: null });
+      // Show error
+      dispatch({
+        type: "SET_ERROR",
+        payload: "Failed to delete canvas. Please try again.",
+      });
+    }
+  }, [state.canvasToDelete, removeCanvas, dispatch]);
+
+  const handleCancelCanvasDelete = useCallback(() => {
+    dispatch({ type: "SET_CANVAS_DELETE_MODAL_OPEN", payload: false });
+    dispatch({ type: "SET_CANVAS_TO_DELETE", payload: null });
+  }, [dispatch]);
 
   // Handle window resize and escape key for modals
   useEffect(() => {
@@ -1194,6 +1242,13 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
       <AnimatePresence>
         {state.isSearchModalOpen && <SearchModal />}
         {state.isHelpModalOpen && <HelpOverlay />}
+        {state.isCanvasDeleteModalOpen && state.canvasToDelete && (
+          <CanvasDeleteModal
+            canvas={state.canvasToDelete}
+            onConfirm={handleConfirmCanvasDelete}
+            onCancel={handleCancelCanvasDelete}
+          />
+        )}
       </AnimatePresence>
 
       <AnimatePresence>

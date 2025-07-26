@@ -22,7 +22,7 @@ interface Props {
 }
 
 export function ProjectContextMenu({ x, y, project, onClose }: Props) {
-  const { dispatch } = useUnifiedState();
+  const { state, dispatch } = useUnifiedState();
   const [isEditModalOpen, setEditModalOpen] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteCanvasAction, setDeleteCanvasAction] = useState<'keep' | 'delete'>('keep');
@@ -134,6 +134,22 @@ export function ProjectContextMenu({ x, y, project, onClose }: Props) {
     e.stopPropagation();
 
     try {
+      // Check if the currently active canvas belongs to this project
+      const currentWorkingCanvas = state.currentWorkingCanvasId
+        ? state.canvases.find(c => c.id === state.currentWorkingCanvasId)
+        : null;
+      
+      const isActiveCanvasInProject = currentWorkingCanvas?.projectId === project.id;
+      
+      if (isActiveCanvasInProject) {
+        console.log("Project deletion will affect currently active canvas - requesting replacement canvas");
+        
+        // Request a new canvas to be created using existing functionality
+        await eventBus.emit(InternalEventTypes.REQUEST_NEW_CANVAS, null);
+        
+        console.log("Replacement canvas creation requested");
+      }
+
       const result = await projectOperations.deleteProjectWithOptions(
         project.id,
         deleteCanvasAction

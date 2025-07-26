@@ -99,6 +99,8 @@ export type UnifiedAction =
   | { type: "SET_SEARCH_MODAL"; payload: boolean }
   | { type: "SET_SEARCH_MODAL_OPEN"; payload: boolean }
   | { type: "SET_HELP_MODAL_OPEN"; payload: boolean }
+  | { type: "SET_CANVAS_DELETE_MODAL_OPEN"; payload: boolean }
+  | { type: "SET_CANVAS_TO_DELETE"; payload: UnifiedCanvas | null }
   // UI operations
   | { type: "SET_SELECTED_CANVAS"; payload: string | null }
   | { type: "SET_CONTEXT_MENU"; payload: ContextMenuData | null }

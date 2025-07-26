@@ -39,7 +39,7 @@ export function useKeyboardShortcuts({
   onNewProject,
   onTogglePanel,
 }: KeyboardShortcutsProps) {
-  const { state, dispatch, saveCanvas, removeCanvas, createCanvas } =
+  const { state, dispatch, saveCanvas, createCanvas } =
     useUnifiedState();
 
   const showHelpDialog = useCallback(() => {
@@ -120,21 +120,9 @@ export function useKeyboardShortcuts({
     );
     if (!selectedCanvas) return;
 
-    if (
-      confirm(
-        `Are you sure you want to delete "${selectedCanvas.name}"?\n\nThis action cannot be undone.`,
-      )
-    ) {
-      try {
-        await removeCanvas(selectedCanvas.id);
-        eventBus.emit(InternalEventTypes.CANVAS_DELETED, selectedCanvas);
-        dispatch({ type: "SET_SELECTED_CANVAS", payload: null });
-      } catch (error) {
-        console.error("Failed to delete canvas via keyboard shortcut:", error);
-        alert("Failed to delete canvas. Please try again.");
-      }
-    }
-  }, [state.selectedCanvasId, state.canvases, removeCanvas, dispatch]);
+    dispatch({ type: "SET_CANVAS_TO_DELETE", payload: selectedCanvas });
+    dispatch({ type: "SET_CANVAS_DELETE_MODAL_OPEN", payload: true });
+  }, [state.selectedCanvasId, state.canvases, dispatch]);
 
   const handleDuplicateSelected = useCallback(async () => {
     // Try to use currentWorkingCanvasId first (the canvas that's currently loaded in Excalidraw)

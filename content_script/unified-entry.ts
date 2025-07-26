@@ -83,8 +83,8 @@ async function initializeUnifiedApp(): Promise<void> {
     // 3. Initialize data bridge
     dataBridge = new ExcalidrawDataBridge({
       autoSave: true,
-      syncInterval: 5000,
-      debounceDelay: 1000,
+      syncInterval: 500,
+      debounceDelay: 200,
     });
     dataBridge.initialize();
 

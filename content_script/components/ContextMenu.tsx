@@ -23,7 +23,7 @@ interface Props {
 }
 
 export function ContextMenu({ x, y, canvas, onClose }: Props) {
-  const { state, dispatch, saveCanvas, saveProject, createCanvas, removeCanvas } =
+  const { state, dispatch, saveCanvas, saveProject, createCanvas } =
     useUnifiedState();
   const [showAddToProject, setShowAddToProject] = useState(false);
   const [isRenameModalOpen, setRenameModalOpen] = useState(false);
@@ -122,26 +122,9 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
     onClose();
   };
 
-  const handleDelete = async () => {
-    if (
-      confirm(
-        `Are you sure you want to delete "${canvas.name}"?\n\nThis action cannot be undone.`,
-      )
-    ) {
-      try {
-        await removeCanvas(canvas.id);
-        eventBus.emit(InternalEventTypes.CANVAS_DELETED, canvas);
-        dispatch({ type: "DELETE_CANVAS", payload: canvas.id });
-
-        // If this was the selected canvas, clear selection
-        if (state.selectedCanvasId === canvas.id) {
-          dispatch({ type: "SET_SELECTED_CANVAS", payload: null });
-        }
-      } catch (error) {
-        console.error("Failed to delete canvas:", error);
-        alert("Failed to delete canvas. Please try again.");
-      }
-    }
+  const handleDelete = () => {
+    dispatch({ type: "SET_CANVAS_TO_DELETE", payload: canvas });
+    dispatch({ type: "SET_CANVAS_DELETE_MODAL_OPEN", payload: true });
     onClose();
   };
 
@@ -526,15 +509,17 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
         <button
           style={{
             ...menuItemStyles,
-            color: "var(--theme-error)",
+            color: "var(--theme-error, #ef4444)",
           }}
           onClick={handleDelete}
           onMouseEnter={(e) => {
             e.currentTarget.style.background =
               "var(--theme-error-bg, rgba(239, 68, 68, 0.1))";
+            e.currentTarget.style.color = "var(--theme-error, #ef4444)";
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.background = "none";
+            e.currentTarget.style.color = "var(--theme-error, #ef4444)";
           }}
         >
           <Trash2 size={16} />

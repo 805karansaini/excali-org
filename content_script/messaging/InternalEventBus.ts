@@ -14,6 +14,7 @@ export enum InternalEventTypes {
   CANVAS_DELETED = "CANVAS_DELETED",
   CANVAS_SELECTED = "CANVAS_SELECTED",
   CANVAS_LOADED = "CANVAS_LOADED",
+  REQUEST_NEW_CANVAS = "REQUEST_NEW_CANVAS",
 
   // Project operations
   PROJECT_CREATED = "PROJECT_CREATED",
@@ -68,6 +69,7 @@ export interface EventPayloads {
   [InternalEventTypes.CANVAS_DELETED]: UnifiedCanvas;
   [InternalEventTypes.CANVAS_SELECTED]: UnifiedCanvas;
   [InternalEventTypes.CANVAS_LOADED]: UnifiedCanvas;
+  [InternalEventTypes.REQUEST_NEW_CANVAS]: null;
 
   [InternalEventTypes.PROJECT_CREATED]: UnifiedProject;
   [InternalEventTypes.PROJECT_UPDATED]: UnifiedProject;
