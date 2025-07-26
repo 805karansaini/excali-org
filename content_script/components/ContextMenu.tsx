@@ -160,7 +160,6 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
     const updatedProject: UnifiedProject = {
       ...project,
       canvasIds: [...(project.canvasIds || []), canvas.id],
-      fileIds: [...(project.fileIds || []), canvas.id], // Backward compatibility
       updatedAt: new Date(),
     };
 
@@ -202,7 +201,6 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
     const updatedProject: UnifiedProject = {
       ...project,
       canvasIds: (project.canvasIds || []).filter((id) => id !== canvas.id),
-      fileIds: (project.fileIds || []).filter((id) => id !== canvas.id),
       updatedAt: new Date(),
     };
 
@@ -238,7 +236,7 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
     try {
       const exportData = {
         name: canvas.name,
-        elements: canvas.elements || canvas.excalidraw || [],
+        elements: canvas.elements || [],
         appState: canvas.appState || {},
         metadata: {
           id: canvas.id,
@@ -277,8 +275,7 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
   // Get available projects for adding (exclude current project)
   const availableProjectsForAdd = state.projects.filter(
     (project) =>
-      !(project.canvasIds || []).includes(canvas.id) &&
-      !(project.fileIds || []).includes(canvas.id),
+      !(project.canvasIds || []).includes(canvas.id),
   );
 
   const currentProject = canvas.projectId

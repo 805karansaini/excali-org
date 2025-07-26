@@ -62,7 +62,6 @@ export function useKeyboardShortcuts({
       const newCanvas = {
         name: finalName,
         elements: [],
-        excalidraw: [], // Required for backward compatibility
         appState: {
           zoom: { value: 1 },
           scrollX: 0,
@@ -78,7 +77,6 @@ export function useKeyboardShortcuts({
           currentItemStrokeColor: "#000000",
         },
         lastModified: new Date().toISOString(),
-        projectId: undefined,
       };
 
       // Create the canvas using the existing createCanvas function
@@ -155,12 +153,12 @@ export function useKeyboardShortcuts({
     }
 
     try {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { projectId, ...canvasWithoutProject } = canvas;
       const newCanvas = await createCanvas({
-        ...canvas,
+        ...canvasWithoutProject,
         name: `${canvas.name} (Copy)`,
-        projectId: undefined,
         elements: canvas.elements || [],
-        excalidraw: canvas.excalidraw || [],
         appState: canvas.appState,
       });
       eventBus.emit(InternalEventTypes.CANVAS_CREATED, newCanvas);

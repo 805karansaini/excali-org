@@ -238,7 +238,7 @@ export class ExcalidrawDataBridge {
       this.operationIdMap.set(operationId, canvas.id);
 
       // Prepare Excalidraw data with proper element structure
-      let elements = canvas.elements || canvas.excalidraw || [];
+      let elements = canvas.elements || [];
 
       // Ensure all elements have required properties for Excalidraw
       elements = elements.map((element, index) => ({

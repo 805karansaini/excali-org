@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import { eventBus, InternalEventTypes } from "../messaging/InternalEventBus";
 import { UnifiedAction } from "../../shared/types";
 import React from "react";
@@ -7,32 +7,25 @@ interface UseInstantThemeSyncProps {
   theme: "light" | "dark";
   dispatch: React.Dispatch<UnifiedAction>;
 }
+
 /**
- * Advanced theme synchronization hook.
- *
- * This hook uses multiple layers of detection to ensure near-instantaneous
- * theme synchronization with Excalidraw.
- *
- * Layers include:
- * - Direct localStorage monitoring
- * - System theme change detection
- * - Predictive detection based on user input
- * - Optimized mutation observers
- * - A fast fallback polling mechanism
+ * Simplified theme synchronization hook.
+ * 
+ * Uses two essential detection layers:
+ * - Direct localStorage monitoring (primary)
+ * - Optimized mutation observer (secondary)
  */
 export function useInstantThemeSync({
   theme,
   dispatch,
 }: UseInstantThemeSyncProps) {
-  const [isDetecting, setIsDetecting] = useState(false);
   const currentThemeRef = useRef<"light" | "dark">(theme);
-  const lastDetectionRef = useRef<number>(0);
   const cleanupFunctionsRef = useRef<Array<() => void>>([]);
 
   // Smart theme detection with caching
   const detectExcalidrawTheme = useCallback((): "light" | "dark" => {
     try {
-      // Method 1: Official Excalidraw theme storage (PRIORITY 1)
+      // Method 1: Official Excalidraw theme storage (PRIMARY)
       const excalidrawState = localStorage.getItem("excalidraw-state");
       if (excalidrawState) {
         const state = JSON.parse(excalidrawState);
@@ -41,51 +34,35 @@ export function useInstantThemeSync({
         }
       }
 
-      // Method 2: Document data-theme attribute (PRIORITY 2)
+      // Method 2: Document data-theme attribute (SECONDARY)
       const documentTheme = document.documentElement.getAttribute("data-theme");
       if (documentTheme === "dark" || documentTheme === "light") {
         return documentTheme;
       }
 
-      // Method 3: System preference fallback (PRIORITY 3)
-      const systemDark = window.matchMedia?.("(prefers-color-scheme: dark)")
-        .matches;
-      return systemDark ? "dark" : "light";
+      // Method 3: System preference fallback (TERTIARY)
+      const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+      return prefersDark ? "dark" : "light";
     } catch {
-      // Development error logging removed for production build
-      return "light"; // Safe fallback
+      // Silently fall back to current theme if detection fails
+      return currentThemeRef.current;
     }
   }, []);
 
-  // Update theme immediately for instant visual feedback
+  // Instant theme update with event emission
   const updateThemeInstantly = useCallback(
     (newTheme: "light" | "dark") => {
-      const now = Date.now();
-
-      // Prevent excessive updates
-      if (now - lastDetectionRef.current < 16) {
-        // Max 60fps updates
-        return;
-      }
-
       if (newTheme !== currentThemeRef.current) {
         currentThemeRef.current = newTheme;
-        lastDetectionRef.current = now;
-
-        // Update state
         dispatch({ type: "SET_THEME", payload: newTheme });
-
-        // Update DOM
         document.documentElement.setAttribute("data-theme", newTheme);
-
-        // Emit event
         eventBus.emit(InternalEventTypes.THEME_CHANGED, newTheme);
       }
     },
-    [dispatch],
+    [dispatch]
   );
 
-  // Layer 1: Direct localStorage monitoring
+  // Layer 1: Direct localStorage monitoring (ESSENTIAL)
   const setupDirectStorageMonitoring = useCallback(() => {
     let currentTheme = detectExcalidrawTheme();
     currentThemeRef.current = currentTheme;
@@ -96,139 +73,43 @@ export function useInstantThemeSync({
           const newState = JSON.parse(e.newValue);
           if (newState.theme && newState.theme !== currentTheme) {
             currentTheme = newState.theme;
-            updateThemeInstantly(newState.theme);
+            updateThemeInstantly(currentTheme);
           }
         } catch {
-          // Development warning removed for production build
+          // Silently ignore parsing errors for storage events
         }
       }
     };
 
     window.addEventListener("storage", handleStorageChange);
-
-    return () => {
-      window.removeEventListener("storage", handleStorageChange);
-    };
+    return () => window.removeEventListener("storage", handleStorageChange);
   }, [detectExcalidrawTheme, updateThemeInstantly]);
 
-  // Layer 2: System theme change monitoring
-  const setupSystemThemeMonitoring = useCallback(() => {
-    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
-
-    const handleSystemThemeChange = (e: MediaQueryListEvent) => {
-      const newTheme = e.matches ? "dark" : "light";
-      updateThemeInstantly(newTheme, "system-preference");
-    };
-
-    // Use modern addEventListener if available
-    if (mediaQuery.addEventListener) {
-      mediaQuery.addEventListener("change", handleSystemThemeChange);
-    } else {
-      // Fallback for older browsers
-      mediaQuery.addListener(handleSystemThemeChange);
-    }
-
-    return () => {
-      if (mediaQuery.removeEventListener) {
-        mediaQuery.removeEventListener("change", handleSystemThemeChange);
-      } else {
-        mediaQuery.removeListener(handleSystemThemeChange);
-      }
-    };
-  }, [updateThemeInstantly]);
-
-  // Layer 3: Predictive theme detection
-  const setupPredictiveDetection = useCallback(() => {
-    // Predict theme changes from keyboard shortcuts
-    const handleKeyboardShortcut = (e: KeyboardEvent) => {
-      // Excalidraw uses Alt+Shift+D for theme toggle
-      if (e.altKey && e.shiftKey && e.key === "D") {
-        e.preventDefault(); // Prevent the default action temporarily
-        const predictedTheme =
-          currentThemeRef.current === "light" ? "dark" : "light";
-
-        // Update immediately, before Excalidraw processes the shortcut
-        updateThemeInstantly(predictedTheme, "keyboard-prediction");
-
-        // Allow the original event to proceed after a frame
-        requestAnimationFrame(() => {
-          // Re-dispatch the event if needed (but usually not necessary)
-        });
-      }
-    };
-
-    // Detect theme toggle button clicks
-    const handleClickPrediction = (e: MouseEvent) => {
-      const target = e.target as Element;
-
-      // Look for Excalidraw's theme toggle elements
-      const themeButton =
-        target.closest('[data-testid*="theme"]') ||
-        target.closest(".theme-toggle") ||
-        target.closest('[aria-label*="theme"]') ||
-        target.closest('[title*="theme"]');
-
-      if (themeButton) {
-        const predictedTheme =
-          currentThemeRef.current === "light" ? "dark" : "light";
-        updateThemeInstantly(predictedTheme, "click-prediction");
-      }
-    };
-
-    document.addEventListener("keydown", handleKeyboardShortcut, true);
-    document.addEventListener("click", handleClickPrediction, true);
-
-    return () => {
-      document.removeEventListener("keydown", handleKeyboardShortcut, true);
-      document.removeEventListener("click", handleClickPrediction, true);
-    };
-  }, [updateThemeInstantly]);
-
-  // Layer 4: Optimized mutation observer
-  const setupOptimizedMutationObserver = useCallback(() => {
+  // Layer 2: Optimized mutation observer (ESSENTIAL)
+  const setupMutationObserver = useCallback(() => {
     let updateScheduled = false;
 
-    const scheduleThemeUpdate = () => {
+    const throttledUpdate = () => {
       if (!updateScheduled) {
         updateScheduled = true;
         requestAnimationFrame(() => {
           const detectedTheme = detectExcalidrawTheme();
           if (detectedTheme !== currentThemeRef.current) {
-            updateThemeInstantly(detectedTheme, "mutation-observer");
+            updateThemeInstantly(detectedTheme);
           }
           updateScheduled = false;
         });
       }
     };
 
-    const observer = new MutationObserver((mutations) => {
-      let needsUpdate = false;
-
-      for (const mutation of mutations) {
-        if (mutation.type === "attributes") {
-          const attributeName = mutation.attributeName;
-          if (attributeName === "class" || attributeName === "data-theme") {
-            needsUpdate = true;
-            break; // Early exit for performance
-          }
-        }
-      }
-
-      if (needsUpdate) {
-        scheduleThemeUpdate();
-      }
+    const observer = new MutationObserver(() => {
+      throttledUpdate();
     });
 
-    // Observe only the essential elements
+    // Observe document for theme attribute changes
     observer.observe(document.documentElement, {
       attributes: true,
-      attributeFilter: ["class", "data-theme"], // Only watch theme-relevant attributes
-    });
-
-    // Also observe body for Excalidraw's theme classes
-    observer.observe(document.body, {
-      attributes: true,
-      attributeFilter: ["class", "data-theme"],
+      attributeFilter: ["data-theme", "class"],
     });
 
     // Find and observe Excalidraw container if it exists
@@ -236,7 +117,8 @@ export function useInstantThemeSync({
     if (excalidrawContainer) {
       observer.observe(excalidrawContainer, {
         attributes: true,
-        attributeFilter: ["class", "data-theme"],
+        attributeFilter: ["data-theme", "class"],
+        subtree: true,
       });
     }
 
@@ -245,35 +127,7 @@ export function useInstantThemeSync({
     };
   }, [detectExcalidrawTheme, updateThemeInstantly]);
 
-  // Layer 5: Fast fallback polling
-  const setupFastFallbackPolling = useCallback(() => {
-    const OPTIMIZED_POLL_INTERVAL = 250;
-
-    const pollTheme = () => {
-      if (!isDetecting) {
-        setIsDetecting(true);
-
-        try {
-          const detectedTheme = detectExcalidrawTheme();
-          if (detectedTheme !== currentThemeRef.current) {
-            updateThemeInstantly(detectedTheme);
-          }
-        } catch {
-          // Development error logging removed for production build
-        } finally {
-          setIsDetecting(false);
-        }
-      }
-    };
-
-    const intervalId = setInterval(pollTheme, OPTIMIZED_POLL_INTERVAL);
-
-    return () => {
-      clearInterval(intervalId);
-    };
-  }, [detectExcalidrawTheme, updateThemeInstantly, isDetecting]);
-
-  // Setup all detection layers
+  // Setup detection layers
   useEffect(() => {
     // Clear any existing cleanup functions
     cleanupFunctionsRef.current.forEach((cleanup) => cleanup());
@@ -282,57 +136,31 @@ export function useInstantThemeSync({
     // Initial theme detection and setup
     const initialTheme = detectExcalidrawTheme();
     if (initialTheme !== currentThemeRef.current) {
-      updateThemeInstantly(initialTheme, "initial-detection");
+      updateThemeInstantly(initialTheme);
     }
 
-    // Setup all detection layers
-    const cleanupFunctions = [
-      setupDirectStorageMonitoring(), // Layer 1
-      setupSystemThemeMonitoring(), // Layer 2
-      setupPredictiveDetection(), // Layer 3
-      setupOptimizedMutationObserver(), // Layer 4
-      setupFastFallbackPolling(), // Layer 5
-    ];
+    // Layer 1: Direct localStorage monitoring
+    const storageCleanup = setupDirectStorageMonitoring();
+    cleanupFunctionsRef.current.push(storageCleanup);
 
-    cleanupFunctionsRef.current = cleanupFunctions;
+    // Layer 2: Optimized mutation observer
+    const mutationCleanup = setupMutationObserver();
+    cleanupFunctionsRef.current.push(mutationCleanup);
 
     // Cleanup function
     return () => {
-      cleanupFunctions.forEach((cleanup) => cleanup());
+      cleanupFunctionsRef.current.forEach((cleanup) => cleanup());
       cleanupFunctionsRef.current = [];
     };
   }, [
     detectExcalidrawTheme,
     updateThemeInstantly,
     setupDirectStorageMonitoring,
-    setupSystemThemeMonitoring,
-    setupPredictiveDetection,
-    setupOptimizedMutationObserver,
-    setupFastFallbackPolling,
+    setupMutationObserver,
   ]);
 
-  // Manual theme control functions
-  const toggleTheme = useCallback(() => {
-    const newTheme = currentThemeRef.current === "light" ? "dark" : "light";
-    updateThemeInstantly(newTheme, "manual-toggle");
-  }, [updateThemeInstantly]);
-
-  const setTheme = useCallback(
-    (theme: "light" | "dark") => {
-      if (theme !== currentThemeRef.current) {
-        updateThemeInstantly(theme, "manual-set");
-      }
-    },
-    [updateThemeInstantly],
-  );
-
-  // Return the theme sync interface
-  return {
-    currentTheme: currentThemeRef.current,
-    isDetecting,
-    toggleTheme,
-    setTheme,
-    // Performance metrics for debugging
-    lastDetectionTime: lastDetectionRef.current,
-  };
+  // Update ref when prop changes
+  useEffect(() => {
+    currentThemeRef.current = theme;
+  }, [theme]);
 }

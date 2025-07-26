@@ -175,7 +175,6 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
             locked: false,
           },
         ],
-        excalidraw: [], // Backward compatibility
         appState: {
           zoom: { value: 1 },
           scrollX: 0,
@@ -398,6 +397,7 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
     (e: React.TouchEvent) => {
       e.preventDefault();
       const touch = e.touches[0];
+      if (!touch) return;
       setIsResizing(true);
       setShowWidthIndicator(true);
       resizeStartX.current = touch.clientX;
@@ -412,6 +412,7 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
 
       e.preventDefault();
       const touch = e.touches[0];
+      if (!touch) return;
       const deltaX = touch.clientX - resizeStartX.current;
       const newWidth = Math.max(
         MIN_WIDTH,

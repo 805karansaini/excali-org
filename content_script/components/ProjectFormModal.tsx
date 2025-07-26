@@ -45,8 +45,8 @@ export const ProjectFormModal = React.memo(function ProjectFormModal(props: Prop
 
   const [name, setName] = useState(project?.name || "");
   const [description, setDescription] = useState(project?.description || "");
-  const [selectedColor, setSelectedColor] = useState(
-    project?.color || projectColors[0]
+  const [selectedColor, setSelectedColor] = useState<string>(
+    project?.color || projectColors[0] || "#6366f1"
   );
   const [customColor, setCustomColor] = useState("");
   const [showCustomPicker, setShowCustomPicker] = useState(false);
@@ -147,15 +147,14 @@ export const ProjectFormModal = React.memo(function ProjectFormModal(props: Prop
 
     try {
       if (isEditMode && onEdit) {
-        await onEdit(name.trim(), selectedColor, description.trim() || undefined);
+        await onEdit(name.trim(), selectedColor || projectColors[0] || "#6366f1", description.trim() || undefined);
       } else {
         // Create new project
         const newProject = await createProject({
           name: name.trim(),
           description: description.trim() || undefined,
           canvasIds: [],
-          fileIds: [], // Backward compatibility
-          color: selectedColor,
+          color: selectedColor || projectColors[0] || "#6366f1",
           updatedAt: new Date(),
         });
 
@@ -199,19 +198,19 @@ export const ProjectFormModal = React.memo(function ProjectFormModal(props: Prop
       e.preventDefault();
       const nextIndex = (selectedColorIndex + 1) % projectColors.length;
       setSelectedColorIndex(nextIndex);
-      setSelectedColor(projectColors[nextIndex]);
+      setSelectedColor(projectColors[nextIndex] || "#6366f1");
       setShowCustomPicker(false);
     } else if (e.key === "ArrowLeft") {
       e.preventDefault();
       const prevIndex = selectedColorIndex === 0 ? projectColors.length - 1 : selectedColorIndex - 1;
       setSelectedColorIndex(prevIndex);
-      setSelectedColor(projectColors[prevIndex]);
+      setSelectedColor(projectColors[prevIndex] || "#6366f1");
       setShowCustomPicker(false);
     } else if (e.key === "ArrowDown") {
       e.preventDefault();
       const nextRowIndex = (selectedColorIndex + GRID_COLS) % projectColors.length;
       setSelectedColorIndex(nextRowIndex);
-      setSelectedColor(projectColors[nextRowIndex]);
+      setSelectedColor(projectColors[nextRowIndex] || "#6366f1");
       setShowCustomPicker(false);
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
@@ -219,7 +218,7 @@ export const ProjectFormModal = React.memo(function ProjectFormModal(props: Prop
         ? projectColors.length - (GRID_COLS - selectedColorIndex)
         : selectedColorIndex - GRID_COLS;
       setSelectedColorIndex(prevRowIndex);
-      setSelectedColor(projectColors[prevRowIndex]);
+      setSelectedColor(projectColors[prevRowIndex] || "#6366f1");
       setShowCustomPicker(false);
     } else if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();

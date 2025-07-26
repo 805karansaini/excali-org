@@ -153,9 +153,6 @@ export const canvasOperations = {
             if (project) {
               const originalCanvasCount = project.canvasIds.length;
               project.canvasIds = project.canvasIds.filter(canvasId => canvasId !== id);
-              if (project.fileIds) {
-                project.fileIds = project.fileIds.filter(fileId => fileId !== id);
-              }
               
               // Only update if there were actual changes
               if (project.canvasIds.length !== originalCanvasCount) {
@@ -229,9 +226,6 @@ export const canvasOperations = {
             .map(project => {
               const originalLength = project!.canvasIds.length;
               project!.canvasIds = project!.canvasIds.filter(id => !canvasIds.includes(id));
-              if (project!.fileIds) {
-                project!.fileIds = project!.fileIds.filter(id => !canvasIds.includes(id));
-              }
               return project!.canvasIds.length !== originalLength ? project! : null;
             })
             .filter(project => project !== null) as UnifiedProject[];
@@ -419,8 +413,8 @@ export const projectOperations = {
         }
 
         // Check for duplicate names
-        const isDuplicate = await this.validateProjectName(trimmedName, projectId);
-        if (!isDuplicate) {
+        const isValidName = await this.validateProjectName(trimmedName, projectId);
+        if (!isValidName) {
           throw new Error("A project with this name already exists");
         }
 
@@ -530,9 +524,6 @@ export const projectOperations = {
 
         if (!project.canvasIds.includes(canvasId)) {
           project.canvasIds.push(canvasId);
-          if (project.fileIds && !project.fileIds.includes(canvasId)) {
-            project.fileIds.push(canvasId);
-          }
           await unifiedDb.projects.put(project);
         }
       });
@@ -562,9 +553,6 @@ export const projectOperations = {
         const project = await unifiedDb.projects.get(projectId);
         if (project) {
           project.canvasIds = project.canvasIds.filter((id) => id !== canvasId);
-          if (project.fileIds) {
-            project.fileIds = project.fileIds.filter((id) => id !== canvasId);
-          }
           await unifiedDb.projects.put(project);
         }
       });

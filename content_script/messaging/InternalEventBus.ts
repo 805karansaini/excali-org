@@ -335,54 +335,6 @@ export class InternalEventBus {
     this.debugMode = enabled;
   }
 
-  /**
-   * Create a namespaced event bus for specific components
-   */
-  createNamespace(namespace: string): NamespacedEventBus {
-    return new NamespacedEventBus(this, namespace);
-  }
-}
-
-/**
- * Namespaced Event Bus for component-specific events
- */
-export class NamespacedEventBus {
-  constructor(
-    private parentBus: InternalEventBus,
-    private namespace: string,
-  ) {}
-
-  on<T extends InternalEventTypes>(
-    eventType: T,
-    handler: EventHandler<T>,
-  ): () => void {
-    const namespacedType = `${this.namespace}:${eventType}` as T;
-    return this.parentBus.on(namespacedType, handler);
-  }
-
-  once<T extends InternalEventTypes>(
-    eventType: T,
-    handler: EventHandler<T>,
-  ): () => void {
-    const namespacedType = `${this.namespace}:${eventType}` as T;
-    return this.parentBus.once(namespacedType, handler);
-  }
-
-  off<T extends InternalEventTypes>(
-    eventType: T,
-    handler: EventHandler<T>,
-  ): void {
-    const namespacedType = `${this.namespace}:${eventType}` as T;
-    this.parentBus.off(namespacedType, handler);
-  }
-
-  async emit<T extends InternalEventTypes>(
-    eventType: T,
-    payload: EventPayloads[T],
-  ): Promise<void> {
-    const namespacedType = `${this.namespace}:${eventType}` as T;
-    return this.parentBus.emit(namespacedType, payload);
-  }
 }
 
 // Singleton instance for global use
