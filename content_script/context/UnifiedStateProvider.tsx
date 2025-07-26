@@ -817,6 +817,7 @@ export function UnifiedStateProvider({
 }
 
 // Hook to use the unified state
+// eslint-disable-next-line react-refresh/only-export-components
 export function useUnifiedState() {
   const context = useContext(UnifiedStateContext);
   if (!context) {

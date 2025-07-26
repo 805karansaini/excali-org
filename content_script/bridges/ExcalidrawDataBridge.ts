@@ -137,7 +137,7 @@ export class ExcalidrawDataBridge {
   private cancelAllPendingOperations(): void {
     console.log(`[ExcalidrawDataBridge] Cancelling all pending operations (${this.pendingOperations.size} operations)`);
     
-    for (const [key, operation] of this.pendingOperations) {
+    for (const [, operation] of this.pendingOperations) {
       if (operation.debounceTimeout) {
         clearTimeout(operation.debounceTimeout);
       }
@@ -628,11 +628,7 @@ export class ExcalidrawDataBridge {
         return false;
       }
 
-      // Enhanced change detection
       return this.hasDeepChanges(currentData);
-
-      // Fallback to basic detection
-      return this.hasBasicChanges(currentData);
     } catch (error) {
       console.error(
         "[ExcalidrawDataBridge] Error checking data changes:",
@@ -723,47 +719,6 @@ export class ExcalidrawDataBridge {
     }
   }
 
-  /**
-   * Basic change detection (fallback)
-   */
-  private hasBasicChanges(currentData: ExcalidrawData): boolean {
-    try {
-      let lastData: ExcalidrawData;
-      try {
-        lastData = JSON.parse(this.lastSyncData!);
-      } catch {
-        return true;
-      }
-
-      const currentElementsCount = currentData.elements?.length || 0;
-      const lastElementsCount = lastData.elements?.length || 0;
-
-      if (currentElementsCount !== lastElementsCount) {
-        console.log(
-          "[ExcalidrawDataBridge] Element count changed:",
-          lastElementsCount,
-          "->",
-          currentElementsCount,
-        );
-        return true;
-      }
-
-      // Check element IDs
-      const currentElementIds = currentData.elements?.map(el => el.id).sort() || [];
-      const lastElementIds = lastData.elements?.map(el => el.id).sort() || [];
-
-      const idsChanged = JSON.stringify(currentElementIds) !== JSON.stringify(lastElementIds);
-      if (idsChanged) {
-        console.log("[ExcalidrawDataBridge] Element IDs changed");
-        return true;
-      }
-
-      return false;
-    } catch (error) {
-      console.error("[ExcalidrawDataBridge] Error in basic change detection:", error);
-      return true;
-    }
-  }
 
   /**
    * Check if app state has meaningful changes

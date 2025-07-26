@@ -45,6 +45,8 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
   const [showWidthIndicator, setShowWidthIndicator] = useState(false);
   const [showProjectModal, setShowProjectModal] = useState(false);
   const [isMouseOverPanel, setIsMouseOverPanel] = useState(false);
+  const [hoveredProject, setHoveredProject] = useState<UnifiedProject | null>(null);
+  const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
 
   const panelRef = useRef<HTMLDivElement>(null);
   const timeoutRef = useRef<number>();
@@ -953,6 +955,9 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
                                 cursor: "pointer",
                                 transition: "background-color 0.15s ease",
                               }}
+                              role="button"
+                              tabIndex={0}
+                              aria-label={`${project.name}${project.description ? ` - ${project.description}` : ''}`}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 // Optional: Add project selection logic here
@@ -961,9 +966,18 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
                               }}
                               onMouseEnter={(e) => {
                                 e.currentTarget.style.background = "var(--theme-bg-secondary)";
+                                if (project.description?.trim()) {
+                                  const rect = e.currentTarget.getBoundingClientRect();
+                                  setTooltipPosition({
+                                    x: rect.right + 8,
+                                    y: rect.top + rect.height / 2
+                                  });
+                                  setHoveredProject(project);
+                                }
                               }}
                               onMouseLeave={(e) => {
                                 e.currentTarget.style.background = "transparent";
+                                setHoveredProject(null);
                               }}
                             >
                               <Folder size={16} color={project.color} fill={project.color} style={{ flexShrink: 0 }} />
@@ -1213,6 +1227,37 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
               dispatch({ type: "SET_PROJECT_CONTEXT_MENU", payload: null })
             }
           />
+        )}
+      </AnimatePresence>
+
+      {/* Project Description Tooltip */}
+      <AnimatePresence>
+        {hoveredProject?.description && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ duration: 0.15 }}
+            style={{
+              position: "fixed",
+              left: Math.min(tooltipPosition.x, window.innerWidth - 420),
+              top: tooltipPosition.y,
+              transform: "translateY(-50%)",
+              background: "var(--theme-bg-primary)",
+              border: "1px solid var(--theme-border-primary)",
+              borderRadius: "8px",
+              padding: "8px 12px",
+              fontSize: "13px",
+              color: "var(--theme-text-primary)",
+              minWidth: "200px",
+              maxWidth: "400px",
+              zIndex: 1000000,
+              boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
+              pointerEvents: "none",
+            }}
+          >
+            {hoveredProject.description}
+          </motion.div>
         )}
       </AnimatePresence>
     </>

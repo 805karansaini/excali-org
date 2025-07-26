@@ -14,7 +14,7 @@ interface CreateProjectProps {
 interface EditProjectProps {
   mode: "edit";
   project: UnifiedProject;
-  onEdit: (newName: string, newColor: string) => void;
+  onEdit: (newName: string, newColor: string, newDescription?: string) => Promise<void>;
   onClose: () => void;
 }
 
@@ -104,20 +104,24 @@ export const ProjectFormModal = React.memo(function ProjectFormModal(props: Prop
       return false;
     }
 
-    // Check for duplicate names (only for create mode or if name changed in edit mode)
+    if (description.length > 200) {
+      setError("Description must be 200 characters or less");
+      return false;
+    }
+
+    // Check for duplicate names
     if (mode === "create" || (project && name.trim() !== project.name)) {
-      const existingProject = state.projects.find(
+      const nameExists = state.projects.some(
         (p) => p.name.toLowerCase() === name.trim().toLowerCase(),
       );
-
-      if (existingProject) {
+      if (nameExists) {
         setError("A project with this name already exists");
         return false;
       }
     }
 
     return true;
-  }, [name, mode, project, state.projects]);
+  }, [name, description, mode, project, state.projects]);
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
@@ -126,17 +130,24 @@ export const ProjectFormModal = React.memo(function ProjectFormModal(props: Prop
       return;
     }
 
-    // For edit mode, check if anything actually changed
-    if (isEditMode && project && name.trim() === project.name && selectedColor === project.color) {
-      onClose();
-      return;
+    // For edit mode, check if anything changed
+    if (isEditMode && project) {
+      const hasChanges = 
+        name.trim() !== project.name || 
+        selectedColor !== project.color || 
+        (description.trim() || undefined) !== (project.description || undefined);
+      
+      if (!hasChanges) {
+        onClose();
+        return;
+      }
     }
 
     setIsLoading(true);
 
     try {
       if (isEditMode && onEdit) {
-        await onEdit(name.trim(), selectedColor);
+        await onEdit(name.trim(), selectedColor, description.trim() || undefined);
       } else {
         // Create new project
         const newProject = await createProject({
@@ -331,7 +342,7 @@ export const ProjectFormModal = React.memo(function ProjectFormModal(props: Prop
             }}
           >
             {isEditMode 
-              ? "Update the project name and color" 
+              ? "Update the project details" 
               : "Organize your canvases into projects for better management"
             }
           </p>
@@ -378,44 +389,53 @@ export const ProjectFormModal = React.memo(function ProjectFormModal(props: Prop
                   justifyContent: "space-between",
                 }}
               >
-                <span>{error && error.includes("name") ? error : ""}</span>
+                <span style={{ color: "var(--theme-error, #ef4444)" }}>
+                  {error && !error.includes("description") ? error : ""}
+                </span>
                 <span>{name.length}/50</span>
               </div>
             </div>
 
-            {!isEditMode && (
-              <div style={{ marginBottom: "20px" }}>
-                <label
-                  style={{
-                    display: "block",
-                    fontSize: "14px",
-                    fontWeight: 500,
-                    color: "var(--theme-text-primary)",
-                    marginBottom: "8px",
-                  }}
-                >
-                  Description (Optional)
-                </label>
-                <textarea
-                  style={textareaStyles}
-                  placeholder="Describe your project..."
-                  value={description}
-                  onChange={handleDescriptionChange}
-                  maxLength={200}
-                  disabled={isLoading}
-                />
-                <div
-                  style={{
-                    fontSize: "12px",
-                    color: "var(--theme-text-secondary)",
-                    marginTop: "4px",
-                    textAlign: "right",
-                  }}
-                >
+            <div style={{ marginBottom: "20px" }}>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "14px",
+                  fontWeight: 500,
+                  color: "var(--theme-text-primary)",
+                  marginBottom: "8px",
+                }}
+              >
+                Description (Optional)
+              </label>
+              <textarea
+                style={textareaStyles}
+                placeholder="Describe your project..."
+                value={description}
+                onChange={handleDescriptionChange}
+                maxLength={200}
+                disabled={isLoading}
+              />
+              <div
+                style={{
+                  fontSize: "12px",
+                  color: "var(--theme-text-secondary)",
+                  marginTop: "4px",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
+                <span style={{ color: "var(--theme-error, #ef4444)" }}>
+                  {error && error.includes("Description") ? error : ""}
+                </span>
+                <span style={{ 
+                  color: description.length > 180 ? "var(--theme-warning, #f59e0b)" : "var(--theme-text-secondary)"
+                }}>
                   {description.length}/200
-                </div>
+                </span>
               </div>
-            )}
+            </div>
 
             <div style={{ marginBottom: "20px" }}>
               <label

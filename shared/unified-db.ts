@@ -34,7 +34,7 @@ export class UnifiedDexie extends Dexie {
       canvases: "id, name, projectId, createdAt, updatedAt, lastModified",
 
       // Projects table with indexes (name is unique)
-      projects: "id, &name, createdAt, updatedAt, color",
+      projects: "id, &name, createdAt, updatedAt, color, description",
 
       // Settings table for app preferences
       settings: "key, updatedAt",
@@ -401,9 +401,9 @@ export const projectOperations = {
   },
 
   /**
-   * Update project with validation (name and/or color)
+   * Update project with validation (name, color, and/or description)
    */
-  async updateProjectFields(projectId: string, updates: { name?: string; color?: string }): Promise<UnifiedProject> {
+  async updateProjectFields(projectId: string, updates: { name?: string; color?: string; description?: string }): Promise<UnifiedProject> {
     try {
       // Get existing project
       const project = await unifiedDb.projects.get(projectId);
@@ -430,6 +430,11 @@ export const projectOperations = {
       // Update color if provided
       if (updates.color !== undefined) {
         project.color = updates.color;
+      }
+
+      // Update description if provided (including explicit undefined to clear)
+      if ('description' in updates) {
+        project.description = updates.description?.trim() || undefined;
       }
 
       // Update timestamp

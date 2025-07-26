@@ -104,11 +104,12 @@ export function ProjectContextMenu({ x, y, project, onClose }: Props) {
     }
   }, [showDeleteConfirm]);
 
-  const handleEdit = async (newName: string, newColor: string) => {
+  const handleEdit = async (newName: string, newColor: string, newDescription?: string) => {
     try {
       const updatedProject = await projectOperations.updateProjectFields(project.id, {
         name: newName,
         color: newColor,
+        description: newDescription,
       });
 
       // Update state
@@ -121,7 +122,7 @@ export function ProjectContextMenu({ x, y, project, onClose }: Props) {
         newName: newName,
       });
 
-      console.log("Project updated successfully:", { name: newName, color: newColor });
+      console.log("Project updated successfully:", { name: newName, color: newColor, description: newDescription });
     } catch (error) {
       console.error("Failed to update project:", error);
       alert("Failed to update project. Please try again.");
