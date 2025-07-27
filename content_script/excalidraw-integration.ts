@@ -211,8 +211,10 @@ export class ExcalidrawIntegration {
         const rgbValues = backgroundColor.match(/\d+/g);
         if (rgbValues && rgbValues.length >= 3) {
           const [r, g, b] = rgbValues.map(Number);
-          const brightness = (r * 299 + g * 587 + b * 114) / 1000;
-          return brightness < 128 ? "dark" : "light";
+          if (r !== undefined && g !== undefined && b !== undefined) {
+            const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+            return brightness < 128 ? "dark" : "light";
+          }
         }
       }
 

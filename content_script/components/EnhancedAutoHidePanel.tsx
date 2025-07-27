@@ -18,6 +18,7 @@ import {
 } from "../hooks/useKeyboardShortcuts";
 import { SearchModal } from "./SearchModal";
 import { HelpOverlay } from "./HelpOverlay";
+import CanvasDeleteModal from "./CanvasDeleteModal";
 import { ProjectFormModal } from "./ProjectFormModal";
 import { ContextMenu } from "./ContextMenu";
 import { ProjectContextMenu } from "./ProjectContextMenu";
@@ -40,11 +41,14 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
     updatePanelSettings,
     getCanvasesForProject,
     getUnorganizedCanvases,
+    removeCanvas,
   } = useUnifiedState();
   const [isResizing, setIsResizing] = useState(false);
   const [showWidthIndicator, setShowWidthIndicator] = useState(false);
   const [showProjectModal, setShowProjectModal] = useState(false);
   const [isMouseOverPanel, setIsMouseOverPanel] = useState(false);
+  const [hoveredProject, setHoveredProject] = useState<UnifiedProject | null>(null);
+  const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
 
   const panelRef = useRef<HTMLDivElement>(null);
   const timeoutRef = useRef<number>();
@@ -63,23 +67,23 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
       dispatch({ type: "SET_PANEL_VISIBLE", payload: true });
       dispatch({ type: "SET_PANEL_PINNED", payload: true });
       updatePanelSettings({ isPinned: true });
-      
+
       eventBus.emit(InternalEventTypes.PANEL_VISIBILITY_CHANGED, {
         isVisible: true,
       });
       eventBus.emit(InternalEventTypes.PANEL_PINNED_CHANGED, {
         isPinned: true,
       });
-    } 
+    }
     // If panel is visible and pinned, unpin it (allowing auto-hide)
     else if (state.isPanelVisible && state.isPanelPinned) {
       dispatch({ type: "SET_PANEL_PINNED", payload: false });
       updatePanelSettings({ isPinned: false });
-      
+
       eventBus.emit(InternalEventTypes.PANEL_PINNED_CHANGED, {
         isPinned: false,
       });
-      
+
       // If mouse is not over panel, start auto-hide timer
       if (!isMouseOverPanel) {
         timeoutRef.current = setTimeout(() => {
@@ -94,11 +98,11 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
     else if (state.isPanelVisible && !state.isPanelPinned) {
       dispatch({ type: "SET_PANEL_PINNED", payload: true });
       updatePanelSettings({ isPinned: true });
-      
+
       eventBus.emit(InternalEventTypes.PANEL_PINNED_CHANGED, {
         isPinned: true,
       });
-      
+
       // Clear any pending auto-hide timer
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
@@ -108,13 +112,6 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
   }, [state.isPanelVisible, state.isPanelPinned, isMouseOverPanel, dispatch, updatePanelSettings]);
 
   const shortcuts = getExtensionShortcuts().shortcuts;
-
-  // Initialize keyboard shortcuts
-  useKeyboardShortcuts({
-    onNewCanvas,
-    onNewProject: handleNewProject,
-    onTogglePanel: handleTogglePanel,
-  });
 
   // Enhanced canvas creation with better naming
   const handleNewCanvasEnhanced = useCallback(async () => {
@@ -173,7 +170,6 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
             locked: false,
           },
         ],
-        excalidraw: [], // Backward compatibility
         appState: {
           zoom: { value: 1 },
           scrollX: 0,
@@ -226,6 +222,59 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
     }
   }, [state.canvases, dispatch, onNewCanvas]);
 
+  // Initialize keyboard shortcuts
+  useKeyboardShortcuts({
+    onNewCanvas,
+    onNewProject: handleNewProject,
+    onTogglePanel: handleTogglePanel,
+  });
+
+  // Listen for new canvas requests
+  useEffect(() => {
+    const unsubscribe = eventBus.on(InternalEventTypes.REQUEST_NEW_CANVAS, () => {
+      handleNewCanvasEnhanced();
+    });
+
+    return unsubscribe;
+  }, [handleNewCanvasEnhanced]);
+
+  // Canvas delete handlers
+  const handleConfirmCanvasDelete = useCallback(async () => {
+    if (!state.canvasToDelete) return;
+
+    try {
+      // Create replacement function that uses the event bus
+      const createReplacementCanvas = async () => {
+        await eventBus.emit(InternalEventTypes.REQUEST_NEW_CANVAS, null);
+      };
+
+      // Use existing removeCanvas logic with event-based replacement
+      await removeCanvas(state.canvasToDelete.id, createReplacementCanvas);
+      
+      // Emit deletion event for any listeners
+      eventBus.emit(InternalEventTypes.CANVAS_DELETED, state.canvasToDelete);
+
+      // Close modal
+      dispatch({ type: "SET_CANVAS_DELETE_MODAL_OPEN", payload: false });
+      dispatch({ type: "SET_CANVAS_TO_DELETE", payload: null });
+    } catch (error) {
+      console.error("Failed to delete canvas:", error);
+      // Close modal even on error to avoid stuck state
+      dispatch({ type: "SET_CANVAS_DELETE_MODAL_OPEN", payload: false });
+      dispatch({ type: "SET_CANVAS_TO_DELETE", payload: null });
+      // Show error
+      dispatch({
+        type: "SET_ERROR",
+        payload: "Failed to delete canvas. Please try again.",
+      });
+    }
+  }, [state.canvasToDelete, removeCanvas, dispatch]);
+
+  const handleCancelCanvasDelete = useCallback(() => {
+    dispatch({ type: "SET_CANVAS_DELETE_MODAL_OPEN", payload: false });
+    dispatch({ type: "SET_CANVAS_TO_DELETE", payload: null });
+  }, [dispatch]);
+
   // Handle window resize and escape key for modals
   useEffect(() => {
     const handleWindowResize = () => {
@@ -234,7 +283,7 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
         updatePanelSettings({ width: maxAllowedWidth });
       }
     };
-    
+
     const handleEscape = () => {
       if (showProjectModal) {
         setShowProjectModal(false);
@@ -257,14 +306,14 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
       clearTimeout(timeoutRef.current);
       timeoutRef.current = undefined;
     }
-    
+
     // If context menus were just closed and mouse is not over panel, start auto-hide timer
     if (!state.contextMenu && !state.projectContextMenu && !state.isPanelPinned && !isResizing && state.isPanelVisible && !isMouseOverPanel) {
       // Clear any existing timeout first
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
       }
-      
+
       // Start auto-hide timer (same delay as mouse leave)
       timeoutRef.current = setTimeout(() => {
         dispatch({ type: "SET_PANEL_VISIBLE", payload: false });
@@ -396,6 +445,7 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
     (e: React.TouchEvent) => {
       e.preventDefault();
       const touch = e.touches[0];
+      if (!touch) return;
       setIsResizing(true);
       setShowWidthIndicator(true);
       resizeStartX.current = touch.clientX;
@@ -410,6 +460,7 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
 
       e.preventDefault();
       const touch = e.touches[0];
+      if (!touch) return;
       const deltaX = touch.clientX - resizeStartX.current;
       const newWidth = Math.max(
         MIN_WIDTH,
@@ -454,7 +505,7 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
   const toggleProject = useCallback(async (projectId: string) => {
     // First update the local state
     dispatch({ type: "TOGGLE_PROJECT_COLLAPSED", payload: projectId });
-    
+
     // Calculate what the new state will be
     const newCollapsed = new Set(state.collapsedProjects);
     if (newCollapsed.has(projectId)) {
@@ -462,7 +513,7 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
     } else {
       newCollapsed.add(projectId);
     }
-    
+
     // Save to persistent storage (but don't dispatch again to avoid conflicts)
     try {
       await settingsOperations.setSetting(
@@ -646,22 +697,67 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
                     target="_blank"
                     rel="noopener noreferrer"
                     style={{
-                      fontSize: "16px",
-                      fontWeight: "600",
-                      margin: 0,
-                      color: "var(--theme-text-primary)",
-                      textDecoration: "none",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "12px",
                       cursor: "pointer",
-                      transition: "opacity 0.2s ease",
+                      textDecoration: "none",
+                      transition: "all 0.3s ease",
+                      borderRadius: "8px",
+                      padding: "4px",
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.opacity = "0.7";
+                      e.currentTarget.style.transform = "scale(1.02)";
+                      const glow = e.currentTarget.querySelector('.icon-glow') as HTMLElement;
+                      if (glow) {
+                        glow.style.opacity = "0.3";
+                      }
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.opacity = "1";
+                      e.currentTarget.style.transform = "scale(1)";
+                      const glow = e.currentTarget.querySelector('.icon-glow') as HTMLElement;
+                      if (glow) {
+                        glow.style.opacity = "0";
+                      }
                     }}
                   >
-                    Excali Organizer
+                    <div style={{ position: "relative" }}>
+                      <img
+                        src={chrome.runtime.getURL("icon-64.png")}
+                        alt="Excali Organizer"
+                        style={{
+                          width: "32px",
+                          height: "32px",
+                          display: "block",
+                        }}
+                      />
+                      <div
+                        style={{
+                          position: "absolute",
+                          inset: "0",
+                          background: "linear-gradient(135deg, var(--theme-accent-primary, #6366f1), var(--theme-accent-secondary, #8b5cf6))",
+                          borderRadius: "50%",
+                          filter: "blur(12px)",
+                          opacity: "0",
+                          transition: "opacity 0.3s ease",
+                          zIndex: "-1",
+                        }}
+                        className="icon-glow"
+                      />
+                    </div>
+                    <span
+                      style={{
+                        fontSize: "20px",
+                        fontWeight: "bold",
+                        background: "linear-gradient(135deg, var(--theme-accent-primary, #6366f1), var(--theme-accent-secondary, #8b5cf6))",
+                        WebkitBackgroundClip: "text",
+                        WebkitTextFillColor: "transparent",
+                        backgroundClip: "text",
+                        transition: "all 0.3s ease",
+                      }}
+                    >
+                      Excali Organizer
+                    </span>
                   </a>
                   <button
                     style={{
@@ -717,6 +813,16 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
                 >
                   <Plus size={16} />
                   <span>New Canvas</span>
+                  <span
+                    style={{
+                      marginLeft: "auto",
+                      fontSize: "12px",
+                      opacity: 0.8,
+                      fontFamily: "monospace",
+                    }}
+                  >
+                    {shortcuts["New Canvas"]}
+                  </span>
                 </button>
 
                 <button
@@ -745,6 +851,16 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
                 >
                   <FolderPlus size={16} />
                   <span>New Project</span>
+                  <span
+                    style={{
+                      marginLeft: "auto",
+                      fontSize: "12px",
+                      opacity: 0.7,
+                      fontFamily: "monospace",
+                    }}
+                  >
+                    {shortcuts["New Project"]}
+                  </span>
                 </button>
 
                 <button
@@ -888,6 +1004,9 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
                                 cursor: "pointer",
                                 transition: "background-color 0.15s ease",
                               }}
+                              role="button"
+                              tabIndex={0}
+                              aria-label={`${project.name}${project.description ? ` - ${project.description}` : ''}`}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 // Optional: Add project selection logic here
@@ -896,9 +1015,18 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
                               }}
                               onMouseEnter={(e) => {
                                 e.currentTarget.style.background = "var(--theme-bg-secondary)";
+                                if (project.description?.trim()) {
+                                  const rect = e.currentTarget.getBoundingClientRect();
+                                  setTooltipPosition({
+                                    x: rect.right + 8,
+                                    y: rect.top + rect.height / 2
+                                  });
+                                  setHoveredProject(project);
+                                }
                               }}
                               onMouseLeave={(e) => {
                                 e.currentTarget.style.background = "transparent";
+                                setHoveredProject(null);
                               }}
                             >
                               <Folder size={16} color={project.color} fill={project.color} style={{ flexShrink: 0 }} />
@@ -1114,13 +1242,20 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
       <AnimatePresence>
         {state.isSearchModalOpen && <SearchModal />}
         {state.isHelpModalOpen && <HelpOverlay />}
+        {state.isCanvasDeleteModalOpen && state.canvasToDelete && (
+          <CanvasDeleteModal
+            canvas={state.canvasToDelete}
+            onConfirm={handleConfirmCanvasDelete}
+            onCancel={handleCancelCanvasDelete}
+          />
+        )}
       </AnimatePresence>
 
       <AnimatePresence>
         {showProjectModal && (
-          <ProjectFormModal 
-            mode="create" 
-            onClose={() => setShowProjectModal(false)} 
+          <ProjectFormModal
+            mode="create"
+            onClose={() => setShowProjectModal(false)}
           />
         )}
       </AnimatePresence>
@@ -1148,6 +1283,37 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
               dispatch({ type: "SET_PROJECT_CONTEXT_MENU", payload: null })
             }
           />
+        )}
+      </AnimatePresence>
+
+      {/* Project Description Tooltip */}
+      <AnimatePresence>
+        {hoveredProject?.description && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ duration: 0.15 }}
+            style={{
+              position: "fixed",
+              left: Math.min(tooltipPosition.x, window.innerWidth - 420),
+              top: tooltipPosition.y,
+              transform: "translateY(-50%)",
+              background: "var(--theme-bg-primary)",
+              border: "1px solid var(--theme-border-primary)",
+              borderRadius: "8px",
+              padding: "8px 12px",
+              fontSize: "13px",
+              color: "var(--theme-text-primary)",
+              minWidth: "200px",
+              maxWidth: "400px",
+              zIndex: 1000000,
+              boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
+              pointerEvents: "none",
+            }}
+          >
+            {hoveredProject.description}
+          </motion.div>
         )}
       </AnimatePresence>
     </>

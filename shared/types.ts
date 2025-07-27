@@ -43,10 +43,9 @@ export interface UnifiedCanvas {
   lastModified: string;
   projectId?: string;
 
-  // Excalidraw data - combining old File format and new Canvas format
-  elements: readonly ExcalidrawElement[]; // New Canvas format
-  excalidraw: readonly ExcalidrawElement[] | ExcalidrawType[]; // Old File format - migration compatibility
-  appState?: AppState; // New Canvas format
+  // Excalidraw data
+  elements: readonly ExcalidrawElement[];
+  appState?: AppState;
 }
 
 export interface UnifiedProject {
@@ -58,7 +57,6 @@ export interface UnifiedProject {
   updatedAt?: Date;
 
   canvasIds: string[];
-  fileIds?: string[];
 }
 
 export interface SearchResult {
@@ -79,11 +77,6 @@ export interface ProjectContextMenuData {
   project: UnifiedProject;
 }
 
-// Deprecated type aliases - use UnifiedCanvas and UnifiedProject directly
-// Keeping for backward compatibility only
-export type File = UnifiedCanvas;
-export type Canvas = UnifiedCanvas;
-export type Project = UnifiedProject;
 
 export type UnifiedAction =
   // Data operations
@@ -106,6 +99,8 @@ export type UnifiedAction =
   | { type: "SET_SEARCH_MODAL"; payload: boolean }
   | { type: "SET_SEARCH_MODAL_OPEN"; payload: boolean }
   | { type: "SET_HELP_MODAL_OPEN"; payload: boolean }
+  | { type: "SET_CANVAS_DELETE_MODAL_OPEN"; payload: boolean }
+  | { type: "SET_CANVAS_TO_DELETE"; payload: UnifiedCanvas | null }
   // UI operations
   | { type: "SET_SELECTED_CANVAS"; payload: string | null }
   | { type: "SET_CONTEXT_MENU"; payload: ContextMenuData | null }

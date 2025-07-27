@@ -13,66 +13,71 @@ export function HelpOverlay() {
   // Auto-focus and trap focus within the modal
   useEffect(() => {
     const element = focusRef.current;
-    if (element) {
-      // Delay focus slightly to ensure the modal is fully rendered
-      const focusTimeout = setTimeout(() => {
+    if (!element) return;
+
+    // Delay focus slightly to ensure the modal is fully rendered
+    const focusTimeout = setTimeout(() => {
+      element.focus();
+    }, 100);
+
+    // Trap focus
+    const handleFocusTrap = (e: FocusEvent) => {
+      if (
+        e.target instanceof Node &&
+        !element.contains(e.target)
+      ) {
         element.focus();
-      }, 100);
+      }
+    };
 
-      // Trap focus
-      const handleFocusTrap = (e: FocusEvent) => {
-        if (
-          e.target instanceof Node &&
-          !element.contains(e.target)
-        ) {
-          element.focus();
-        }
-      };
+    document.addEventListener("focusin", handleFocusTrap);
 
-      document.addEventListener("focusin", handleFocusTrap);
-
-      return () => {
-        clearTimeout(focusTimeout);
-        document.removeEventListener("focusin", handleFocusTrap);
-      };
-    }
+    return () => {
+      clearTimeout(focusTimeout);
+      document.removeEventListener("focusin", handleFocusTrap);
+    };
   }, []);
 
   // Note: ESC key handling is done in the main keyboard shortcuts handler
 
   const shortcuts = getExtensionShortcuts();
 
+  // Helper function to safely get shortcut or fallback
+  const getShortcut = (key: string): string => {
+    return shortcuts?.shortcuts?.[key as keyof typeof shortcuts.shortcuts] || "Not available";
+  };
+
   // Group shortcuts by category
   const shortcutGroups = [
     {
       title: "Navigation",
       shortcuts: [
-        { action: "Toggle Panel", shortcut: shortcuts.shortcuts["Toggle Panel"] },
-        { action: "Navigate Canvases", shortcut: shortcuts.shortcuts["Navigate Canvases"] },
-        { action: "Search", shortcut: shortcuts.shortcuts["Search"] },
+        { action: "Toggle Panel", shortcut: getShortcut("Toggle Panel") },
+        { action: "Navigate Canvases", shortcut: getShortcut("Navigate Canvases") },
+        { action: "Search", shortcut: getShortcut("Search") },
       ]
     },
     {
       title: "Canvas Operations",
       shortcuts: [
-        { action: "New Canvas", shortcut: shortcuts.shortcuts["New Canvas"] },
-        { action: "Duplicate Canvas", shortcut: shortcuts.shortcuts["Duplicate Canvas"] },
-        { action: "Delete Canvas", shortcut: shortcuts.shortcuts["Delete Canvas"] },
-        { action: "Rename Canvas", shortcut: shortcuts.shortcuts["Rename Canvas"] },
+        { action: "New Canvas", shortcut: getShortcut("New Canvas") },
+        { action: "Duplicate Canvas", shortcut: getShortcut("Duplicate Canvas") },
+        { action: "Delete Canvas", shortcut: getShortcut("Delete Canvas") },
+        { action: "Rename Canvas", shortcut: getShortcut("Rename Canvas") },
       ]
     },
     {
       title: "Project Operations",
       shortcuts: [
-        { action: "New Project", shortcut: shortcuts.shortcuts["New Project"] },
+        { action: "New Project", shortcut: getShortcut("New Project") },
       ]
     },
     {
       title: "System",
       shortcuts: [
-        { action: "Refresh Data", shortcut: shortcuts.shortcuts["Refresh Data"] },
-        { action: "Help", shortcut: shortcuts.shortcuts["Help"] },
-        { action: "Close Modals / Focus Panel", shortcut: shortcuts.shortcuts["Close Modals / Focus Panel"] },
+        { action: "Refresh Data", shortcut: getShortcut("Refresh Data") },
+        { action: "Help", shortcut: getShortcut("Help") },
+        { action: "Close Modals / Focus Panel", shortcut: getShortcut("Close Modals / Focus Panel") },
       ]
     }
   ];

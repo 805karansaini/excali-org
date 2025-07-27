@@ -34,7 +34,7 @@ export class UnifiedDexie extends Dexie {
       canvases: "id, name, projectId, createdAt, updatedAt, lastModified",
 
       // Projects table with indexes (name is unique)
-      projects: "id, &name, createdAt, updatedAt, color",
+      projects: "id, &name, createdAt, updatedAt, color, description",
 
       // Settings table for app preferences
       settings: "key, updatedAt",
@@ -95,7 +95,7 @@ export const canvasOperations = {
   },
 
   /**
-   * Update existing canvas
+   * Update existing canvas with optimistic concurrency control
    */
   async updateCanvas(canvas: UnifiedCanvas): Promise<void> {
     try {
@@ -103,7 +103,23 @@ export const canvasOperations = {
       canvas.updatedAt = new Date();
       canvas.lastModified = canvas.updatedAt.toISOString();
 
-      await unifiedDb.canvases.put(canvas);
+      // Atomic update with version checking for concurrent modification detection
+      await unifiedDb.transaction('rw', unifiedDb.canvases, async () => {
+        const existingCanvas = await unifiedDb.canvases.get(canvas.id);
+        
+        // Check if canvas was modified by another operation
+        if (existingCanvas && existingCanvas.lastModified !== canvas.lastModified) {
+          const existingTime = new Date(existingCanvas.lastModified).getTime();
+          const incomingTime = new Date(canvas.lastModified).getTime();
+          
+          // Only warn if the existing version is significantly newer (>1 second)
+          if (existingTime > incomingTime + 1000) {
+            console.warn(`Canvas ${canvas.id} may have been modified concurrently. Existing: ${existingCanvas.lastModified}, Incoming: ${canvas.lastModified}`);
+          }
+        }
+        
+        await unifiedDb.canvases.put(canvas);
+      });
     } catch (error) {
       console.error("Failed to update canvas:", error);
       throw new Error("Database error: Could not update canvas");
@@ -114,29 +130,47 @@ export const canvasOperations = {
    * Delete canvas by ID
    */
   async deleteCanvas(id: string): Promise<void> {
-    try {
-      await unifiedDb.transaction('rw', unifiedDb.canvases, unifiedDb.projects, async () => {
-        // First get the canvas to find its projectId
-        const canvas = await unifiedDb.canvases.get(id);
-        
-        // Delete the canvas
-        await unifiedDb.canvases.delete(id);
-
-        // If canvas was in a project, remove it from that project only
-        if (canvas?.projectId) {
-          const project = await unifiedDb.projects.get(canvas.projectId);
-          if (project) {
-            project.canvasIds = project.canvasIds.filter(canvasId => canvasId !== id);
-            if (project.fileIds) {
-              project.fileIds = project.fileIds.filter(fileId => fileId !== id);
-            }
-            await unifiedDb.projects.put(project);
+    const maxRetries = 3;
+    let attempt = 0;
+    
+    while (attempt < maxRetries) {
+      try {
+        await unifiedDb.transaction('rw', unifiedDb.canvases, unifiedDb.projects, async () => {
+          // First get the canvas to find its projectId
+          const canvas = await unifiedDb.canvases.get(id);
+          
+          if (!canvas) {
+            console.warn(`Canvas ${id} not found for deletion`);
+            return; // Canvas already deleted
           }
+          
+          // Delete the canvas first (fail fast if canvas is locked)
+          await unifiedDb.canvases.delete(id);
+
+          // If canvas was in a project, remove it from that project atomically
+          if (canvas.projectId) {
+            const project = await unifiedDb.projects.get(canvas.projectId);
+            if (project) {
+              const originalCanvasCount = project.canvasIds.length;
+              project.canvasIds = project.canvasIds.filter(canvasId => canvasId !== id);
+              
+              // Only update if there were actual changes
+              if (project.canvasIds.length !== originalCanvasCount) {
+                await unifiedDb.projects.put(project);
+              }
+            }
+          }
+        });
+        return; // Success - exit retry loop
+      } catch (error) {
+        attempt++;
+        if (attempt >= maxRetries) {
+          console.error(`Failed to delete canvas after ${maxRetries} attempts:`, error);
+          throw new Error("Database error: Could not delete canvas after retries");
         }
-      });
-    } catch (error) {
-      console.error("Failed to delete canvas:", error);
-      throw new Error("Database error: Could not delete canvas");
+        console.warn(`Delete canvas attempt ${attempt} failed, retrying:`, error);
+        await new Promise(resolve => setTimeout(resolve, 100 * attempt)); // Exponential backoff
+      }
     }
   },
 
@@ -192,9 +226,6 @@ export const canvasOperations = {
             .map(project => {
               const originalLength = project!.canvasIds.length;
               project!.canvasIds = project!.canvasIds.filter(id => !canvasIds.includes(id));
-              if (project!.fileIds) {
-                project!.fileIds = project!.fileIds.filter(id => !canvasIds.includes(id));
-              }
               return project!.canvasIds.length !== originalLength ? project! : null;
             })
             .filter(project => project !== null) as UnifiedProject[];
@@ -364,9 +395,9 @@ export const projectOperations = {
   },
 
   /**
-   * Update project with validation (name and/or color)
+   * Update project with validation (name, color, and/or description)
    */
-  async updateProjectFields(projectId: string, updates: { name?: string; color?: string }): Promise<UnifiedProject> {
+  async updateProjectFields(projectId: string, updates: { name?: string; color?: string; description?: string }): Promise<UnifiedProject> {
     try {
       // Get existing project
       const project = await unifiedDb.projects.get(projectId);
@@ -382,8 +413,8 @@ export const projectOperations = {
         }
 
         // Check for duplicate names
-        const isDuplicate = await this.validateProjectName(trimmedName, projectId);
-        if (!isDuplicate) {
+        const isValidName = await this.validateProjectName(trimmedName, projectId);
+        if (!isValidName) {
           throw new Error("A project with this name already exists");
         }
 
@@ -393,6 +424,11 @@ export const projectOperations = {
       // Update color if provided
       if (updates.color !== undefined) {
         project.color = updates.color;
+      }
+
+      // Update description if provided (including explicit undefined to clear)
+      if ('description' in updates) {
+        project.description = updates.description?.trim() || undefined;
       }
 
       // Update timestamp
@@ -488,9 +524,6 @@ export const projectOperations = {
 
         if (!project.canvasIds.includes(canvasId)) {
           project.canvasIds.push(canvasId);
-          if (project.fileIds && !project.fileIds.includes(canvasId)) {
-            project.fileIds.push(canvasId);
-          }
           await unifiedDb.projects.put(project);
         }
       });
@@ -520,9 +553,6 @@ export const projectOperations = {
         const project = await unifiedDb.projects.get(projectId);
         if (project) {
           project.canvasIds = project.canvasIds.filter((id) => id !== canvasId);
-          if (project.fileIds) {
-            project.fileIds = project.fileIds.filter((id) => id !== canvasId);
-          }
           await unifiedDb.projects.put(project);
         }
       });

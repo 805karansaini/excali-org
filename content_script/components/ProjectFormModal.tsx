@@ -14,7 +14,7 @@ interface CreateProjectProps {
 interface EditProjectProps {
   mode: "edit";
   project: UnifiedProject;
-  onEdit: (newName: string, newColor: string) => void;
+  onEdit: (newName: string, newColor: string, newDescription?: string) => Promise<void>;
   onClose: () => void;
 }
 
@@ -45,8 +45,8 @@ export const ProjectFormModal = React.memo(function ProjectFormModal(props: Prop
 
   const [name, setName] = useState(project?.name || "");
   const [description, setDescription] = useState(project?.description || "");
-  const [selectedColor, setSelectedColor] = useState(
-    project?.color || projectColors[0]
+  const [selectedColor, setSelectedColor] = useState<string>(
+    project?.color || projectColors[0] || "#6366f1"
   );
   const [customColor, setCustomColor] = useState("");
   const [showCustomPicker, setShowCustomPicker] = useState(false);
@@ -104,20 +104,24 @@ export const ProjectFormModal = React.memo(function ProjectFormModal(props: Prop
       return false;
     }
 
-    // Check for duplicate names (only for create mode or if name changed in edit mode)
+    if (description.length > 200) {
+      setError("Description must be 200 characters or less");
+      return false;
+    }
+
+    // Check for duplicate names
     if (mode === "create" || (project && name.trim() !== project.name)) {
-      const existingProject = state.projects.find(
+      const nameExists = state.projects.some(
         (p) => p.name.toLowerCase() === name.trim().toLowerCase(),
       );
-
-      if (existingProject) {
+      if (nameExists) {
         setError("A project with this name already exists");
         return false;
       }
     }
 
     return true;
-  }, [name, mode, project, state.projects]);
+  }, [name, description, mode, project, state.projects]);
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
@@ -126,25 +130,31 @@ export const ProjectFormModal = React.memo(function ProjectFormModal(props: Prop
       return;
     }
 
-    // For edit mode, check if anything actually changed
-    if (isEditMode && project && name.trim() === project.name && selectedColor === project.color) {
-      onClose();
-      return;
+    // For edit mode, check if anything changed
+    if (isEditMode && project) {
+      const hasChanges = 
+        name.trim() !== project.name || 
+        selectedColor !== project.color || 
+        (description.trim() || undefined) !== (project.description || undefined);
+      
+      if (!hasChanges) {
+        onClose();
+        return;
+      }
     }
 
     setIsLoading(true);
 
     try {
       if (isEditMode && onEdit) {
-        await onEdit(name.trim(), selectedColor);
+        await onEdit(name.trim(), selectedColor || projectColors[0] || "#6366f1", description.trim() || undefined);
       } else {
         // Create new project
         const newProject = await createProject({
           name: name.trim(),
           description: description.trim() || undefined,
           canvasIds: [],
-          fileIds: [], // Backward compatibility
-          color: selectedColor,
+          color: selectedColor || projectColors[0] || "#6366f1",
           updatedAt: new Date(),
         });
 
@@ -188,19 +198,19 @@ export const ProjectFormModal = React.memo(function ProjectFormModal(props: Prop
       e.preventDefault();
       const nextIndex = (selectedColorIndex + 1) % projectColors.length;
       setSelectedColorIndex(nextIndex);
-      setSelectedColor(projectColors[nextIndex]);
+      setSelectedColor(projectColors[nextIndex] || "#6366f1");
       setShowCustomPicker(false);
     } else if (e.key === "ArrowLeft") {
       e.preventDefault();
       const prevIndex = selectedColorIndex === 0 ? projectColors.length - 1 : selectedColorIndex - 1;
       setSelectedColorIndex(prevIndex);
-      setSelectedColor(projectColors[prevIndex]);
+      setSelectedColor(projectColors[prevIndex] || "#6366f1");
       setShowCustomPicker(false);
     } else if (e.key === "ArrowDown") {
       e.preventDefault();
       const nextRowIndex = (selectedColorIndex + GRID_COLS) % projectColors.length;
       setSelectedColorIndex(nextRowIndex);
-      setSelectedColor(projectColors[nextRowIndex]);
+      setSelectedColor(projectColors[nextRowIndex] || "#6366f1");
       setShowCustomPicker(false);
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
@@ -208,7 +218,7 @@ export const ProjectFormModal = React.memo(function ProjectFormModal(props: Prop
         ? projectColors.length - (GRID_COLS - selectedColorIndex)
         : selectedColorIndex - GRID_COLS;
       setSelectedColorIndex(prevRowIndex);
-      setSelectedColor(projectColors[prevRowIndex]);
+      setSelectedColor(projectColors[prevRowIndex] || "#6366f1");
       setShowCustomPicker(false);
     } else if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
@@ -231,14 +241,14 @@ export const ProjectFormModal = React.memo(function ProjectFormModal(props: Prop
   };
 
   const modalStyles: React.CSSProperties = {
-    width: "100%",
+    width: "calc(100vw - 32px)",
     maxWidth: "500px",
     background: "var(--theme-bg-primary, #ffffff)",
     border: "1px solid var(--theme-border-primary, rgba(0, 0, 0, 0.1))",
     borderRadius: "16px",
     boxShadow: "var(--theme-shadow-lg, 0 20px 40px rgba(0, 0, 0, 0.1))",
     overflow: "hidden",
-    margin: "0 16px",
+    margin: "0 auto",
   };
 
   const headerStyles: React.CSSProperties = {
@@ -256,6 +266,7 @@ export const ProjectFormModal = React.memo(function ProjectFormModal(props: Prop
     fontSize: "14px",
     outline: "none",
     transition: "border-color 0.2s ease",
+    boxSizing: "border-box",
   };
 
   const textareaStyles: React.CSSProperties = {
@@ -331,7 +342,7 @@ export const ProjectFormModal = React.memo(function ProjectFormModal(props: Prop
             }}
           >
             {isEditMode 
-              ? "Update the project name and color" 
+              ? "Update the project details" 
               : "Organize your canvases into projects for better management"
             }
           </p>
@@ -378,44 +389,53 @@ export const ProjectFormModal = React.memo(function ProjectFormModal(props: Prop
                   justifyContent: "space-between",
                 }}
               >
-                <span>{error && error.includes("name") ? error : ""}</span>
+                <span style={{ color: "var(--theme-error, #ef4444)" }}>
+                  {error && !error.includes("description") ? error : ""}
+                </span>
                 <span>{name.length}/50</span>
               </div>
             </div>
 
-            {!isEditMode && (
-              <div style={{ marginBottom: "20px" }}>
-                <label
-                  style={{
-                    display: "block",
-                    fontSize: "14px",
-                    fontWeight: 500,
-                    color: "var(--theme-text-primary)",
-                    marginBottom: "8px",
-                  }}
-                >
-                  Description (Optional)
-                </label>
-                <textarea
-                  style={textareaStyles}
-                  placeholder="Describe your project..."
-                  value={description}
-                  onChange={handleDescriptionChange}
-                  maxLength={200}
-                  disabled={isLoading}
-                />
-                <div
-                  style={{
-                    fontSize: "12px",
-                    color: "var(--theme-text-secondary)",
-                    marginTop: "4px",
-                    textAlign: "right",
-                  }}
-                >
+            <div style={{ marginBottom: "20px" }}>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "14px",
+                  fontWeight: 500,
+                  color: "var(--theme-text-primary)",
+                  marginBottom: "8px",
+                }}
+              >
+                Description (Optional)
+              </label>
+              <textarea
+                style={textareaStyles}
+                placeholder="Describe your project..."
+                value={description}
+                onChange={handleDescriptionChange}
+                maxLength={200}
+                disabled={isLoading}
+              />
+              <div
+                style={{
+                  fontSize: "12px",
+                  color: "var(--theme-text-secondary)",
+                  marginTop: "4px",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
+                <span style={{ color: "var(--theme-error, #ef4444)" }}>
+                  {error && error.includes("Description") ? error : ""}
+                </span>
+                <span style={{ 
+                  color: description.length > 180 ? "var(--theme-warning, #f59e0b)" : "var(--theme-text-secondary)"
+                }}>
                   {description.length}/200
-                </div>
+                </span>
               </div>
-            )}
+            </div>
 
             <div style={{ marginBottom: "20px" }}>
               <label

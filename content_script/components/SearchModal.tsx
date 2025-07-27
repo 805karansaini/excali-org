@@ -30,29 +30,29 @@ export function SearchModal() {
   // Autofocus and trap focus within the modal
   useEffect(() => {
     const input = searchInputRef.current;
-    if (input) {
-      // Delay focus slightly to ensure the modal is fully rendered
-      const focusTimeout = setTimeout(() => {
+    if (!input) return;
+
+    // Delay focus slightly to ensure the modal is fully rendered
+    const focusTimeout = setTimeout(() => {
+      input.focus();
+    }, 100);
+
+    // Trap focus
+    const handleFocusTrap = (e: FocusEvent) => {
+      if (
+        e.target instanceof Node &&
+        !searchInputRef.current?.contains(e.target)
+      ) {
         input.focus();
-      }, 100);
+      }
+    };
 
-      // Trap focus
-      const handleFocusTrap = (e: FocusEvent) => {
-        if (
-          e.target instanceof Node &&
-          !searchInputRef.current?.contains(e.target)
-        ) {
-          input.focus();
-        }
-      };
+    document.addEventListener("focusin", handleFocusTrap);
 
-      document.addEventListener("focusin", handleFocusTrap);
-
-      return () => {
-        clearTimeout(focusTimeout);
-        document.removeEventListener("focusin", handleFocusTrap);
-      };
-    }
+    return () => {
+      clearTimeout(focusTimeout);
+      document.removeEventListener("focusin", handleFocusTrap);
+    };
   }, []);
 
   // Fuzzy search implementation
@@ -94,7 +94,8 @@ export function SearchModal() {
 
     if (queryIndex === lowerQuery.length) {
       // Penalty for scattered matches
-      const spread = lastMatchIndex - lowerText.indexOf(lowerQuery[0]);
+      const firstMatchIndex = lowerText.indexOf(lowerQuery[0] || '');
+      const spread = firstMatchIndex >= 0 ? lastMatchIndex - firstMatchIndex : 0;
       score = Math.max(20, score - spread * 2);
       return { score, matches: true };
     }
@@ -418,6 +419,7 @@ export function SearchModal() {
           {drillDown.mode === 'project-canvases' && (
             <button
               onClick={handleBack}
+              aria-label="Go back to main search"
               style={{
                 background: "none",
                 border: "none",

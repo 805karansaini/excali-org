@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "description": "Organize your Excalidraw files and projects.",
   "icons": {
+    "64": "icon-64.png",
     "128": "icon-128.png",
     "256": "icon-256.png",
     "512": "icon-512.png"
@@ -23,7 +24,7 @@
   "web_accessible_resources": [
     {
       "matches": ["https://excalidraw.com/*"],
-      "resources": ["assets/*"]
+      "resources": ["assets/*", "icon-64.png", "icon-128.png", "icon-256.png", "icon-512.png"]
     }
   ],
   "permissions": ["activeTab", "scripting"],

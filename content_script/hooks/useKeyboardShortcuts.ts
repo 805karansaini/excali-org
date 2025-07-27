@@ -39,7 +39,7 @@ export function useKeyboardShortcuts({
   onNewProject,
   onTogglePanel,
 }: KeyboardShortcutsProps) {
-  const { state, dispatch, saveCanvas, removeCanvas, createCanvas } =
+  const { state, dispatch, saveCanvas, createCanvas } =
     useUnifiedState();
 
   const showHelpDialog = useCallback(() => {
@@ -62,7 +62,6 @@ export function useKeyboardShortcuts({
       const newCanvas = {
         name: finalName,
         elements: [],
-        excalidraw: [], // Required for backward compatibility
         appState: {
           zoom: { value: 1 },
           scrollX: 0,
@@ -78,7 +77,6 @@ export function useKeyboardShortcuts({
           currentItemStrokeColor: "#000000",
         },
         lastModified: new Date().toISOString(),
-        projectId: undefined,
       };
 
       // Create the canvas using the existing createCanvas function
@@ -122,21 +120,9 @@ export function useKeyboardShortcuts({
     );
     if (!selectedCanvas) return;
 
-    if (
-      confirm(
-        `Are you sure you want to delete "${selectedCanvas.name}"?\n\nThis action cannot be undone.`,
-      )
-    ) {
-      try {
-        await removeCanvas(selectedCanvas.id);
-        eventBus.emit(InternalEventTypes.CANVAS_DELETED, selectedCanvas);
-        dispatch({ type: "SET_SELECTED_CANVAS", payload: null });
-      } catch (error) {
-        console.error("Failed to delete canvas via keyboard shortcut:", error);
-        alert("Failed to delete canvas. Please try again.");
-      }
-    }
-  }, [state.selectedCanvasId, state.canvases, removeCanvas, dispatch]);
+    dispatch({ type: "SET_CANVAS_TO_DELETE", payload: selectedCanvas });
+    dispatch({ type: "SET_CANVAS_DELETE_MODAL_OPEN", payload: true });
+  }, [state.selectedCanvasId, state.canvases, dispatch]);
 
   const handleDuplicateSelected = useCallback(async () => {
     // Try to use currentWorkingCanvasId first (the canvas that's currently loaded in Excalidraw)
@@ -155,12 +141,12 @@ export function useKeyboardShortcuts({
     }
 
     try {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { projectId, ...canvasWithoutProject } = canvas;
       const newCanvas = await createCanvas({
-        ...canvas,
+        ...canvasWithoutProject,
         name: `${canvas.name} (Copy)`,
-        projectId: undefined,
         elements: canvas.elements || [],
-        excalidraw: canvas.excalidraw || [],
         appState: canvas.appState,
       });
       eventBus.emit(InternalEventTypes.CANVAS_CREATED, newCanvas);

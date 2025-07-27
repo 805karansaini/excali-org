@@ -57,6 +57,7 @@ export class ExcalidrawDataBridge {
   
   // Canvas operation coordination
   private pendingOperations: Map<string, PendingOperation> = new Map();
+  private operationIdMap: Map<string, string> = new Map(); // operationId -> canvasKey for O(1) lookup
   private currentCanvasContext: string | null = null;
 
   constructor(options: Partial<ExcalidrawSyncOptions> = {}) {
@@ -136,7 +137,7 @@ export class ExcalidrawDataBridge {
   private cancelAllPendingOperations(): void {
     console.log(`[ExcalidrawDataBridge] Cancelling all pending operations (${this.pendingOperations.size} operations)`);
     
-    for (const [key, operation] of this.pendingOperations) {
+    for (const [, operation] of this.pendingOperations) {
       if (operation.debounceTimeout) {
         clearTimeout(operation.debounceTimeout);
       }
@@ -144,6 +145,7 @@ export class ExcalidrawDataBridge {
     }
     
     this.pendingOperations.clear();
+    this.operationIdMap.clear();
   }
 
   /**
@@ -156,12 +158,13 @@ export class ExcalidrawDataBridge {
         clearTimeout(operation.debounceTimeout);
       }
       this.pendingOperations.delete(canvasId);
+      this.operationIdMap.delete(operation.operationId);
       console.log(`[Operation ${operation.operationId}] Cancelled ${operation.operationType} for canvas ${canvasId}`);
     }
   }
 
   /**
-   * Validate if an operation is still valid for execution
+   * Validate if an operation is still valid for execution (O(1) optimized)
    */
   private isOperationValid(operationId: string, canvasId: string): boolean {
     // Check if canvas context has changed
@@ -176,13 +179,16 @@ export class ExcalidrawDataBridge {
       return false;
     }
 
-    // Check operation age (operations older than 10 seconds are considered stale)
-    const operation = Array.from(this.pendingOperations.values()).find(op => op.operationId === operationId);
-    if (operation) {
-      const age = Date.now() - operation.timestamp;
-      if (age > 10000) { // 10 seconds
-        console.log(`[Operation ${operationId}] Invalid: operation is stale (age: ${age}ms)`);
-        return false;
+    // O(1) operation lookup using operationIdMap
+    const canvasKey = this.operationIdMap.get(operationId);
+    if (canvasKey) {
+      const operation = this.pendingOperations.get(canvasKey);
+      if (operation) {
+        const age = Date.now() - operation.timestamp;
+        if (age > 10000) { // 10 seconds
+          console.log(`[Operation ${operationId}] Invalid: operation is stale (age: ${age}ms)`);
+          return false;
+        }
       }
     }
 
@@ -227,9 +233,12 @@ export class ExcalidrawDataBridge {
         operationType: 'load',
         timestamp: Date.now()
       });
+      
+      // Maintain O(1) lookup map
+      this.operationIdMap.set(operationId, canvas.id);
 
       // Prepare Excalidraw data with proper element structure
-      let elements = canvas.elements || canvas.excalidraw || [];
+      let elements = canvas.elements || [];
 
       // Ensure all elements have required properties for Excalidraw
       elements = elements.map((element, index) => ({
@@ -322,6 +331,7 @@ export class ExcalidrawDataBridge {
       
       // STEP 8: Mark operation as complete
       this.pendingOperations.delete(canvas.id);
+      this.operationIdMap.delete(operationId);
       console.log(`[ExcalidrawDataBridge] Canvas load operation completed [${operationId}]`);
 
       // Reload if forced
@@ -340,6 +350,7 @@ export class ExcalidrawDataBridge {
       
       // Clean up failed operation
       this.pendingOperations.delete(canvas.id);
+      this.operationIdMap.delete(operationId);
       
       await globalEventBus.emit(InternalEventTypes.ERROR_OCCURRED, {
         error: "Failed to load canvas into Excalidraw",
@@ -617,11 +628,7 @@ export class ExcalidrawDataBridge {
         return false;
       }
 
-      // Enhanced change detection
       return this.hasDeepChanges(currentData);
-
-      // Fallback to basic detection
-      return this.hasBasicChanges(currentData);
     } catch (error) {
       console.error(
         "[ExcalidrawDataBridge] Error checking data changes:",
@@ -712,47 +719,6 @@ export class ExcalidrawDataBridge {
     }
   }
 
-  /**
-   * Basic change detection (fallback)
-   */
-  private hasBasicChanges(currentData: ExcalidrawData): boolean {
-    try {
-      let lastData: ExcalidrawData;
-      try {
-        lastData = JSON.parse(this.lastSyncData!);
-      } catch {
-        return true;
-      }
-
-      const currentElementsCount = currentData.elements?.length || 0;
-      const lastElementsCount = lastData.elements?.length || 0;
-
-      if (currentElementsCount !== lastElementsCount) {
-        console.log(
-          "[ExcalidrawDataBridge] Element count changed:",
-          lastElementsCount,
-          "->",
-          currentElementsCount,
-        );
-        return true;
-      }
-
-      // Check element IDs
-      const currentElementIds = currentData.elements?.map(el => el.id).sort() || [];
-      const lastElementIds = lastData.elements?.map(el => el.id).sort() || [];
-
-      const idsChanged = JSON.stringify(currentElementIds) !== JSON.stringify(lastElementIds);
-      if (idsChanged) {
-        console.log("[ExcalidrawDataBridge] Element IDs changed");
-        return true;
-      }
-
-      return false;
-    } catch (error) {
-      console.error("[ExcalidrawDataBridge] Error in basic change detection:", error);
-      return true;
-    }
-  }
 
   /**
    * Check if app state has meaningful changes
@@ -824,6 +790,7 @@ export class ExcalidrawDataBridge {
       } finally {
         // Always cleanup, regardless of success/failure
         this.pendingOperations.delete(canvasId);
+        this.operationIdMap.delete(operationId);
         console.log(`[Operation ${operationId}] Cleaned up operation`);
       }
     }, this.options.debounceDelay);
@@ -835,37 +802,42 @@ export class ExcalidrawDataBridge {
       timestamp: Date.now(),
       debounceTimeout: timeout
     });
+    
+    // Maintain O(1) lookup map
+    this.operationIdMap.set(operationId, canvasId);
   }
 
   /**
    * Canvas-aware sync that prevents cross-canvas data corruption
    */
   private async performSyncForCanvas(canvasId: string, operationId?: string): Promise<void> {
+    // Atomic check-and-set to prevent race condition
     if (this.syncInProgress) {
       console.log("[ExcalidrawDataBridge] Sync already in progress, skipping");
       return;
     }
-
-    // Validate operation is still valid for execution
-    const currentOperationId = operationId || `legacy_sync_${canvasId}_${Date.now()}`;
-    if (!this.isOperationValid(currentOperationId, canvasId)) {
-      console.log(`[Operation ${currentOperationId}] Operation validation failed, aborting sync`);
-      return;
-    }
-
+    
+    // Immediately set sync in progress to prevent concurrent execution
     this.syncInProgress = true;
-    const startTime = Date.now();
-
+    
     try {
+      // Validate operation is still valid for execution
+      const currentOperationId = operationId || `legacy_sync_${canvasId}_${Date.now()}`;
+      if (!this.isOperationValid(currentOperationId, canvasId)) {
+        console.log(`[Operation ${currentOperationId}] Operation validation failed, aborting sync`);
+        return;
+      }
+      
+      const startTime = Date.now();
       const currentData = this.getExcalidrawData();
       if (!currentData) {
-        console.log(`[ExcalidrawDataBridge] No data to sync for canvas ${canvasId}`);
+        console.log(`[Operation ${currentOperationId}] No data to sync for canvas ${canvasId}`);
         return;
       }
 
       // Validate data integrity
       if (!this.validateDataIntegrity(currentData)) {
-        console.warn(`[ExcalidrawDataBridge] Data integrity check failed for canvas ${canvasId}, skipping sync`);
+        console.warn(`[Operation ${currentOperationId}] Data integrity check failed for canvas ${canvasId}, skipping sync`);
         return;
       }
 
@@ -906,8 +878,11 @@ export class ExcalidrawDataBridge {
         const retryOperationId = `retry_${canvasId}_${this.retryCount}_${uuidv4()}`;
         console.log(`[ExcalidrawDataBridge] Retrying sync for canvas ${canvasId} (${this.retryCount}/${this.options.maxRetries}) [${retryOperationId}]`);
 
+        // Generate UUID-based retry key for collision safety
+        const retryKey = `${canvasId}_retry_${uuidv4()}`;
+        
         // Register retry operation
-        this.pendingOperations.set(`${canvasId}_retry_${this.retryCount}`, {
+        this.pendingOperations.set(retryKey, {
           operationId: retryOperationId,
           canvasId,
           operationType: 'retry',
@@ -915,18 +890,23 @@ export class ExcalidrawDataBridge {
           retryCount: this.retryCount,
           parentOperationId: operationId
         });
+        
+        // Maintain O(1) lookup map
+        this.operationIdMap.set(retryOperationId, retryKey);
 
         setTimeout(() => {
           // Re-validate canvas context before retry
           if (this.currentCanvasContext === canvasId) {
             this.performSyncForCanvas(canvasId, retryOperationId).finally(() => {
-              // Clean up retry operation
-              this.pendingOperations.delete(`${canvasId}_retry_${this.retryCount}`);
+              // Clean up retry operation with UUID-based key
+              this.pendingOperations.delete(retryKey);
+              this.operationIdMap.delete(retryOperationId);
               console.log(`[Operation ${retryOperationId}] Retry operation cleaned up`);
             });
           } else {
             console.log(`[Operation ${retryOperationId}] Canvas context changed during retry, aborting retry for ${canvasId}`);
-            this.pendingOperations.delete(`${canvasId}_retry_${this.retryCount}`);
+            this.pendingOperations.delete(retryKey);
+            this.operationIdMap.delete(retryOperationId);
           }
         }, this.options.retryDelay * this.retryCount); // Exponential backoff
       } else {

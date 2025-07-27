@@ -5,6 +5,7 @@ import React, {
   useEffect,
   useCallback,
   useRef,
+  useMemo,
 } from "react";
 import { useInstantThemeSync } from "../hooks/useInstantThemeSync";
 import {
@@ -39,6 +40,8 @@ interface UnifiedState {
   searchResults: SearchResult[];
   isSearchModalOpen: boolean;
   isHelpModalOpen: boolean;
+  isCanvasDeleteModalOpen: boolean;
+  canvasToDelete: UnifiedCanvas | null;
 
   // UI state
   selectedCanvasId: string | null;
@@ -107,6 +110,8 @@ const initialState: UnifiedState = {
   searchResults: [],
   isSearchModalOpen: false,
   isHelpModalOpen: false,
+  isCanvasDeleteModalOpen: false,
+  canvasToDelete: null,
 
   // UI state
   selectedCanvasId: null,
@@ -231,6 +236,10 @@ function unifiedStateReducer(
       return { ...state, isSearchModalOpen: action.payload };
     case "SET_HELP_MODAL_OPEN":
       return { ...state, isHelpModalOpen: action.payload };
+    case "SET_CANVAS_DELETE_MODAL_OPEN":
+      return { ...state, isCanvasDeleteModalOpen: action.payload };
+    case "SET_CANVAS_TO_DELETE":
+      return { ...state, canvasToDelete: action.payload };
 
     // UI operations
     case "SET_SELECTED_CANVAS":
@@ -337,7 +346,7 @@ interface UnifiedStateContextType {
   createCanvas: (
     canvas: Omit<UnifiedCanvas, "id" | "createdAt" | "updatedAt">,
   ) => Promise<UnifiedCanvas>;
-  removeCanvas: (canvasId: string) => Promise<void>;
+  removeCanvas: (canvasId: string, createReplacementFn?: () => Promise<void>) => Promise<void>;
   saveProject: (project: UnifiedProject) => Promise<void>;
   createProject: (
     project: Omit<UnifiedProject, "id" | "createdAt">,
@@ -487,7 +496,6 @@ export function UnifiedStateProvider({
           createdAt: now,
           updatedAt: now,
           lastModified: now.toISOString(),
-          excalidraw: canvasData.elements || [], // Backward compatibility
         };
 
         await canvasOperations.addCanvas(canvas);
@@ -503,16 +511,27 @@ export function UnifiedStateProvider({
   );
 
   // Remove canvas
-  const removeCanvas = useCallback(async (canvasId: string) => {
+  const removeCanvas = useCallback(async (canvasId: string, createReplacementFn?: () => Promise<void>) => {
     try {
+      // Check if we're deleting the currently active canvas
+      const isDeletingActiveCanvas = state.currentWorkingCanvasId === canvasId;
+      
+      if (isDeletingActiveCanvas && createReplacementFn) {
+        console.log("Deleting currently active canvas - creating replacement canvas first");
+        await createReplacementFn();
+      }
+
+      // Now proceed with deleting the original canvas
       await canvasOperations.deleteCanvas(canvasId);
       dispatch({ type: "DELETE_CANVAS", payload: canvasId });
+      
+      console.log("Canvas deleted successfully:", canvasId);
     } catch (error) {
       console.error("Failed to delete canvas:", error);
       dispatch({ type: "SET_ERROR", payload: "Failed to delete canvas." });
       throw error;
     }
-  }, []);
+  }, [state.currentWorkingCanvasId]);
 
   // Save project with database sync
   const saveProject = useCallback(async (project: UnifiedProject) => {
@@ -535,7 +554,6 @@ export function UnifiedStateProvider({
           id: `project_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
           createdAt: new Date(),
           canvasIds: projectData.canvasIds || [],
-          fileIds: projectData.canvasIds || [], // Backward compatibility
         };
 
         await projectOperations.addProject(project);
@@ -609,12 +627,24 @@ export function UnifiedStateProvider({
     [],
   );
 
+  // Memoized project-canvas mapping for performance
+  const projectCanvasMap = useMemo(() => {
+    const map = new Map<string, UnifiedCanvas[]>();
+    state.canvases.forEach(canvas => {
+      if (canvas.projectId) {
+        const existing = map.get(canvas.projectId) || [];
+        map.set(canvas.projectId, [...existing, canvas]);
+      }
+    });
+    return map;
+  }, [state.canvases]);
+
   // Convenience functions for canvas filtering
   const getCanvasesForProject = useCallback(
     (projectId: string) => {
-      return state.canvases.filter((canvas) => canvas.projectId === projectId);
+      return projectCanvasMap.get(projectId) || [];
     },
-    [state.canvases],
+    [projectCanvasMap],
   );
 
   const getUnorganizedCanvases = useCallback(() => {
@@ -684,8 +714,7 @@ export function UnifiedStateProvider({
         // Check if there are actually changes to save
         const hasElements =
           elements && Array.isArray(elements) && elements.length > 0;
-        const existingElements =
-          currentCanvas.elements || currentCanvas.excalidraw || [];
+        const existingElements = currentCanvas.elements || [];
 
         if (!hasElements && existingElements.length === 0) {
           console.log(
@@ -694,14 +723,41 @@ export function UnifiedStateProvider({
           return;
         }
 
+        // Check if the elements have actually changed to avoid unnecessary updatedAt updates
+        const newElements = elements || [];
+        const hasElementsChanged = () => {
+          if (newElements.length !== existingElements.length) {
+            return true;
+          }
+          
+          // Compare elements by stringifying them (simple but effective for detecting changes)
+          try {
+            return JSON.stringify(newElements) !== JSON.stringify(existingElements);
+          } catch {
+            // If JSON.stringify fails, assume there are changes to be safe
+            return true;
+          }
+        };
+
+        const elementsChanged = hasElementsChanged();
+        
+        // Only update timestamps if elements have actually changed
+        const shouldUpdateTimestamp = elementsChanged;
+        
+        console.log(
+          `Auto-save for canvas ${targetCanvasId}: elements changed = ${elementsChanged}, updating timestamp = ${shouldUpdateTimestamp}`,
+        );
+
         // Create updated canvas with new data
         const updatedCanvas: UnifiedCanvas = {
           ...currentCanvas,
-          elements: elements || [],
+          elements: newElements,
           appState: appState || currentCanvas.appState || {},
-          excalidraw: elements || [], // Backward compatibility
-          updatedAt: new Date(),
-          lastModified: new Date().toISOString(),
+          // Only update timestamps if content actually changed
+          ...(shouldUpdateTimestamp ? {
+            updatedAt: new Date(),
+            lastModified: new Date().toISOString(),
+          } : {}),
         };
 
         // Final validation before database save
@@ -712,13 +768,31 @@ export function UnifiedStateProvider({
           return;
         }
 
-        // Save to database
+        // Atomic validation just before database operation
+        const currentWorkingCanvasAtSave = state.currentWorkingCanvasId;
+        if (canvasId && currentWorkingCanvasAtSave !== canvasId) {
+          console.log(
+            `Canvas context changed immediately before save (expected: ${canvasId}, current: ${currentWorkingCanvasAtSave}) - aborting auto-save`,
+          );
+          return;
+        }
+
+        // Save to database with context tracking
         console.log(
           `Auto-saving canvas: ${currentCanvas.name} (${targetCanvasId}) with ${elements?.length || 0} elements`,
         );
         await canvasOperations.updateCanvas(updatedCanvas);
 
-        // Update state
+        // Validate context hasn't changed during async database operation
+        if (canvasId && state.currentWorkingCanvasId !== canvasId) {
+          console.warn(
+            `Canvas context changed during database save (expected: ${canvasId}, current: ${state.currentWorkingCanvasId}) - skipping state update to prevent stale data`,
+          );
+          // Skip state update to prevent stale canvas data from overwriting current context
+          return;
+        }
+
+        // Update state only if context is still valid
         dispatch({ type: "UPDATE_CANVAS", payload: updatedCanvas });
 
         console.log(`Canvas auto-saved successfully: ${updatedCanvas.name} (${targetCanvasId})`);
@@ -800,6 +874,7 @@ export function UnifiedStateProvider({
 }
 
 // Hook to use the unified state
+// eslint-disable-next-line react-refresh/only-export-components
 export function useUnifiedState() {
   const context = useContext(UnifiedStateContext);
   if (!context) {
