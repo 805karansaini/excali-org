@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Plus,
@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useUnifiedState } from "../context/UnifiedStateProvider";
 import { eventBus, InternalEventTypes } from "../messaging/InternalEventBus";
+import { sortProjectsByActivity, PROJECT_SORT_CONSTANTS } from "../../shared/utils";
 import {
   useKeyboardShortcuts,
   getExtensionShortcuts,
@@ -49,11 +50,34 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
   const [isMouseOverPanel, setIsMouseOverPanel] = useState(false);
   const [hoveredProject, setHoveredProject] = useState<UnifiedProject | null>(null);
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
+  const [showAllProjects, setShowAllProjects] = useState(false);
 
   const panelRef = useRef<HTMLDivElement>(null);
   const timeoutRef = useRef<number>();
   const resizeStartX = useRef<number>(0);
   const resizeStartWidth = useRef<number>(0);
+
+  // Stabilize the canvas count function for memoization
+  const getCanvasCount = useCallback(
+    (projectId: string) => getCanvasesForProject(projectId).length,
+    [getCanvasesForProject]
+  );
+
+  // Memoized project sorting for performance
+  const { sortedProjects, projectsToShow, hasMoreProjects } = useMemo(() => {
+    const sorted = sortProjectsByActivity(state.projects, getCanvasCount);
+    
+    const toShow = showAllProjects 
+      ? sorted 
+      : sorted.slice(0, PROJECT_SORT_CONSTANTS.DEFAULT_PAGINATION_LIMIT);
+    const hasMore = sorted.length > PROJECT_SORT_CONSTANTS.DEFAULT_PAGINATION_LIMIT;
+
+    return {
+      sortedProjects: sorted,
+      projectsToShow: toShow,
+      hasMoreProjects: hasMore,
+    };
+  }, [state.projects, showAllProjects, getCanvasCount]);
 
   // Handle new project creation
   const handleNewProject = useCallback(() => {
@@ -916,18 +940,41 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
                   <div style={{ marginBottom: "24px" }}>
                     <div
                       style={{
-                        fontSize: "12px",
-                        fontWeight: "600",
-                        textTransform: "uppercase",
-                        color: "var(--theme-text-secondary)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
                         marginBottom: "8px",
-                        letterSpacing: "0.5px",
                       }}
                     >
-                      Projects
+                      <div
+                        style={{
+                          fontSize: "12px",
+                          fontWeight: "600",
+                          textTransform: "uppercase",
+                          color: "var(--theme-text-secondary)",
+                          letterSpacing: "0.5px",
+                        }}
+                      >
+                        Projects
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "11px",
+                          color: "var(--theme-text-tertiary, rgba(0, 0, 0, 0.5))",
+                          background: "var(--theme-bg-secondary, rgba(0, 0, 0, 0.05))",
+                          padding: "2px 6px",
+                          borderRadius: "8px",
+                          fontWeight: "500",
+                        }}
+                      >
+                        {state.projects.length} {state.projects.length === 1 ? 'project' : 'projects'}
+                        {state.projects.length > PROJECT_SORT_CONSTANTS.DEFAULT_PAGINATION_LIMIT && !showAllProjects && ` • showing top ${PROJECT_SORT_CONSTANTS.DEFAULT_PAGINATION_LIMIT}`}
+                        {state.projects.length > PROJECT_SORT_CONSTANTS.DEFAULT_PAGINATION_LIMIT && showAllProjects && ' • all shown'}
+                      </div>
                     </div>
 
-                    {state.projects.map((project) => {
+                    <>
+                      {projectsToShow.map((project) => {
                       const projectCanvases = getCanvasesForProject(project.id);
                       const isCollapsed = state.collapsedProjects.has(
                         project.id,
@@ -1130,7 +1177,58 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
                           </AnimatePresence>
                         </div>
                       );
-                    })}
+                          })}
+                          
+                          {/* Show More/Less button */}
+                          {hasMoreProjects && (
+                            <button
+                              onClick={() => setShowAllProjects(!showAllProjects)}
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                gap: "6px",
+                                width: "100%",
+                                padding: "6px 12px",
+                                marginTop: "4px",
+                                background: "transparent",
+                                border: "1px dashed var(--theme-border-secondary, rgba(0, 0, 0, 0.15))",
+                                borderRadius: "6px",
+                                color: "var(--theme-text-secondary)",
+                                fontSize: "11px",
+                                fontWeight: "500",
+                                cursor: "pointer",
+                                transition: "all 0.2s ease",
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.background = "var(--theme-bg-hover, rgba(0, 0, 0, 0.05))";
+                                e.currentTarget.style.borderColor = "var(--theme-border-primary)";
+                                e.currentTarget.style.borderStyle = "solid";
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.background = "transparent";
+                                e.currentTarget.style.borderColor = "var(--theme-border-secondary, rgba(0, 0, 0, 0.15))";
+                                e.currentTarget.style.borderStyle = "dashed";
+                              }}
+                            >
+                              {showAllProjects ? (
+                                <>
+                                  Show Less ({sortedProjects.length - PROJECT_SORT_CONSTANTS.DEFAULT_PAGINATION_LIMIT} hidden)
+                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <path d="m18 15-6-6-6 6"/>
+                                  </svg>
+                                </>
+                              ) : (
+                                <>
+                                  Show More ({sortedProjects.length - PROJECT_SORT_CONSTANTS.DEFAULT_PAGINATION_LIMIT} more)
+                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <path d="m6 9 6 6 6-6"/>
+                                  </svg>
+                                </>
+                              )}
+                            </button>
+                          )}
+                    </>
                   </div>
                 )}
 

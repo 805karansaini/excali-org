@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useUnifiedState } from "../context/UnifiedStateProvider";
 import { eventBus, InternalEventTypes } from "../messaging/InternalEventBus";
+import { sortProjectsByActivity, SUBMENU_CONSTANTS } from "../../shared/utils";
 import { RenameModal } from "./RenameModal";
 import CanvasDeleteModal from "./CanvasDeleteModal";
 // import { getExtensionShortcuts } from "../hooks/useKeyboardShortcuts";
@@ -295,11 +296,26 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
     onClose();
   };
 
+  // Memoized canvas counts by project for performance
+  const canvasCountsByProject = useMemo(() => {
+    const counts = new Map<string, number>();
+    state.canvases.forEach(canvas => {
+      if (canvas.projectId) {
+        counts.set(canvas.projectId, (counts.get(canvas.projectId) || 0) + 1);
+      }
+    });
+    return counts;
+  }, [state.canvases]);
+
   // Get available projects for adding (exclude current project)
-  const availableProjectsForAdd = state.projects.filter(
-    (project) =>
-      !(project.canvasIds || []).includes(canvas.id),
+  const availableProjectsForAdd = useMemo(() => 
+    sortProjectsByActivity(
+      state.projects.filter((project) => project.id !== canvas.projectId),
+      (projectId) => canvasCountsByProject.get(projectId) || 0
+    ),
+    [state.projects, canvas.projectId, canvasCountsByProject]
   );
+
 
   const currentProject = canvas.projectId
     ? state.projects.find((p) => p.id === canvas.projectId)
@@ -336,17 +352,84 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
     transition: "background-color 0.15s ease",
   };
 
-  const submenuStyles: React.CSSProperties = {
-    position: "absolute",
-    left: "100%",
-    top: 0,
-    background: "var(--theme-bg-primary, #ffffff)",
-    border: "1px solid var(--theme-border-primary, rgba(0, 0, 0, 0.1))",
-    borderRadius: "8px",
-    boxShadow: "var(--theme-shadow-lg, 0 8px 32px rgba(0, 0, 0, 0.1))",
-    minWidth: "180px",
-    padding: "8px 0",
-    marginLeft: "4px",
+  const getSubmenuStyles = (): React.CSSProperties => {
+    // Calculate available space and optimal positioning
+    const viewportHeight = window.innerHeight;
+    const viewportWidth = window.innerWidth;
+    const menuRect = menuRef.current?.getBoundingClientRect();
+    
+    if (!menuRect) {
+      // Fallback if menu ref is not available
+      return {
+        position: "absolute",
+        left: "100%",
+        top: 0,
+        background: "var(--theme-bg-primary, #ffffff)",
+        border: "1px solid var(--theme-border-primary, rgba(0, 0, 0, 0.1))",
+        borderRadius: "8px",
+        boxShadow: "var(--theme-shadow-lg, 0 8px 32px rgba(0, 0, 0, 0.1))",
+        minWidth: "180px",
+        maxWidth: "250px",
+        padding: "8px 0",
+        marginLeft: "4px",
+        maxHeight: "300px",
+        overflowY: "auto",
+        zIndex: 10000000,
+      };
+    }
+
+    // Calculate submenu dimensions
+    const estimatedSubmenuHeight = Math.min(
+      availableProjectsForAdd.length * SUBMENU_CONSTANTS.ITEM_HEIGHT + SUBMENU_CONSTANTS.PADDING,
+      SUBMENU_CONSTANTS.MAX_HEIGHT
+    );
+    
+    // Determine horizontal position (left or right of menu)
+    const spaceOnRight = viewportWidth - (menuRect.right + SUBMENU_CONSTANTS.MARGIN);
+    const spaceOnLeft = menuRect.left - SUBMENU_CONSTANTS.MARGIN;
+    const shouldShowOnLeft = spaceOnRight < SUBMENU_CONSTANTS.SUBMENU_WIDTH && spaceOnLeft > SUBMENU_CONSTANTS.SUBMENU_WIDTH;
+    
+    // Determine vertical position
+    const spaceBelow = viewportHeight - menuRect.top;
+    const spaceAbove = menuRect.top;
+    
+    let topPosition = 0;
+    let maxHeight = Math.min(SUBMENU_CONSTANTS.MAX_HEIGHT, spaceBelow - 20); // Leave some margin
+    
+    // If there's not enough space below, try to position it better
+    if (estimatedSubmenuHeight > spaceBelow - 20) {
+      if (spaceAbove > spaceBelow) {
+        // More space above, position submenu to grow upward
+        topPosition = Math.max(-estimatedSubmenuHeight + SUBMENU_CONSTANTS.ITEM_HEIGHT, -menuRect.top + 10);
+        maxHeight = Math.min(SUBMENU_CONSTANTS.MAX_HEIGHT, spaceAbove + SUBMENU_CONSTANTS.ITEM_HEIGHT);
+      } else {
+        // Keep it below but limit height and add scrolling
+        topPosition = Math.max(0, -Math.min(estimatedSubmenuHeight - spaceBelow + 20, menuRect.height - 20));
+        maxHeight = Math.min(SUBMENU_CONSTANTS.MAX_HEIGHT, spaceBelow - 20);
+      }
+    }
+
+    return {
+      position: "absolute",
+      left: shouldShowOnLeft ? "auto" : "100%",
+      right: shouldShowOnLeft ? "100%" : "auto",
+      top: topPosition,
+      background: "var(--theme-bg-primary, #ffffff)",
+      border: "1px solid var(--theme-border-primary, rgba(0, 0, 0, 0.1))",
+      borderRadius: "8px",
+      boxShadow: "var(--theme-shadow-lg, 0 8px 32px rgba(0, 0, 0, 0.1))",
+      minWidth: "180px",
+      maxWidth: "250px",
+      padding: "8px 0",
+      marginLeft: shouldShowOnLeft ? `-${SUBMENU_CONSTANTS.MARGIN}px` : `${SUBMENU_CONSTANTS.MARGIN}px`,
+      marginRight: shouldShowOnLeft ? `${SUBMENU_CONSTANTS.MARGIN}px` : `-${SUBMENU_CONSTANTS.MARGIN}px`,
+      maxHeight: `${maxHeight}px`,
+      overflowY: "auto",
+      zIndex: 10000000,
+      // Custom scrollbar styling
+      scrollbarWidth: "thin",
+      scrollbarColor: "var(--theme-border-secondary) transparent",
+    };
   };
 
   return createPortal(
@@ -450,13 +533,29 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
 
             <AnimatePresence>
               {showAddToProject && (
-                <motion.div
-                  style={submenuStyles}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -10 }}
-                  transition={{ duration: 0.15 }}
-                >
+                <>
+                  <motion.div
+                    className="project-submenu-scrollable"
+                    style={getSubmenuStyles()}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -10 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                  {availableProjectsForAdd.length > 10 && (
+                    <div
+                      style={{
+                        padding: "4px 12px",
+                        fontSize: "12px",
+                        color: "var(--theme-text-secondary, rgba(0, 0, 0, 0.6))",
+                        borderBottom: "1px solid var(--theme-border-secondary)",
+                        marginBottom: "4px",
+                        background: "var(--theme-bg-secondary, rgba(0, 0, 0, 0.02))",
+                      }}
+                    >
+                      {availableProjectsForAdd.length} projects • Scroll to see all
+                    </div>
+                  )}
                   {availableProjectsForAdd.map((project) => (
                     <button
                       key={project.id}
@@ -493,7 +592,8 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
                       </span>
                     </button>
                   ))}
-                </motion.div>
+                  </motion.div>
+                </>
               )}
             </AnimatePresence>
           </div>

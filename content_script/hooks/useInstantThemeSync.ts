@@ -34,7 +34,9 @@ export function useInstantThemeSync({
           return state.theme;
         }
       }
-    } catch {}
+    } catch {
+      // Silently handle localStorage access errors
+    }
     
     // Fallback: system preference
     return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
