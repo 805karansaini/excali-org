@@ -723,13 +723,41 @@ export function UnifiedStateProvider({
           return;
         }
 
+        // Check if the elements have actually changed to avoid unnecessary updatedAt updates
+        const newElements = elements || [];
+        const hasElementsChanged = () => {
+          if (newElements.length !== existingElements.length) {
+            return true;
+          }
+          
+          // Compare elements by stringifying them (simple but effective for detecting changes)
+          try {
+            return JSON.stringify(newElements) !== JSON.stringify(existingElements);
+          } catch {
+            // If JSON.stringify fails, assume there are changes to be safe
+            return true;
+          }
+        };
+
+        const elementsChanged = hasElementsChanged();
+        
+        // Only update timestamps if elements have actually changed
+        const shouldUpdateTimestamp = elementsChanged;
+        
+        console.log(
+          `Auto-save for canvas ${targetCanvasId}: elements changed = ${elementsChanged}, updating timestamp = ${shouldUpdateTimestamp}`,
+        );
+
         // Create updated canvas with new data
         const updatedCanvas: UnifiedCanvas = {
           ...currentCanvas,
-          elements: elements || [],
+          elements: newElements,
           appState: appState || currentCanvas.appState || {},
-          updatedAt: new Date(),
-          lastModified: new Date().toISOString(),
+          // Only update timestamps if content actually changed
+          ...(shouldUpdateTimestamp ? {
+            updatedAt: new Date(),
+            lastModified: new Date().toISOString(),
+          } : {}),
         };
 
         // Final validation before database save
