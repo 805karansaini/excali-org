@@ -53,8 +53,10 @@ export function RenameModal({ currentName, onRename, onClose }: Props) {
     padding: "24px",
     borderRadius: "8px",
     boxShadow: "var(--theme-shadow-lg)",
-    width: "100%",
+    width: "90%",
     maxWidth: "400px",
+    minWidth: "300px",
+    margin: "0 16px",
   };
 
   const inputStyles: React.CSSProperties = {
@@ -66,6 +68,8 @@ export function RenameModal({ currentName, onRename, onClose }: Props) {
     marginBottom: "16px",
     background: "var(--theme-bg-secondary)",
     color: "var(--theme-text-primary)",
+    boxSizing: "border-box",
+    outline: "none",
   };
 
   return createPortal(

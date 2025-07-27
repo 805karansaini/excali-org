@@ -54,11 +54,12 @@ export class ExcalidrawDataBridge {
   private storageEventQueue: StorageEvent[] = [];
   private processingQueue: boolean = false;
   private syncInProgress: boolean = false;
-  
+
   // Canvas operation coordination
   private pendingOperations: Map<string, PendingOperation> = new Map();
   private operationIdMap: Map<string, string> = new Map(); // operationId -> canvasKey for O(1) lookup
   private currentCanvasContext: string | null = null;
+  private themeUnsubscribe: (() => void) | null = null;
 
   constructor(options: Partial<ExcalidrawSyncOptions> = {}) {
     this.options = {
@@ -103,6 +104,9 @@ export class ExcalidrawDataBridge {
 
     // Listen for Excalidraw data changes
     this.setupStorageListener();
+
+    // Listen for theme changes to update filename display
+    this.setupThemeListener();
   }
 
   /**
@@ -129,6 +133,12 @@ export class ExcalidrawDataBridge {
 
     // Remove event listeners
     window.removeEventListener("storage", this.handleStorageChange);
+
+    // Unsubscribe from theme changes
+    if (this.themeUnsubscribe) {
+      this.themeUnsubscribe();
+      this.themeUnsubscribe = null;
+    }
   }
 
   /**
@@ -136,14 +146,14 @@ export class ExcalidrawDataBridge {
    */
   private cancelAllPendingOperations(): void {
     console.log(`[ExcalidrawDataBridge] Cancelling all pending operations (${this.pendingOperations.size} operations)`);
-    
+
     for (const [, operation] of this.pendingOperations) {
       if (operation.debounceTimeout) {
         clearTimeout(operation.debounceTimeout);
       }
       console.log(`[Operation ${operation.operationId}] Cancelled ${operation.operationType} for canvas ${operation.canvasId}`);
     }
-    
+
     this.pendingOperations.clear();
     this.operationIdMap.clear();
   }
@@ -213,7 +223,7 @@ export class ExcalidrawDataBridge {
     forceReload: boolean = false,
   ): Promise<void> {
     const operationId = `load_${canvas.id}_${uuidv4()}`;
-    
+
     try {
       console.log(
         `[ExcalidrawDataBridge] Starting atomic canvas load: ${canvas.name} (forceReload: ${forceReload}) [${operationId}]`,
@@ -221,11 +231,11 @@ export class ExcalidrawDataBridge {
 
       // STEP 1: Cancel ALL pending operations for ALL canvases to prevent race conditions
       this.cancelAllPendingOperations();
-      
+
       // STEP 2: Set loading state and canvas context
       this.isLoading = true;
       this.setCanvasContext(canvas.id);
-      
+
       // STEP 3: Register this load operation
       this.pendingOperations.set(canvas.id, {
         operationId,
@@ -233,7 +243,7 @@ export class ExcalidrawDataBridge {
         operationType: 'load',
         timestamp: Date.now()
       });
-      
+
       // Maintain O(1) lookup map
       this.operationIdMap.set(operationId, canvas.id);
 
@@ -328,7 +338,7 @@ export class ExcalidrawDataBridge {
 
       // STEP 7: Update file name display
       await this.updateFileNameDisplay(canvas.name);
-      
+
       // STEP 8: Mark operation as complete
       this.pendingOperations.delete(canvas.id);
       this.operationIdMap.delete(operationId);
@@ -347,11 +357,11 @@ export class ExcalidrawDataBridge {
       }
     } catch (error) {
       console.error(`[ExcalidrawDataBridge] Failed to load canvas [${operationId}]:`, error);
-      
+
       // Clean up failed operation
       this.pendingOperations.delete(canvas.id);
       this.operationIdMap.delete(operationId);
-      
+
       await globalEventBus.emit(InternalEventTypes.ERROR_OCCURRED, {
         error: "Failed to load canvas into Excalidraw",
         details: error,
@@ -562,13 +572,12 @@ export class ExcalidrawDataBridge {
       fileNameDiv.classList.add("file-name-div");
       fileNameDiv.textContent = fileName;
 
-      // Style for dark theme integration (matches Excalidraw's theme)
-      fileNameDiv.style.cssText = `
+      const isDarkTheme = document.documentElement.getAttribute("data-theme") === "dark";
+
+      const baseStyle = `
         position: absolute;
         top: 5px;
         left: 48px;
-        background-color: rgba(35, 35, 41, 0.9);
-        color: rgba(222, 222, 227, 1);
         padding: 4px 8px;
         border-radius: 4px;
         font-size: 12px;
@@ -577,7 +586,21 @@ export class ExcalidrawDataBridge {
         z-index: 1000;
         pointer-events: none;
         backdrop-filter: blur(4px);
+        transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+      `;
+
+      fileNameDiv.style.cssText = isDarkTheme
+        ? `
+        ${baseStyle}
+        background-color: rgba(35, 35, 41, 0.9);
+        color: rgba(222, 222, 227, 1);
         border: 1px solid rgba(255, 255, 255, 0.1);
+      `
+        : `
+        ${baseStyle}
+        background-color: rgba(248, 249, 250, 0.95);
+        color: rgba(55, 65, 81, 1);
+        border: 1px solid rgba(0, 0, 0, 0.1);
       `;
 
       // Find Excalidraw container and append
@@ -777,11 +800,11 @@ export class ExcalidrawDataBridge {
   private debouncedSyncForCanvas(canvasId: string): void {
     // Cancel any existing operations for this canvas
     this.cancelCanvasOperations(canvasId);
-    
+
     // Generate unique operation ID
     const operationId = `auto-save_${canvasId}_${uuidv4()}`;
     console.log(`[ExcalidrawDataBridge] Scheduling auto-save for canvas ${canvasId} [${operationId}]`);
-    
+
     const timeout = setTimeout(async () => {
       try {
         await this.performSyncForCanvas(canvasId, operationId);
@@ -794,7 +817,7 @@ export class ExcalidrawDataBridge {
         console.log(`[Operation ${operationId}] Cleaned up operation`);
       }
     }, this.options.debounceDelay);
-    
+
     this.pendingOperations.set(canvasId, {
       operationId,
       canvasId,
@@ -802,7 +825,7 @@ export class ExcalidrawDataBridge {
       timestamp: Date.now(),
       debounceTimeout: timeout
     });
-    
+
     // Maintain O(1) lookup map
     this.operationIdMap.set(operationId, canvasId);
   }
@@ -816,10 +839,10 @@ export class ExcalidrawDataBridge {
       console.log("[ExcalidrawDataBridge] Sync already in progress, skipping");
       return;
     }
-    
+
     // Immediately set sync in progress to prevent concurrent execution
     this.syncInProgress = true;
-    
+
     try {
       // Validate operation is still valid for execution
       const currentOperationId = operationId || `legacy_sync_${canvasId}_${Date.now()}`;
@@ -827,7 +850,7 @@ export class ExcalidrawDataBridge {
         console.log(`[Operation ${currentOperationId}] Operation validation failed, aborting sync`);
         return;
       }
-      
+
       const startTime = Date.now();
       const currentData = this.getExcalidrawData();
       if (!currentData) {
@@ -880,7 +903,7 @@ export class ExcalidrawDataBridge {
 
         // Generate UUID-based retry key for collision safety
         const retryKey = `${canvasId}_retry_${uuidv4()}`;
-        
+
         // Register retry operation
         this.pendingOperations.set(retryKey, {
           operationId: retryOperationId,
@@ -890,7 +913,7 @@ export class ExcalidrawDataBridge {
           retryCount: this.retryCount,
           parentOperationId: operationId
         });
-        
+
         // Maintain O(1) lookup map
         this.operationIdMap.set(retryOperationId, retryKey);
 
@@ -985,6 +1008,19 @@ export class ExcalidrawDataBridge {
       }
       return result;
     };
+  }
+
+  /**
+   * Setup theme change listener for filename display updates
+   */
+  private setupThemeListener(): void {
+    this.themeUnsubscribe = globalEventBus.on(InternalEventTypes.THEME_CHANGED, () => {
+      // Update filename display when theme changes
+      const fileNameDisplay = document.querySelector(".file-name-div") as HTMLElement;
+      if (fileNameDisplay && fileNameDisplay.textContent) {
+        this.updateFileNameDisplay(fileNameDisplay.textContent);
+      }
+    });
   }
 
   /**

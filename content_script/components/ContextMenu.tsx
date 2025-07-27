@@ -12,8 +12,6 @@ import {
 import { useUnifiedState } from "../context/UnifiedStateProvider";
 import { eventBus, InternalEventTypes } from "../messaging/InternalEventBus";
 import { sortProjectsByActivity, SUBMENU_CONSTANTS } from "../../shared/utils";
-import { RenameModal } from "./RenameModal";
-import CanvasDeleteModal from "./CanvasDeleteModal";
 // import { getExtensionShortcuts } from "../hooks/useKeyboardShortcuts";
 import { UnifiedCanvas, UnifiedProject } from "../../shared/types";
 
@@ -25,11 +23,9 @@ interface Props {
 }
 
 export function ContextMenu({ x, y, canvas, onClose }: Props) {
-  const { state, dispatch, saveCanvas, saveProject, createCanvas, removeCanvas } =
+  const { state, dispatch, saveCanvas, saveProject, createCanvas } =
     useUnifiedState();
   const [showAddToProject, setShowAddToProject] = useState(false);
-  const [isRenameModalOpen, setRenameModalOpen] = useState(false);
-  const [isDeleteModalOpen, setDeleteModalOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Position menu to stay within viewport
@@ -67,9 +63,7 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
     const handleClickOutside = (e: MouseEvent) => {
       if (
         menuRef.current &&
-        !menuRef.current.contains(e.target as Node) &&
-        !isRenameModalOpen && // Don't close if rename modal is open
-        !isDeleteModalOpen // Don't close if delete modal is open
+        !menuRef.current.contains(e.target as Node)
       ) {
         onClose();
       }
@@ -77,13 +71,7 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
 
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        if (isRenameModalOpen) {
-          setRenameModalOpen(false);
-        } else if (isDeleteModalOpen) {
-          setDeleteModalOpen(false);
-        } else {
-          onClose();
-        }
+        onClose();
       }
     };
 
@@ -98,23 +86,7 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
       document.removeEventListener("mousedown", handleClickOutside);
       document.removeEventListener("keydown", handleEscape);
     };
-  }, [onClose, isRenameModalOpen, isDeleteModalOpen]);
-
-  const handleRename = async (newName: string) => {
-    const updatedCanvas = {
-      ...canvas,
-      name: newName,
-      updatedAt: new Date(),
-    };
-
-    try {
-      await saveCanvas(updatedCanvas);
-      eventBus.emit(InternalEventTypes.CANVAS_UPDATED, updatedCanvas);
-    } catch (error) {
-      console.error("Failed to save renamed canvas:", error);
-      alert("Failed to rename canvas. Please try again.");
-    }
-  };
+  }, [onClose]);
 
   const handleDuplicate = async () => {
     const newCanvas: UnifiedCanvas = {
@@ -137,36 +109,9 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
   };
 
   const handleDelete = () => {
-    setDeleteModalOpen(true);
-  };
-
-  const handleConfirmDelete = async () => {
-    try {
-      // Create replacement function that uses the event bus
-      const createReplacementCanvas = async () => {
-        await eventBus.emit(InternalEventTypes.REQUEST_NEW_CANVAS, null);
-      };
-      
-      // Use existing removeCanvas logic with event-based replacement
-      await removeCanvas(canvas.id, createReplacementCanvas);
-      
-      // Emit deletion event for any listeners
-      eventBus.emit(InternalEventTypes.CANVAS_DELETED, canvas);
-      
-      // Close modal and context menu
-      setDeleteModalOpen(false);
-      onClose();
-    } catch (error) {
-      console.error("Failed to delete canvas:", error);
-      alert("Failed to delete canvas. Please try again.");
-      // Close modal on error to avoid stuck state
-      setDeleteModalOpen(false);
-    }
-  };
-
-  const handleCancelDelete = () => {
-    setDeleteModalOpen(false);
-    onClose(); // Close the context menu as well
+    dispatch({ type: "SET_CANVAS_TO_DELETE", payload: canvas });
+    dispatch({ type: "SET_CANVAS_DELETE_MODAL_OPEN", payload: true });
+    onClose();
   };
 
   const handleAddToProject = async (projectId: string) => {
@@ -466,7 +411,11 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
 
         <button
           style={menuItemStyles}
-          onClick={() => setRenameModalOpen(true)}
+          onClick={() => {
+            dispatch({ type: "SET_CANVAS_TO_RENAME", payload: canvas });
+            dispatch({ type: "SET_RENAME_MODAL_OPEN", payload: true });
+            onClose();
+          }}
           onMouseEnter={(e) => {
             e.currentTarget.style.background = "var(--theme-bg-hover)";
           }}
@@ -675,23 +624,6 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
           {/* </span> */}
         </button>
       </motion.div>
-      {isRenameModalOpen && (
-        <RenameModal
-          currentName={canvas.name}
-          onRename={handleRename}
-          onClose={() => {
-            setRenameModalOpen(false);
-            onClose(); // Close the context menu as well
-          }}
-        />
-      )}
-      {isDeleteModalOpen && (
-        <CanvasDeleteModal
-          canvas={canvas}
-          onConfirm={handleConfirmDelete}
-          onCancel={handleCancelDelete}
-        />
-      )}
     </>,
     document.body,
   );

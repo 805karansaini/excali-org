@@ -20,6 +20,7 @@ import {
 import { SearchModal } from "./SearchModal";
 import { HelpOverlay } from "./HelpOverlay";
 import CanvasDeleteModal from "./CanvasDeleteModal";
+import { RenameModal } from "./RenameModal";
 import { ProjectFormModal } from "./ProjectFormModal";
 import { ContextMenu } from "./ContextMenu";
 import { ProjectContextMenu } from "./ProjectContextMenu";
@@ -43,6 +44,7 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
     getCanvasesForProject,
     getUnorganizedCanvases,
     removeCanvas,
+    saveCanvas,
   } = useUnifiedState();
   const [isResizing, setIsResizing] = useState(false);
   const [showWidthIndicator, setShowWidthIndicator] = useState(false);
@@ -297,6 +299,37 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
   const handleCancelCanvasDelete = useCallback(() => {
     dispatch({ type: "SET_CANVAS_DELETE_MODAL_OPEN", payload: false });
     dispatch({ type: "SET_CANVAS_TO_DELETE", payload: null });
+  }, [dispatch]);
+
+  // Canvas rename handlers
+  const handleCanvasRename = useCallback(async (newName: string) => {
+    if (!state.canvasToRename) return;
+
+    try {
+      const updatedCanvas = {
+        ...state.canvasToRename,
+        name: newName.trim(),
+        updatedAt: new Date(),
+      };
+      
+      await saveCanvas(updatedCanvas);
+      eventBus.emit(InternalEventTypes.CANVAS_UPDATED, updatedCanvas);
+      
+      // Close the modal
+      dispatch({ type: "SET_RENAME_MODAL_OPEN", payload: false });
+      dispatch({ type: "SET_CANVAS_TO_RENAME", payload: null });
+    } catch (error) {
+      console.error("Failed to rename canvas:", error);
+      dispatch({
+        type: "SET_ERROR",
+        payload: "Failed to rename canvas. Please try again.",
+      });
+    }
+  }, [state.canvasToRename, saveCanvas, dispatch]);
+
+  const handleCancelCanvasRename = useCallback(() => {
+    dispatch({ type: "SET_RENAME_MODAL_OPEN", payload: false });
+    dispatch({ type: "SET_CANVAS_TO_RENAME", payload: null });
   }, [dispatch]);
 
   // Handle window resize and escape key for modals
@@ -1345,6 +1378,13 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
             canvas={state.canvasToDelete}
             onConfirm={handleConfirmCanvasDelete}
             onCancel={handleCancelCanvasDelete}
+          />
+        )}
+        {state.isRenameModalOpen && state.canvasToRename && (
+          <RenameModal
+            currentName={state.canvasToRename.name}
+            onRename={handleCanvasRename}
+            onClose={handleCancelCanvasRename}
           />
         )}
       </AnimatePresence>

@@ -42,6 +42,8 @@ interface UnifiedState {
   isHelpModalOpen: boolean;
   isCanvasDeleteModalOpen: boolean;
   canvasToDelete: UnifiedCanvas | null;
+  isRenameModalOpen: boolean;
+  canvasToRename: UnifiedCanvas | null;
 
   // UI state
   selectedCanvasId: string | null;
@@ -112,6 +114,8 @@ const initialState: UnifiedState = {
   isHelpModalOpen: false,
   isCanvasDeleteModalOpen: false,
   canvasToDelete: null,
+  isRenameModalOpen: false,
+  canvasToRename: null,
 
   // UI state
   selectedCanvasId: null,
@@ -240,6 +244,10 @@ function unifiedStateReducer(
       return { ...state, isCanvasDeleteModalOpen: action.payload };
     case "SET_CANVAS_TO_DELETE":
       return { ...state, canvasToDelete: action.payload };
+    case "SET_RENAME_MODAL_OPEN":
+      return { ...state, isRenameModalOpen: action.payload };
+    case "SET_CANVAS_TO_RENAME":
+      return { ...state, canvasToRename: action.payload };
 
     // UI operations
     case "SET_SELECTED_CANVAS":

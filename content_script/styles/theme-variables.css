@@ -105,3 +105,4 @@ html[data-theme="dark"],
 .project-submenu-scrollable::-webkit-scrollbar-thumb:hover {
   background: var(--theme-border-primary, rgba(0, 0, 0, 0.3));
 }
+

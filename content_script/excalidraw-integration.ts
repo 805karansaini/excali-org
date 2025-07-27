@@ -143,51 +143,6 @@ export class ExcalidrawIntegration {
   }
 
   /**
-   * Update file name display in Excalidraw
-   */
-  updateFileNameDisplay(fileName: string): void {
-    try {
-      // Remove existing file name display
-      const existingDisplay = document.querySelector(
-        ".excalidraw-file-name-display",
-      );
-      if (existingDisplay) {
-        existingDisplay.remove();
-      }
-
-      // Create new file name display
-      const fileNameDisplay = document.createElement("div");
-      fileNameDisplay.className = "excalidraw-file-name-display";
-      fileNameDisplay.textContent = fileName;
-      fileNameDisplay.style.cssText = `
-        position: absolute;
-        top: 5px;
-        left: 48px;
-        padding: 7px 12px;
-        background: rgba(35, 35, 41, 0.9);
-        color: rgba(222, 222, 227);
-        font-family: 'Roboto', 'Arial', sans-serif;
-        font-size: 12px;
-        font-weight: 300;
-        border-radius: 4px;
-        z-index: 1000;
-        backdrop-filter: blur(4px);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-      `;
-
-      // Find appropriate container and inject
-      const appMenu = document.querySelector(".App-menu");
-      if (appMenu) {
-        appMenu.appendChild(fileNameDisplay);
-      } else {
-        document.body.appendChild(fileNameDisplay);
-      }
-    } catch (error) {
-      console.error("Failed to update file name display:", error);
-    }
-  }
-
-  /**
    * Detect current theme from Excalidraw
    */
   detectExcalidrawTheme(): "light" | "dark" {
