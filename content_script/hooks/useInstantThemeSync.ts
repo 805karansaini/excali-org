@@ -9,23 +9,24 @@ interface UseInstantThemeSyncProps {
 }
 
 /**
- * Simplified theme synchronization hook.
- * 
- * Uses two essential detection layers:
- * - Direct localStorage monitoring (primary)
- * - Optimized mutation observer (secondary)
+ * Simple theme synchronization hook.
+ * Syncs extension theme with Excalidraw by polling localStorage.
  */
 export function useInstantThemeSync({
   theme,
   dispatch,
 }: UseInstantThemeSyncProps) {
   const currentThemeRef = useRef<"light" | "dark">(theme);
-  const cleanupFunctionsRef = useRef<Array<() => void>>([]);
 
-  // Smart theme detection with caching
+  // Detect Excalidraw's current theme from localStorage
   const detectExcalidrawTheme = useCallback((): "light" | "dark" => {
     try {
-      // Method 1: Official Excalidraw theme storage (PRIMARY)
+      // Primary: Check excalidraw-theme localStorage key (what Excalidraw actually uses)
+      const excalidrawTheme = localStorage.getItem("excalidraw-theme");
+      if (excalidrawTheme === "dark") return "dark";
+      if (excalidrawTheme === "light") return "light";
+      
+      // Secondary: Check excalidraw-state for theme
       const excalidrawState = localStorage.getItem("excalidraw-state");
       if (excalidrawState) {
         const state = JSON.parse(excalidrawState);
@@ -33,24 +34,14 @@ export function useInstantThemeSync({
           return state.theme;
         }
       }
-
-      // Method 2: Document data-theme attribute (SECONDARY)
-      const documentTheme = document.documentElement.getAttribute("data-theme");
-      if (documentTheme === "dark" || documentTheme === "light") {
-        return documentTheme;
-      }
-
-      // Method 3: System preference fallback (TERTIARY)
-      const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-      return prefersDark ? "dark" : "light";
-    } catch {
-      // Silently fall back to current theme if detection fails
-      return currentThemeRef.current;
-    }
+    } catch {}
+    
+    // Fallback: system preference
+    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
   }, []);
 
-  // Instant theme update with event emission
-  const updateThemeInstantly = useCallback(
+  // Update theme when it changes
+  const updateTheme = useCallback(
     (newTheme: "light" | "dark") => {
       if (newTheme !== currentThemeRef.current) {
         currentThemeRef.current = newTheme;
@@ -62,102 +53,24 @@ export function useInstantThemeSync({
     [dispatch]
   );
 
-  // Layer 1: Direct localStorage monitoring (ESSENTIAL)
-  const setupDirectStorageMonitoring = useCallback(() => {
-    let currentTheme = detectExcalidrawTheme();
-    currentThemeRef.current = currentTheme;
-
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === "excalidraw-state" && e.newValue) {
-        try {
-          const newState = JSON.parse(e.newValue);
-          if (newState.theme && newState.theme !== currentTheme) {
-            currentTheme = newState.theme;
-            updateThemeInstantly(currentTheme);
-          }
-        } catch {
-          // Silently ignore parsing errors for storage events
-        }
-      }
-    };
-
-    window.addEventListener("storage", handleStorageChange);
-    return () => window.removeEventListener("storage", handleStorageChange);
-  }, [detectExcalidrawTheme, updateThemeInstantly]);
-
-  // Layer 2: Optimized mutation observer (ESSENTIAL)
-  const setupMutationObserver = useCallback(() => {
-    let updateScheduled = false;
-
-    const throttledUpdate = () => {
-      if (!updateScheduled) {
-        updateScheduled = true;
-        requestAnimationFrame(() => {
-          const detectedTheme = detectExcalidrawTheme();
-          if (detectedTheme !== currentThemeRef.current) {
-            updateThemeInstantly(detectedTheme);
-          }
-          updateScheduled = false;
-        });
-      }
-    };
-
-    const observer = new MutationObserver(() => {
-      throttledUpdate();
-    });
-
-    // Observe document for theme attribute changes
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["data-theme", "class"],
-    });
-
-    // Find and observe Excalidraw container if it exists
-    const excalidrawContainer = document.querySelector(".excalidraw");
-    if (excalidrawContainer) {
-      observer.observe(excalidrawContainer, {
-        attributes: true,
-        attributeFilter: ["data-theme", "class"],
-        subtree: true,
-      });
-    }
-
-    return () => {
-      observer.disconnect();
-    };
-  }, [detectExcalidrawTheme, updateThemeInstantly]);
-
-  // Setup detection layers
+  // Simple polling to detect theme changes
   useEffect(() => {
-    // Clear any existing cleanup functions
-    cleanupFunctionsRef.current.forEach((cleanup) => cleanup());
-    cleanupFunctionsRef.current = [];
-
-    // Initial theme detection and setup
+    // Initial theme sync
     const initialTheme = detectExcalidrawTheme();
     if (initialTheme !== currentThemeRef.current) {
-      updateThemeInstantly(initialTheme);
+      updateTheme(initialTheme);
     }
 
-    // Layer 1: Direct localStorage monitoring
-    const storageCleanup = setupDirectStorageMonitoring();
-    cleanupFunctionsRef.current.push(storageCleanup);
+    // Poll for theme changes every 200ms
+    const interval = setInterval(() => {
+      const detectedTheme = detectExcalidrawTheme();
+      if (detectedTheme !== currentThemeRef.current) {
+        updateTheme(detectedTheme);
+      }
+    }, 200);
 
-    // Layer 2: Optimized mutation observer
-    const mutationCleanup = setupMutationObserver();
-    cleanupFunctionsRef.current.push(mutationCleanup);
-
-    // Cleanup function
-    return () => {
-      cleanupFunctionsRef.current.forEach((cleanup) => cleanup());
-      cleanupFunctionsRef.current = [];
-    };
-  }, [
-    detectExcalidrawTheme,
-    updateThemeInstantly,
-    setupDirectStorageMonitoring,
-    setupMutationObserver,
-  ]);
+    return () => clearInterval(interval);
+  }, [detectExcalidrawTheme, updateTheme]);
 
   // Update ref when prop changes
   useEffect(() => {

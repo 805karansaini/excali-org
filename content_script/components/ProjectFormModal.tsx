@@ -241,14 +241,14 @@ export const ProjectFormModal = React.memo(function ProjectFormModal(props: Prop
   };
 
   const modalStyles: React.CSSProperties = {
-    width: "100%",
+    width: "calc(100vw - 32px)",
     maxWidth: "500px",
     background: "var(--theme-bg-primary, #ffffff)",
     border: "1px solid var(--theme-border-primary, rgba(0, 0, 0, 0.1))",
     borderRadius: "16px",
     boxShadow: "var(--theme-shadow-lg, 0 20px 40px rgba(0, 0, 0, 0.1))",
     overflow: "hidden",
-    margin: "0 16px",
+    margin: "0 auto",
   };
 
   const headerStyles: React.CSSProperties = {
@@ -266,6 +266,7 @@ export const ProjectFormModal = React.memo(function ProjectFormModal(props: Prop
     fontSize: "14px",
     outline: "none",
     transition: "border-color 0.2s ease",
+    boxSizing: "border-box",
   };
 
   const textareaStyles: React.CSSProperties = {

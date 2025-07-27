@@ -12,6 +12,7 @@ import {
 import { useUnifiedState } from "../context/UnifiedStateProvider";
 import { eventBus, InternalEventTypes } from "../messaging/InternalEventBus";
 import { RenameModal } from "./RenameModal";
+import CanvasDeleteModal from "./CanvasDeleteModal";
 // import { getExtensionShortcuts } from "../hooks/useKeyboardShortcuts";
 import { UnifiedCanvas, UnifiedProject } from "../../shared/types";
 
@@ -23,10 +24,11 @@ interface Props {
 }
 
 export function ContextMenu({ x, y, canvas, onClose }: Props) {
-  const { state, dispatch, saveCanvas, saveProject, createCanvas } =
+  const { state, dispatch, saveCanvas, saveProject, createCanvas, removeCanvas } =
     useUnifiedState();
   const [showAddToProject, setShowAddToProject] = useState(false);
   const [isRenameModalOpen, setRenameModalOpen] = useState(false);
+  const [isDeleteModalOpen, setDeleteModalOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Position menu to stay within viewport
@@ -62,14 +64,25 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
   // Close on outside click
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+      if (
+        menuRef.current &&
+        !menuRef.current.contains(e.target as Node) &&
+        !isRenameModalOpen && // Don't close if rename modal is open
+        !isDeleteModalOpen // Don't close if delete modal is open
+      ) {
         onClose();
       }
     };
 
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        onClose();
+        if (isRenameModalOpen) {
+          setRenameModalOpen(false);
+        } else if (isDeleteModalOpen) {
+          setDeleteModalOpen(false);
+        } else {
+          onClose();
+        }
       }
     };
 
@@ -84,7 +97,7 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
       document.removeEventListener("mousedown", handleClickOutside);
       document.removeEventListener("keydown", handleEscape);
     };
-  }, [onClose]);
+  }, [onClose, isRenameModalOpen, isDeleteModalOpen]);
 
   const handleRename = async (newName: string) => {
     const updatedCanvas = {
@@ -105,7 +118,7 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
   const handleDuplicate = async () => {
     const newCanvas: UnifiedCanvas = {
       ...canvas,
-      id: `canvas-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      id: `canvas-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
       name: `${canvas.name} (Copy)`,
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -123,9 +136,36 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
   };
 
   const handleDelete = () => {
-    dispatch({ type: "SET_CANVAS_TO_DELETE", payload: canvas });
-    dispatch({ type: "SET_CANVAS_DELETE_MODAL_OPEN", payload: true });
-    onClose();
+    setDeleteModalOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    try {
+      // Create replacement function that uses the event bus
+      const createReplacementCanvas = async () => {
+        await eventBus.emit(InternalEventTypes.REQUEST_NEW_CANVAS, null);
+      };
+      
+      // Use existing removeCanvas logic with event-based replacement
+      await removeCanvas(canvas.id, createReplacementCanvas);
+      
+      // Emit deletion event for any listeners
+      eventBus.emit(InternalEventTypes.CANVAS_DELETED, canvas);
+      
+      // Close modal and context menu
+      setDeleteModalOpen(false);
+      onClose();
+    } catch (error) {
+      console.error("Failed to delete canvas:", error);
+      alert("Failed to delete canvas. Please try again.");
+      // Close modal on error to avoid stuck state
+      setDeleteModalOpen(false);
+    }
+  };
+
+  const handleCancelDelete = () => {
+    setDeleteModalOpen(false);
+    onClose(); // Close the context menu as well
   };
 
   const handleAddToProject = async (projectId: string) => {
@@ -539,7 +579,17 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
         <RenameModal
           currentName={canvas.name}
           onRename={handleRename}
-          onClose={() => setRenameModalOpen(false)}
+          onClose={() => {
+            setRenameModalOpen(false);
+            onClose(); // Close the context menu as well
+          }}
+        />
+      )}
+      {isDeleteModalOpen && (
+        <CanvasDeleteModal
+          canvas={canvas}
+          onConfirm={handleConfirmDelete}
+          onCancel={handleCancelDelete}
         />
       )}
     </>,
