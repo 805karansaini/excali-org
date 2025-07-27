@@ -16,7 +16,8 @@ export function getExtensionShortcuts() {
   return {
     shortcuts: {
       "Toggle Panel": `${ctrlCmd} + B`,
-      "Navigate Canvases": `${ctrlCmd} + ${modifier} + ↑/↓`,
+      // TODO-later: Navigate Canvases functionality may be added back later
+      // "Navigate Canvases": `${ctrlCmd} + ${modifier} + ↑/↓`,
       "Close Modals / Focus Panel": "Escape",
       "New Canvas": `${modifier} + N`,
       "Duplicate Canvas": `${ctrlCmd} + Shift + D`,
@@ -24,7 +25,6 @@ export function getExtensionShortcuts() {
       "Rename Canvas": `F2`,
       "New Project": `${modifier} + Shift + N`,
       Search: `${ctrlCmd} + Shift + F`,
-      "Refresh Data": `${modifier} + F5`,
       Help: `F1`,
     },
     modifiers: {
@@ -185,41 +185,42 @@ export function useKeyboardShortcuts({
     }
   }, [state.selectedCanvasId, state.canvases, saveCanvas]);
 
-  const handleNavigateCanvases = useCallback(
-    (direction: "next" | "prev") => {
-      const visibleCanvases = state.canvases
-        .filter(() => true)
-        .sort(
-          (a, b) =>
-            new Date(b.updatedAt || b.createdAt).getTime() -
-            new Date(a.updatedAt || a.createdAt).getTime(),
-        );
-
-      if (visibleCanvases.length === 0) return;
-
-      const currentIndex = state.selectedCanvasId
-        ?
-        visibleCanvases.findIndex((c) => c.id === state.selectedCanvasId)
-        : -1;
-
-      let newIndex;
-      if (direction === "next") {
-        newIndex =
-          currentIndex < visibleCanvases.length - 1 ? currentIndex + 1 : 0;
-      } else {
-        newIndex =
-          currentIndex > 0 ? currentIndex - 1 : visibleCanvases.length - 1;
-      }
-
-      const nextCanvas = visibleCanvases[newIndex];
-      if (nextCanvas) {
-        dispatch({ type: "SET_SELECTED_CANVAS", payload: nextCanvas.id });
-        eventBus.emit(InternalEventTypes.CANVAS_SELECTED, nextCanvas);
-        eventBus.emit(InternalEventTypes.LOAD_CANVAS_TO_EXCALIDRAW, nextCanvas);
-      }
-    },
-    [state.canvases, state.selectedCanvasId, dispatch],
-  );
+  // TODO-later: Navigate Canvases functionality may be added back later
+  // const handleNavigateCanvases = useCallback(
+  //   (direction: "next" | "prev") => {
+  //     const visibleCanvases = state.canvases
+  //       .filter(() => true)
+  //       .sort(
+  //         (a, b) =>
+  //           new Date(b.updatedAt || b.createdAt).getTime() -
+  //           new Date(a.updatedAt || a.createdAt).getTime(),
+  //       );
+  //
+  //     if (visibleCanvases.length === 0) return;
+  //
+  //     const currentIndex = state.selectedCanvasId
+  //       ?
+  //       visibleCanvases.findIndex((c) => c.id === state.selectedCanvasId)
+  //       : -1;
+  //
+  //     let newIndex;
+  //     if (direction === "next") {
+  //       newIndex =
+  //         currentIndex < visibleCanvases.length - 1 ? currentIndex + 1 : 0;
+  //     } else {
+  //       newIndex =
+  //         currentIndex > 0 ? currentIndex - 1 : visibleCanvases.length - 1;
+  //     }
+  //
+  //     const nextCanvas = visibleCanvases[newIndex];
+  //     if (nextCanvas) {
+  //       dispatch({ type: "SET_SELECTED_CANVAS", payload: nextCanvas.id });
+  //       eventBus.emit(InternalEventTypes.CANVAS_SELECTED, nextCanvas);
+  //       eventBus.emit(InternalEventTypes.LOAD_CANVAS_TO_EXCALIDRAW, nextCanvas);
+  //     }
+  //   },
+  //   [state.canvases, state.selectedCanvasId, dispatch],
+  // );
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -310,21 +311,20 @@ export function useKeyboardShortcuts({
       // TODO Later
       if (isTyping()) return;
 
+      // TODO-later: Navigate Canvases functionality may be added back later
       // Navigate Canvases: Ctrl/Cmd + Alt + Up/Down
-      if (
-        ctrlCmdKey &&
-        altKey &&
-        !shiftKey &&
-        (e.key === "ArrowUp" || e.key === "ArrowDown")
-      ) {
-        e.preventDefault();
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-        handleNavigateCanvases(e.key === "ArrowDown" ? "next" : "prev");
-        return;
-      }
-
-
+      // if (
+      //   ctrlCmdKey &&
+      //   altKey &&
+      //   !shiftKey &&
+      //   (e.key === "ArrowUp" || e.key === "ArrowDown")
+      // ) {
+      //   e.preventDefault();
+      //   e.stopPropagation();
+      //   e.stopImmediatePropagation();
+      //   handleNavigateCanvases(e.key === "ArrowDown" ? "next" : "prev");
+      //   return;
+      // }
 
       // Delete Canvas: Alt + Delete
       if (altKey && !ctrlCmdKey && !shiftKey && e.key === "Delete") {
@@ -345,14 +345,6 @@ export function useKeyboardShortcuts({
       }
 
 
-      // Refresh Data: Alt + F5
-      if (altKey && !ctrlCmdKey && !shiftKey && e.key === "F5") {
-        e.preventDefault();
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-        eventBus.emit(InternalEventTypes.REFRESH_DATA, null);
-        return;
-      }
 
     };
 
@@ -372,7 +364,7 @@ export function useKeyboardShortcuts({
     handleDeleteSelected,
     handleDuplicateSelected,
     handleRenameSelected,
-    handleNavigateCanvases,
+    // handleNavigateCanvases, // TODO-later: Commented out with navigate canvases functionality
     showHelpDialog,
     handleNewCanvasShortcut,
   ]);
