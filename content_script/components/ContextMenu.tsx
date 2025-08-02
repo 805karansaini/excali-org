@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -11,8 +11,7 @@ import {
 } from "lucide-react";
 import { useUnifiedState } from "../context/UnifiedStateProvider";
 import { eventBus, InternalEventTypes } from "../messaging/InternalEventBus";
-import { RenameModal } from "./RenameModal";
-import CanvasDeleteModal from "./CanvasDeleteModal";
+import { sortProjectsByActivity, SUBMENU_CONSTANTS } from "../../shared/utils";
 // import { getExtensionShortcuts } from "../hooks/useKeyboardShortcuts";
 import { UnifiedCanvas, UnifiedProject } from "../../shared/types";
 
@@ -24,11 +23,9 @@ interface Props {
 }
 
 export function ContextMenu({ x, y, canvas, onClose }: Props) {
-  const { state, dispatch, saveCanvas, saveProject, createCanvas, removeCanvas } =
+  const { state, dispatch, saveCanvas, saveProject, createCanvas } =
     useUnifiedState();
   const [showAddToProject, setShowAddToProject] = useState(false);
-  const [isRenameModalOpen, setRenameModalOpen] = useState(false);
-  const [isDeleteModalOpen, setDeleteModalOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Position menu to stay within viewport
@@ -66,9 +63,7 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
     const handleClickOutside = (e: MouseEvent) => {
       if (
         menuRef.current &&
-        !menuRef.current.contains(e.target as Node) &&
-        !isRenameModalOpen && // Don't close if rename modal is open
-        !isDeleteModalOpen // Don't close if delete modal is open
+        !menuRef.current.contains(e.target as Node)
       ) {
         onClose();
       }
@@ -76,13 +71,7 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
 
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        if (isRenameModalOpen) {
-          setRenameModalOpen(false);
-        } else if (isDeleteModalOpen) {
-          setDeleteModalOpen(false);
-        } else {
-          onClose();
-        }
+        onClose();
       }
     };
 
@@ -97,23 +86,7 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
       document.removeEventListener("mousedown", handleClickOutside);
       document.removeEventListener("keydown", handleEscape);
     };
-  }, [onClose, isRenameModalOpen, isDeleteModalOpen]);
-
-  const handleRename = async (newName: string) => {
-    const updatedCanvas = {
-      ...canvas,
-      name: newName,
-      updatedAt: new Date(),
-    };
-
-    try {
-      await saveCanvas(updatedCanvas);
-      eventBus.emit(InternalEventTypes.CANVAS_UPDATED, updatedCanvas);
-    } catch (error) {
-      console.error("Failed to save renamed canvas:", error);
-      alert("Failed to rename canvas. Please try again.");
-    }
-  };
+  }, [onClose]);
 
   const handleDuplicate = async () => {
     const newCanvas: UnifiedCanvas = {
@@ -136,36 +109,9 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
   };
 
   const handleDelete = () => {
-    setDeleteModalOpen(true);
-  };
-
-  const handleConfirmDelete = async () => {
-    try {
-      // Create replacement function that uses the event bus
-      const createReplacementCanvas = async () => {
-        await eventBus.emit(InternalEventTypes.REQUEST_NEW_CANVAS, null);
-      };
-      
-      // Use existing removeCanvas logic with event-based replacement
-      await removeCanvas(canvas.id, createReplacementCanvas);
-      
-      // Emit deletion event for any listeners
-      eventBus.emit(InternalEventTypes.CANVAS_DELETED, canvas);
-      
-      // Close modal and context menu
-      setDeleteModalOpen(false);
-      onClose();
-    } catch (error) {
-      console.error("Failed to delete canvas:", error);
-      alert("Failed to delete canvas. Please try again.");
-      // Close modal on error to avoid stuck state
-      setDeleteModalOpen(false);
-    }
-  };
-
-  const handleCancelDelete = () => {
-    setDeleteModalOpen(false);
-    onClose(); // Close the context menu as well
+    dispatch({ type: "SET_CANVAS_TO_DELETE", payload: canvas });
+    dispatch({ type: "SET_CANVAS_DELETE_MODAL_OPEN", payload: true });
+    onClose();
   };
 
   const handleAddToProject = async (projectId: string) => {
@@ -295,11 +241,26 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
     onClose();
   };
 
+  // Memoized canvas counts by project for performance
+  const canvasCountsByProject = useMemo(() => {
+    const counts = new Map<string, number>();
+    state.canvases.forEach(canvas => {
+      if (canvas.projectId) {
+        counts.set(canvas.projectId, (counts.get(canvas.projectId) || 0) + 1);
+      }
+    });
+    return counts;
+  }, [state.canvases]);
+
   // Get available projects for adding (exclude current project)
-  const availableProjectsForAdd = state.projects.filter(
-    (project) =>
-      !(project.canvasIds || []).includes(canvas.id),
+  const availableProjectsForAdd = useMemo(() => 
+    sortProjectsByActivity(
+      state.projects.filter((project) => project.id !== canvas.projectId),
+      (projectId) => canvasCountsByProject.get(projectId) || 0
+    ),
+    [state.projects, canvas.projectId, canvasCountsByProject]
   );
+
 
   const currentProject = canvas.projectId
     ? state.projects.find((p) => p.id === canvas.projectId)
@@ -336,17 +297,84 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
     transition: "background-color 0.15s ease",
   };
 
-  const submenuStyles: React.CSSProperties = {
-    position: "absolute",
-    left: "100%",
-    top: 0,
-    background: "var(--theme-bg-primary, #ffffff)",
-    border: "1px solid var(--theme-border-primary, rgba(0, 0, 0, 0.1))",
-    borderRadius: "8px",
-    boxShadow: "var(--theme-shadow-lg, 0 8px 32px rgba(0, 0, 0, 0.1))",
-    minWidth: "180px",
-    padding: "8px 0",
-    marginLeft: "4px",
+  const getSubmenuStyles = (): React.CSSProperties => {
+    // Calculate available space and optimal positioning
+    const viewportHeight = window.innerHeight;
+    const viewportWidth = window.innerWidth;
+    const menuRect = menuRef.current?.getBoundingClientRect();
+    
+    if (!menuRect) {
+      // Fallback if menu ref is not available
+      return {
+        position: "absolute",
+        left: "100%",
+        top: 0,
+        background: "var(--theme-bg-primary, #ffffff)",
+        border: "1px solid var(--theme-border-primary, rgba(0, 0, 0, 0.1))",
+        borderRadius: "8px",
+        boxShadow: "var(--theme-shadow-lg, 0 8px 32px rgba(0, 0, 0, 0.1))",
+        minWidth: "180px",
+        maxWidth: "250px",
+        padding: "8px 0",
+        marginLeft: "4px",
+        maxHeight: "300px",
+        overflowY: "auto",
+        zIndex: 10000000,
+      };
+    }
+
+    // Calculate submenu dimensions
+    const estimatedSubmenuHeight = Math.min(
+      availableProjectsForAdd.length * SUBMENU_CONSTANTS.ITEM_HEIGHT + SUBMENU_CONSTANTS.PADDING,
+      SUBMENU_CONSTANTS.MAX_HEIGHT
+    );
+    
+    // Determine horizontal position (left or right of menu)
+    const spaceOnRight = viewportWidth - (menuRect.right + SUBMENU_CONSTANTS.MARGIN);
+    const spaceOnLeft = menuRect.left - SUBMENU_CONSTANTS.MARGIN;
+    const shouldShowOnLeft = spaceOnRight < SUBMENU_CONSTANTS.SUBMENU_WIDTH && spaceOnLeft > SUBMENU_CONSTANTS.SUBMENU_WIDTH;
+    
+    // Determine vertical position
+    const spaceBelow = viewportHeight - menuRect.top;
+    const spaceAbove = menuRect.top;
+    
+    let topPosition = 0;
+    let maxHeight = Math.min(SUBMENU_CONSTANTS.MAX_HEIGHT, spaceBelow - 20); // Leave some margin
+    
+    // If there's not enough space below, try to position it better
+    if (estimatedSubmenuHeight > spaceBelow - 20) {
+      if (spaceAbove > spaceBelow) {
+        // More space above, position submenu to grow upward
+        topPosition = Math.max(-estimatedSubmenuHeight + SUBMENU_CONSTANTS.ITEM_HEIGHT, -menuRect.top + 10);
+        maxHeight = Math.min(SUBMENU_CONSTANTS.MAX_HEIGHT, spaceAbove + SUBMENU_CONSTANTS.ITEM_HEIGHT);
+      } else {
+        // Keep it below but limit height and add scrolling
+        topPosition = Math.max(0, -Math.min(estimatedSubmenuHeight - spaceBelow + 20, menuRect.height - 20));
+        maxHeight = Math.min(SUBMENU_CONSTANTS.MAX_HEIGHT, spaceBelow - 20);
+      }
+    }
+
+    return {
+      position: "absolute",
+      left: shouldShowOnLeft ? "auto" : "100%",
+      right: shouldShowOnLeft ? "100%" : "auto",
+      top: topPosition,
+      background: "var(--theme-bg-primary, #ffffff)",
+      border: "1px solid var(--theme-border-primary, rgba(0, 0, 0, 0.1))",
+      borderRadius: "8px",
+      boxShadow: "var(--theme-shadow-lg, 0 8px 32px rgba(0, 0, 0, 0.1))",
+      minWidth: "180px",
+      maxWidth: "250px",
+      padding: "8px 0",
+      marginLeft: shouldShowOnLeft ? `-${SUBMENU_CONSTANTS.MARGIN}px` : `${SUBMENU_CONSTANTS.MARGIN}px`,
+      marginRight: shouldShowOnLeft ? `${SUBMENU_CONSTANTS.MARGIN}px` : `-${SUBMENU_CONSTANTS.MARGIN}px`,
+      maxHeight: `${maxHeight}px`,
+      overflowY: "auto",
+      zIndex: 10000000,
+      // Custom scrollbar styling
+      scrollbarWidth: "thin",
+      scrollbarColor: "var(--theme-border-secondary) transparent",
+    };
   };
 
   return createPortal(
@@ -383,7 +411,11 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
 
         <button
           style={menuItemStyles}
-          onClick={() => setRenameModalOpen(true)}
+          onClick={() => {
+            dispatch({ type: "SET_CANVAS_TO_RENAME", payload: canvas });
+            dispatch({ type: "SET_RENAME_MODAL_OPEN", payload: true });
+            onClose();
+          }}
           onMouseEnter={(e) => {
             e.currentTarget.style.background = "var(--theme-bg-hover)";
           }}
@@ -450,13 +482,29 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
 
             <AnimatePresence>
               {showAddToProject && (
-                <motion.div
-                  style={submenuStyles}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -10 }}
-                  transition={{ duration: 0.15 }}
-                >
+                <>
+                  <motion.div
+                    className="project-submenu-scrollable"
+                    style={getSubmenuStyles()}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -10 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                  {availableProjectsForAdd.length > 10 && (
+                    <div
+                      style={{
+                        padding: "4px 12px",
+                        fontSize: "12px",
+                        color: "var(--theme-text-secondary, rgba(0, 0, 0, 0.6))",
+                        borderBottom: "1px solid var(--theme-border-secondary)",
+                        marginBottom: "4px",
+                        background: "var(--theme-bg-secondary, rgba(0, 0, 0, 0.02))",
+                      }}
+                    >
+                      {availableProjectsForAdd.length} projects • Scroll to see all
+                    </div>
+                  )}
                   {availableProjectsForAdd.map((project) => (
                     <button
                       key={project.id}
@@ -493,7 +541,8 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
                       </span>
                     </button>
                   ))}
-                </motion.div>
+                  </motion.div>
+                </>
               )}
             </AnimatePresence>
           </div>
@@ -575,23 +624,6 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
           {/* </span> */}
         </button>
       </motion.div>
-      {isRenameModalOpen && (
-        <RenameModal
-          currentName={canvas.name}
-          onRename={handleRename}
-          onClose={() => {
-            setRenameModalOpen(false);
-            onClose(); // Close the context menu as well
-          }}
-        />
-      )}
-      {isDeleteModalOpen && (
-        <CanvasDeleteModal
-          canvas={canvas}
-          onConfirm={handleConfirmDelete}
-          onCancel={handleCancelDelete}
-        />
-      )}
     </>,
     document.body,
   );

@@ -90,3 +90,19 @@ html[data-theme="dark"],
   --theme-shadow-md: 0 0 20px rgba(0, 0, 0, 0.2) !important;
   --theme-shadow-lg: 0 20px 40px rgba(0, 0, 0, 0.2) !important;
 }
+
+/* Scrollbar styles for project submenu */
+.project-submenu-scrollable::-webkit-scrollbar {
+  width: 6px;
+}
+.project-submenu-scrollable::-webkit-scrollbar-track {
+  background: transparent;
+}
+.project-submenu-scrollable::-webkit-scrollbar-thumb {
+  background: var(--theme-border-secondary, rgba(0, 0, 0, 0.2));
+  border-radius: 3px;
+}
+.project-submenu-scrollable::-webkit-scrollbar-thumb:hover {
+  background: var(--theme-border-primary, rgba(0, 0, 0, 0.3));
+}
+

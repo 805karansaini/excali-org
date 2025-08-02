@@ -53,7 +53,8 @@ export function HelpOverlay() {
       title: "Navigation",
       shortcuts: [
         { action: "Toggle Panel", shortcut: getShortcut("Toggle Panel") },
-        { action: "Navigate Canvases", shortcut: getShortcut("Navigate Canvases") },
+        // TODO-later: Navigate Canvases functionality may be added back later
+        // { action: "Navigate Canvases", shortcut: getShortcut("Navigate Canvases") },
         { action: "Search", shortcut: getShortcut("Search") },
       ]
     },
@@ -75,7 +76,6 @@ export function HelpOverlay() {
     {
       title: "System",
       shortcuts: [
-        { action: "Refresh Data", shortcut: getShortcut("Refresh Data") },
         { action: "Help", shortcut: getShortcut("Help") },
         { action: "Close Modals / Focus Panel", shortcut: getShortcut("Close Modals / Focus Panel") },
       ]

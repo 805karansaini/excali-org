@@ -16,7 +16,8 @@ export function getExtensionShortcuts() {
   return {
     shortcuts: {
       "Toggle Panel": `${ctrlCmd} + B`,
-      "Navigate Canvases": `${ctrlCmd} + ${modifier} + ↑/↓`,
+      // TODO-later: Navigate Canvases functionality may be added back later
+      // "Navigate Canvases": `${ctrlCmd} + ${modifier} + ↑/↓`,
       "Close Modals / Focus Panel": "Escape",
       "New Canvas": `${modifier} + N`,
       "Duplicate Canvas": `${ctrlCmd} + Shift + D`,
@@ -24,7 +25,6 @@ export function getExtensionShortcuts() {
       "Rename Canvas": `F2`,
       "New Project": `${modifier} + Shift + N`,
       Search: `${ctrlCmd} + Shift + F`,
-      "Refresh Data": `${modifier} + F5`,
       Help: `F1`,
     },
     modifiers: {
@@ -39,7 +39,7 @@ export function useKeyboardShortcuts({
   onNewProject,
   onTogglePanel,
 }: KeyboardShortcutsProps) {
-  const { state, dispatch, saveCanvas, createCanvas } =
+  const { state, dispatch, createCanvas } =
     useUnifiedState();
 
   const showHelpDialog = useCallback(() => {
@@ -53,7 +53,6 @@ export function useKeyboardShortcuts({
       let counter = 1;
       let finalName = baseName;
 
-      // Find unique name
       while (existingNames.includes(finalName)) {
         finalName = `${baseName} ${counter}`;
         counter++;
@@ -79,18 +78,14 @@ export function useKeyboardShortcuts({
         lastModified: new Date().toISOString(),
       };
 
-      // Create the canvas using the existing createCanvas function
       const createdCanvas = await createCanvas(newCanvas);
 
-      // Select the new canvas
       dispatch({ type: "SET_SELECTED_CANVAS", payload: createdCanvas.id });
 
-      // Emit events
       eventBus.emit(InternalEventTypes.CANVAS_CREATED, createdCanvas);
       eventBus.emit(InternalEventTypes.LOAD_CANVAS_TO_EXCALIDRAW, createdCanvas);
     } catch (error) {
       console.error("Error creating new canvas via keyboard shortcut:", error);
-      // Show error to user
       dispatch({
         type: "SET_ERROR",
         payload:
@@ -99,6 +94,7 @@ export function useKeyboardShortcuts({
       });
     }
   }, [state.canvases, dispatch, createCanvas]);
+
 
   const isTyping = useCallback(() => {
     const activeElement = document.activeElement;
@@ -114,15 +110,24 @@ export function useKeyboardShortcuts({
   }, []);
 
   const handleDeleteSelected = useCallback(async () => {
-    if (!state.selectedCanvasId) return;
-    const selectedCanvas = state.canvases.find(
-      (c) => c.id === state.selectedCanvasId,
-    );
-    if (!selectedCanvas) return;
+    // Try to use currentWorkingCanvasId first (the canvas that's currently loaded in Excalidraw)
+    // If that's not available, fall back to selectedCanvasId
+    const canvasIdToUse = state.currentWorkingCanvasId || state.selectedCanvasId;
 
-    dispatch({ type: "SET_CANVAS_TO_DELETE", payload: selectedCanvas });
+    if (!canvasIdToUse) {
+      alert("Please select a canvas first to delete it.");
+      return;
+    }
+
+    const canvas = state.canvases.find((c) => c.id === canvasIdToUse);
+    if (!canvas) {
+      alert("Selected canvas not found.");
+      return;
+    }
+
+    dispatch({ type: "SET_CANVAS_TO_DELETE", payload: canvas });
     dispatch({ type: "SET_CANVAS_DELETE_MODAL_OPEN", payload: true });
-  }, [state.selectedCanvasId, state.canvases, dispatch]);
+  }, [state.selectedCanvasId, state.currentWorkingCanvasId, state.canvases, dispatch]);
 
   const handleDuplicateSelected = useCallback(async () => {
     // Try to use currentWorkingCanvasId first (the canvas that's currently loaded in Excalidraw)
@@ -162,64 +167,61 @@ export function useKeyboardShortcuts({
   }, [state.selectedCanvasId, state.currentWorkingCanvasId, state.canvases, createCanvas, dispatch]);
 
   const handleRenameSelected = useCallback(async () => {
-    if (!state.selectedCanvasId) return;
-    const selectedCanvas = state.canvases.find(
-      (c) => c.id === state.selectedCanvasId,
-    );
-    if (!selectedCanvas) return;
+    // Try to use currentWorkingCanvasId first (the canvas that's currently loaded in Excalidraw)
+    // If that's not available, fall back to selectedCanvasId
+    const canvasIdToUse = state.currentWorkingCanvasId || state.selectedCanvasId;
 
-    const newName = prompt("Enter new name:", selectedCanvas.name);
-    if (newName && newName.trim() !== selectedCanvas.name) {
-      const updatedCanvas = {
-        ...selectedCanvas,
-        name: newName.trim(),
-        updatedAt: new Date(),
-      };
-      try {
-        await saveCanvas(updatedCanvas);
-        eventBus.emit(InternalEventTypes.CANVAS_UPDATED, updatedCanvas);
-      } catch (error) {
-        console.error("Failed to rename canvas via keyboard shortcut:", error);
-        alert("Failed to rename canvas. Please try again.");
-      }
+    if (!canvasIdToUse) {
+      alert("Please select a canvas first to rename it.");
+      return;
     }
-  }, [state.selectedCanvasId, state.canvases, saveCanvas]);
 
-  const handleNavigateCanvases = useCallback(
-    (direction: "next" | "prev") => {
-      const visibleCanvases = state.canvases
-        .filter(() => true)
-        .sort(
-          (a, b) =>
-            new Date(b.updatedAt || b.createdAt).getTime() -
-            new Date(a.updatedAt || a.createdAt).getTime(),
-        );
+    const canvas = state.canvases.find((c) => c.id === canvasIdToUse);
+    if (!canvas) {
+      alert("Selected canvas not found.");
+      return;
+    }
 
-      if (visibleCanvases.length === 0) return;
+    dispatch({ type: "SET_CANVAS_TO_RENAME", payload: canvas });
+    dispatch({ type: "SET_RENAME_MODAL_OPEN", payload: true });
+  }, [state.selectedCanvasId, state.currentWorkingCanvasId, state.canvases, dispatch]);
 
-      const currentIndex = state.selectedCanvasId
-        ?
-        visibleCanvases.findIndex((c) => c.id === state.selectedCanvasId)
-        : -1;
-
-      let newIndex;
-      if (direction === "next") {
-        newIndex =
-          currentIndex < visibleCanvases.length - 1 ? currentIndex + 1 : 0;
-      } else {
-        newIndex =
-          currentIndex > 0 ? currentIndex - 1 : visibleCanvases.length - 1;
-      }
-
-      const nextCanvas = visibleCanvases[newIndex];
-      if (nextCanvas) {
-        dispatch({ type: "SET_SELECTED_CANVAS", payload: nextCanvas.id });
-        eventBus.emit(InternalEventTypes.CANVAS_SELECTED, nextCanvas);
-        eventBus.emit(InternalEventTypes.LOAD_CANVAS_TO_EXCALIDRAW, nextCanvas);
-      }
-    },
-    [state.canvases, state.selectedCanvasId, dispatch],
-  );
+  // TODO-later: Navigate Canvases functionality may be added back later
+  // const handleNavigateCanvases = useCallback(
+  //   (direction: "next" | "prev") => {
+  //     const visibleCanvases = state.canvases
+  //       .filter(() => true)
+  //       .sort(
+  //         (a, b) =>
+  //           new Date(b.updatedAt || b.createdAt).getTime() -
+  //           new Date(a.updatedAt || a.createdAt).getTime(),
+  //       );
+  //
+  //     if (visibleCanvases.length === 0) return;
+  //
+  //     const currentIndex = state.selectedCanvasId
+  //       ?
+  //       visibleCanvases.findIndex((c) => c.id === state.selectedCanvasId)
+  //       : -1;
+  //
+  //     let newIndex;
+  //     if (direction === "next") {
+  //       newIndex =
+  //         currentIndex < visibleCanvases.length - 1 ? currentIndex + 1 : 0;
+  //     } else {
+  //       newIndex =
+  //         currentIndex > 0 ? currentIndex - 1 : visibleCanvases.length - 1;
+  //     }
+  //
+  //     const nextCanvas = visibleCanvases[newIndex];
+  //     if (nextCanvas) {
+  //       dispatch({ type: "SET_SELECTED_CANVAS", payload: nextCanvas.id });
+  //       eventBus.emit(InternalEventTypes.CANVAS_SELECTED, nextCanvas);
+  //       eventBus.emit(InternalEventTypes.LOAD_CANVAS_TO_EXCALIDRAW, nextCanvas);
+  //     }
+  //   },
+  //   [state.canvases, state.selectedCanvasId, dispatch],
+  // );
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -258,6 +260,12 @@ export function useKeyboardShortcuts({
         e.stopImmediatePropagation();
         if (state.contextMenu) {
           dispatch({ type: "SET_CONTEXT_MENU", payload: null });
+        } else if (state.projectContextMenu) {
+          dispatch({ type: "SET_PROJECT_CONTEXT_MENU", payload: null });
+        } else if (state.isCanvasDeleteModalOpen) {
+          dispatch({ type: "SET_CANVAS_DELETE_MODAL_OPEN", payload: false });
+        } else if (state.isRenameModalOpen) {
+          dispatch({ type: "SET_RENAME_MODAL_OPEN", payload: false });
         } else if (state.isHelpModalOpen) {
           dispatch({ type: "SET_HELP_MODAL_OPEN", payload: false });
         } else if (state.isSearchModalOpen) {
@@ -310,21 +318,20 @@ export function useKeyboardShortcuts({
       // TODO Later
       if (isTyping()) return;
 
+      // TODO-later: Navigate Canvases functionality may be added back later
       // Navigate Canvases: Ctrl/Cmd + Alt + Up/Down
-      if (
-        ctrlCmdKey &&
-        altKey &&
-        !shiftKey &&
-        (e.key === "ArrowUp" || e.key === "ArrowDown")
-      ) {
-        e.preventDefault();
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-        handleNavigateCanvases(e.key === "ArrowDown" ? "next" : "prev");
-        return;
-      }
-
-
+      // if (
+      //   ctrlCmdKey &&
+      //   altKey &&
+      //   !shiftKey &&
+      //   (e.key === "ArrowUp" || e.key === "ArrowDown")
+      // ) {
+      //   e.preventDefault();
+      //   e.stopPropagation();
+      //   e.stopImmediatePropagation();
+      //   handleNavigateCanvases(e.key === "ArrowDown" ? "next" : "prev");
+      //   return;
+      // }
 
       // Delete Canvas: Alt + Delete
       if (altKey && !ctrlCmdKey && !shiftKey && e.key === "Delete") {
@@ -335,7 +342,7 @@ export function useKeyboardShortcuts({
         return;
       }
 
-      // Rename Canvas: F2
+      // Rename Canvas: F2 (works even when typing)
       if (!altKey && !ctrlCmdKey && !shiftKey && e.key === "F2") {
         e.preventDefault();
         e.stopPropagation();
@@ -344,15 +351,25 @@ export function useKeyboardShortcuts({
         return;
       }
 
+      // TODO Later
+      if (isTyping()) return;
 
-      // Refresh Data: Alt + F5
-      if (altKey && !ctrlCmdKey && !shiftKey && e.key === "F5") {
-        e.preventDefault();
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-        eventBus.emit(InternalEventTypes.REFRESH_DATA, null);
-        return;
-      }
+      // TODO-later: Navigate Canvases functionality may be added back later
+      // Navigate Canvases: Ctrl/Cmd + Alt + Up/Down
+      // if (
+      //   ctrlCmdKey &&
+      //   altKey &&
+      //   !shiftKey &&
+      //   (e.key === "ArrowUp" || e.key === "ArrowDown")
+      // ) {
+      //   e.preventDefault();
+      //   e.stopPropagation();
+      //   e.stopImmediatePropagation();
+      //   handleNavigateCanvases(e.key === "ArrowDown" ? "next" : "prev");
+      //   return;
+      // }
+
+
 
     };
 
@@ -362,8 +379,11 @@ export function useKeyboardShortcuts({
     };
   }, [
     state.contextMenu,
+    state.projectContextMenu,
     state.isSearchModalOpen,
     state.isHelpModalOpen,
+    state.isRenameModalOpen,
+    state.isCanvasDeleteModalOpen,
     isTyping,
     dispatch,
     onNewCanvas,
@@ -372,7 +392,7 @@ export function useKeyboardShortcuts({
     handleDeleteSelected,
     handleDuplicateSelected,
     handleRenameSelected,
-    handleNavigateCanvases,
+    // handleNavigateCanvases, // TODO-later: Commented out with navigate canvases functionality
     showHelpDialog,
     handleNewCanvasShortcut,
   ]);

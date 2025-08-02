@@ -1,4 +1,3 @@
-// TODO: Phase 1.3 - Unified IndexedDB Schema
 // Clean, unified database implementation using Dexie for the new architecture
 // No migration logic needed - fresh start approach
 
@@ -106,18 +105,18 @@ export const canvasOperations = {
       // Atomic update with version checking for concurrent modification detection
       await unifiedDb.transaction('rw', unifiedDb.canvases, async () => {
         const existingCanvas = await unifiedDb.canvases.get(canvas.id);
-        
+
         // Check if canvas was modified by another operation
         if (existingCanvas && existingCanvas.lastModified !== canvas.lastModified) {
           const existingTime = new Date(existingCanvas.lastModified).getTime();
           const incomingTime = new Date(canvas.lastModified).getTime();
-          
+
           // Only warn if the existing version is significantly newer (>1 second)
           if (existingTime > incomingTime + 1000) {
             console.warn(`Canvas ${canvas.id} may have been modified concurrently. Existing: ${existingCanvas.lastModified}, Incoming: ${canvas.lastModified}`);
           }
         }
-        
+
         await unifiedDb.canvases.put(canvas);
       });
     } catch (error) {
@@ -132,18 +131,18 @@ export const canvasOperations = {
   async deleteCanvas(id: string): Promise<void> {
     const maxRetries = 3;
     let attempt = 0;
-    
+
     while (attempt < maxRetries) {
       try {
         await unifiedDb.transaction('rw', unifiedDb.canvases, unifiedDb.projects, async () => {
           // First get the canvas to find its projectId
           const canvas = await unifiedDb.canvases.get(id);
-          
+
           if (!canvas) {
             console.warn(`Canvas ${id} not found for deletion`);
             return; // Canvas already deleted
           }
-          
+
           // Delete the canvas first (fail fast if canvas is locked)
           await unifiedDb.canvases.delete(id);
 
@@ -153,7 +152,7 @@ export const canvasOperations = {
             if (project) {
               const originalCanvasCount = project.canvasIds.length;
               project.canvasIds = project.canvasIds.filter(canvasId => canvasId !== id);
-              
+
               // Only update if there were actual changes
               if (project.canvasIds.length !== originalCanvasCount) {
                 await unifiedDb.projects.put(project);
@@ -214,7 +213,7 @@ export const canvasOperations = {
         // Get canvases to find their projectIds
         const canvases = await unifiedDb.canvases.bulkGet(canvasIds);
         const projectIds = new Set(canvases.filter(c => c?.projectId).map(c => c!.projectId));
-        
+
         // Delete the canvases
         await unifiedDb.canvases.bulkDelete(canvasIds);
 
@@ -460,7 +459,7 @@ export const projectOperations = {
         .toArray();
 
       // If excluding an ID, filter it out
-      const duplicates = excludeId 
+      const duplicates = excludeId
         ? existingProjects.filter(p => p.id !== excludeId)
         : existingProjects;
 
