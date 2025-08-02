@@ -9,6 +9,8 @@ import {
   FileText,
   FolderPlus,
   ChevronRight,
+  Github,
+  HelpCircle,
 } from "lucide-react";
 import { useUnifiedState } from "../context/UnifiedStateProvider";
 import { eventBus, InternalEventTypes } from "../messaging/InternalEventBus";
@@ -68,9 +70,9 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
   // Memoized project sorting for performance
   const { sortedProjects, projectsToShow, hasMoreProjects } = useMemo(() => {
     const sorted = sortProjectsByActivity(state.projects, getCanvasCount);
-    
-    const toShow = showAllProjects 
-      ? sorted 
+
+    const toShow = showAllProjects
+      ? sorted
       : sorted.slice(0, PROJECT_SORT_CONSTANTS.DEFAULT_PAGINATION_LIMIT);
     const hasMore = sorted.length > PROJECT_SORT_CONSTANTS.DEFAULT_PAGINATION_LIMIT;
 
@@ -276,7 +278,7 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
 
       // Use existing removeCanvas logic with event-based replacement
       await removeCanvas(state.canvasToDelete.id, createReplacementCanvas);
-      
+
       // Emit deletion event for any listeners
       eventBus.emit(InternalEventTypes.CANVAS_DELETED, state.canvasToDelete);
 
@@ -311,10 +313,10 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
         name: newName.trim(),
         updatedAt: new Date(),
       };
-      
+
       await saveCanvas(updatedCanvas);
       eventBus.emit(InternalEventTypes.CANVAS_UPDATED, updatedCanvas);
-      
+
       // Close the modal
       dispatch({ type: "SET_RENAME_MODAL_OPEN", payload: false });
       dispatch({ type: "SET_CANVAS_TO_RENAME", payload: null });
@@ -1211,7 +1213,7 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
                         </div>
                       );
                           })}
-                          
+
                           {/* Show More/Less button */}
                           {hasMoreProjects && (
                             <button
@@ -1363,6 +1365,76 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
                     </div>
                   )}
                 </div>
+              </div>
+
+              {/* Footer */}
+              <div
+                style={{
+                  borderTop: `1px solid var(--theme-border-primary)`,
+                  padding: "12px 16px",
+                  flexShrink: 0,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: "8px",
+                }}
+              >
+                <a
+                  href="https://github.com/805karansaini/excali-org"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    color: "var(--theme-text-secondary)",
+                    textDecoration: "none",
+                    fontSize: "12px",
+                    padding: "4px 6px",
+                    borderRadius: "4px",
+                    transition: "all 0.2s ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = "var(--theme-bg-hover)";
+                    e.currentTarget.style.color = "var(--theme-text-primary)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = "transparent";
+                    e.currentTarget.style.color = "var(--theme-text-secondary)";
+                  }}
+                  title="Visit GitHub Profile"
+                >
+                  <Github size={14} />
+                  <span>GitHub</span>
+                </a>
+
+                <button
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    color: "var(--theme-text-secondary)",
+                    cursor: "pointer",
+                    padding: "4px",
+                    borderRadius: "4px",
+                    display: "flex",
+                    alignItems: "center",
+                    transition: "all 0.2s ease",
+                  }}
+                  onClick={() =>
+                    dispatch({ type: "SET_HELP_MODAL_OPEN", payload: true })
+                  }
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = "var(--theme-bg-hover)";
+                    e.currentTarget.style.color = "var(--theme-text-primary)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = "transparent";
+                    e.currentTarget.style.color = "var(--theme-text-secondary)";
+                  }}
+                  title="Show Keyboard Shortcuts (F1)"
+                >
+                  <HelpCircle size={16} />
+                </button>
               </div>
             </motion.div>
           )}
