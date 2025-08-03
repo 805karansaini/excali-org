@@ -845,7 +845,7 @@ export class ExcalidrawDataBridge {
 
     try {
       // Validate operation is still valid for execution
-      const currentOperationId = operationId || `legacy_sync_${canvasId}_${Date.now()}`;
+      const currentOperationId = operationId || `sync_${canvasId}_${Date.now()}`;
       if (!this.isOperationValid(currentOperationId, canvasId)) {
         console.log(`[Operation ${currentOperationId}] Operation validation failed, aborting sync`);
         return;
@@ -948,13 +948,13 @@ export class ExcalidrawDataBridge {
   }
 
   /**
-   * Legacy sync method - delegates to canvas-aware sync
+   * General sync method - delegates to canvas-aware sync
    */
   private async performSync(): Promise<void> {
     if (this.currentCanvasContext) {
       await this.performSyncForCanvas(this.currentCanvasContext);
     } else {
-      console.log("[ExcalidrawDataBridge] No canvas context for legacy sync, skipping");
+      console.log("[ExcalidrawDataBridge] No canvas context for sync, skipping");
     }
   }
 

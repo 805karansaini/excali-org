@@ -1,10 +1,5 @@
 import { ExcalidrawElement, AppState } from "./excalidraw-types";
 
-// Legacy - now handled by InternalEventBus
-export enum STORAGE_KEYS {
-  CURRENT_WORKING_FILE_ID = "current-working-file-id",
-}
-
 export type ExcalidrawType = {
   angle: number;
   backgroundColor: string;
@@ -40,7 +35,7 @@ export interface UnifiedCanvas {
   thumbnail?: string;
   createdAt: Date;
   updatedAt: Date;
-  lastModified: string;
+  lastEditedAt?: Date; // Tracks when the canvas content was actually edited (not just visited)
   projectId?: string;
 
   // Excalidraw data

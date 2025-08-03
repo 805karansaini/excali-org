@@ -1,17 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  Plus,
-  Search,
-  Pin,
-  PinOff,
-  Folder,
-  FileText,
-  FolderPlus,
-  ChevronRight,
-  Github,
-  HelpCircle,
-} from "lucide-react";
+// Pin and PinOff imports moved to PanelHeader component
 import { useUnifiedState } from "../context/UnifiedStateProvider";
 import { eventBus, InternalEventTypes } from "../messaging/InternalEventBus";
 import { sortProjectsByActivity, PROJECT_SORT_CONSTANTS } from "../../shared/utils";
@@ -26,6 +15,16 @@ import { RenameModal } from "./RenameModal";
 import { ProjectFormModal } from "./ProjectFormModal";
 import { ContextMenu } from "./ContextMenu";
 import { ProjectContextMenu } from "./ProjectContextMenu";
+import { PanelHeader } from "./PanelHeader";
+import { PanelFooter } from "./PanelFooter";
+import { ProjectSection } from "./ProjectSection";
+import { CanvasSection } from "./CanvasSection";
+import { 
+  ComponentErrorBoundary, 
+  PanelErrorFallback, 
+  ProjectSectionErrorFallback, 
+  CanvasSectionErrorFallback 
+} from "./ErrorBoundary";
 import { UnifiedCanvas, UnifiedProject } from "../../shared/types";
 import { canvasOperations, settingsOperations } from "../../shared/unified-db";
 import { v4 as uuidv4 } from "uuid";
@@ -167,7 +166,7 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
             type: "text",
             x: 100,
             y: 100,
-            width: 200,
+            width: 250,
             height: 50,
             angle: 0,
             strokeColor: "#000000",
@@ -214,7 +213,6 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
         },
         createdAt: new Date(),
         updatedAt: new Date(),
-        lastModified: new Date().toISOString(), // Backward compatibility
         projectId: undefined,
       };
 
@@ -736,231 +734,19 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
               <div style={widthIndicatorStyle}>{state.panelWidth}px</div>
 
               {/* Header */}
-              <div
-                style={{
-                  padding: "16px",
-                  borderBottom: `1px solid var(--theme-border-primary)`,
-                  flexShrink: 0,
-                }}
+              <ComponentErrorBoundary 
+                fallback={PanelErrorFallback}
+                componentName="PanelHeader"
               >
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    marginBottom: "12px",
-                  }}
-                >
-                  <a
-                    href="https://excali.org"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "12px",
-                      cursor: "pointer",
-                      textDecoration: "none",
-                      transition: "all 0.3s ease",
-                      borderRadius: "8px",
-                      padding: "4px",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.transform = "scale(1.02)";
-                      const glow = e.currentTarget.querySelector('.icon-glow') as HTMLElement;
-                      if (glow) {
-                        glow.style.opacity = "0.3";
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.transform = "scale(1)";
-                      const glow = e.currentTarget.querySelector('.icon-glow') as HTMLElement;
-                      if (glow) {
-                        glow.style.opacity = "0";
-                      }
-                    }}
-                  >
-                    <div style={{ position: "relative" }}>
-                      <img
-                        src={chrome.runtime.getURL("icon-64.png")}
-                        alt="Excali Organizer"
-                        style={{
-                          width: "32px",
-                          height: "32px",
-                          display: "block",
-                        }}
-                      />
-                      <div
-                        style={{
-                          position: "absolute",
-                          inset: "0",
-                          background: "linear-gradient(135deg, var(--theme-accent-primary, #6366f1), var(--theme-accent-secondary, #8b5cf6))",
-                          borderRadius: "50%",
-                          filter: "blur(12px)",
-                          opacity: "0",
-                          transition: "opacity 0.3s ease",
-                          zIndex: "-1",
-                        }}
-                        className="icon-glow"
-                      />
-                    </div>
-                    <span
-                      style={{
-                        fontSize: "20px",
-                        fontWeight: "bold",
-                        background: "linear-gradient(135deg, var(--theme-accent-primary, #6366f1), var(--theme-accent-secondary, #8b5cf6))",
-                        WebkitBackgroundClip: "text",
-                        WebkitTextFillColor: "transparent",
-                        backgroundClip: "text",
-                        transition: "all 0.3s ease",
-                      }}
-                    >
-                      Excali Organizer
-                    </span>
-                  </a>
-                  <button
-                    style={{
-                      background: "transparent",
-                      border: "none",
-                      color: "var(--theme-text-secondary)",
-                      cursor: "pointer",
-                      padding: "4px",
-                      borderRadius: "4px",
-                      display: "flex",
-                      alignItems: "center",
-                      opacity: state.isPanelPinned ? 1 : 0.6,
-                      transition: "opacity 0.2s ease",
-                    }}
-                    onClick={togglePin}
-                    title={state.isPanelPinned ? "Unpin panel" : "Pin panel"}
-                  >
-                    {state.isPanelPinned ? (
-                      <Pin size={16} />
-                    ) : (
-                      <PinOff size={16} />
-                    )}
-                  </button>
-                </div>
-
-                <button
-                  style={{
-                    background:
-                      "linear-gradient(135deg, var(--theme-accent-primary, #6366f1), var(--theme-accent-secondary, #8b5cf6))",
-                    color: "var(--theme-text-on-accent, #ffffff)",
-                    border: "none",
-                    padding: "8px 12px",
-                    borderRadius: "6px",
-                    fontSize: "14px",
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "6px",
-                    width: "100%",
-                    marginBottom: "8px",
-                    transition: "transform 0.1s ease",
-                  }}
-                  onClick={handleNewCanvasEnhanced}
-                  onMouseDown={(e) => {
-                    e.currentTarget.style.transform = "scale(0.98)";
-                  }}
-                  onMouseUp={(e) => {
-                    e.currentTarget.style.transform = "scale(1)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = "scale(1)";
-                  }}
-                >
-                  <Plus size={16} />
-                  <span>New Canvas</span>
-                  <span
-                    style={{
-                      marginLeft: "auto",
-                      fontSize: "12px",
-                      opacity: 0.8,
-                      fontFamily: "monospace",
-                    }}
-                  >
-                    {shortcuts["New Canvas"]}
-                  </span>
-                </button>
-
-                <button
-                  style={{
-                    background: "var(--theme-bg-active)",
-                    color: "var(--theme-text-secondary)",
-                    border: `1px solid var(--theme-border-primary)`,
-                    padding: "8px 12px",
-                    borderRadius: "6px",
-                    fontSize: "14px",
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "6px",
-                    width: "100%",
-                    marginBottom: "8px",
-                    transition: "background-color 0.2s ease",
-                  }}
-                  onClick={() => setShowProjectModal(true)}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = "var(--theme-bg-hover)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = "var(--theme-bg-active)";
-                  }}
-                >
-                  <FolderPlus size={16} />
-                  <span>New Project</span>
-                  <span
-                    style={{
-                      marginLeft: "auto",
-                      fontSize: "12px",
-                      opacity: 0.7,
-                      fontFamily: "monospace",
-                    }}
-                  >
-                    {shortcuts["New Project"]}
-                  </span>
-                </button>
-
-                <button
-                  style={{
-                    background: "var(--theme-bg-active)",
-                    color: "var(--theme-text-secondary)",
-                    border: `1px solid var(--theme-border-primary)`,
-                    padding: "8px 12px",
-                    borderRadius: "6px",
-                    fontSize: "14px",
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "6px",
-                    width: "100%",
-                    transition: "background-color 0.2s ease",
-                  }}
-                  onClick={() =>
-                    dispatch({ type: "SET_SEARCH_MODAL_OPEN", payload: true })
-                  }
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = "var(--theme-bg-hover)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = "var(--theme-bg-active)";
-                  }}
-                >
-                  <Search size={16} />
-                  <span>Search canvases...</span>
-                  <span
-                    style={{
-                      marginLeft: "auto",
-                      fontSize: "12px",
-                      opacity: 0.7,
-                      fontFamily: "monospace",
-                    }}
-                  >
-                    {shortcuts["Search"]}
-                  </span>
-                </button>
-              </div>
+                <PanelHeader
+                  isPanelPinned={state.isPanelPinned}
+                  onTogglePin={togglePin}
+                  onNewCanvas={handleNewCanvasEnhanced}
+                  onNewProject={() => setShowProjectModal(true)}
+                  onSearchOpen={() => dispatch({ type: "SET_SEARCH_MODAL_OPEN", payload: true })}
+                  shortcuts={shortcuts}
+                />
+              </ComponentErrorBoundary>
 
               {/* Content */}
               <div
@@ -971,471 +757,59 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
                 }}
               >
                 {/* Projects Section */}
-                {state.projects.length > 0 && (
-                  <div style={{ marginBottom: "24px" }}>
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        marginBottom: "8px",
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize: "12px",
-                          fontWeight: "600",
-                          textTransform: "uppercase",
-                          color: "var(--theme-text-secondary)",
-                          letterSpacing: "0.5px",
-                        }}
-                      >
-                        Projects
-                      </div>
-                      <div
-                        style={{
-                          fontSize: "11px",
-                          color: "var(--theme-text-tertiary, rgba(0, 0, 0, 0.5))",
-                          background: "var(--theme-bg-secondary, rgba(0, 0, 0, 0.05))",
-                          padding: "2px 6px",
-                          borderRadius: "8px",
-                          fontWeight: "500",
-                        }}
-                      >
-                        {state.projects.length} {state.projects.length === 1 ? 'project' : 'projects'}
-                        {state.projects.length > PROJECT_SORT_CONSTANTS.DEFAULT_PAGINATION_LIMIT && !showAllProjects && ` • showing top ${PROJECT_SORT_CONSTANTS.DEFAULT_PAGINATION_LIMIT}`}
-                        {state.projects.length > PROJECT_SORT_CONSTANTS.DEFAULT_PAGINATION_LIMIT && showAllProjects && ' • all shown'}
-                      </div>
-                    </div>
-
-                    <>
-                      {projectsToShow.map((project) => {
-                      const projectCanvases = getCanvasesForProject(project.id);
-                      const isCollapsed = state.collapsedProjects.has(
-                        project.id,
-                      );
-
-                      return (
-                        <div key={project.id} style={{ marginBottom: "8px" }}>
-                          <div
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: "4px",
-                              padding: "4px",
-                              borderRadius: "6px",
-                              transition: "background-color 0.2s ease",
-                            }}
-                            onContextMenu={(e) => handleProjectRightClick(e, project)}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.background =
-                                "var(--theme-bg-hover)";
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.background = "transparent";
-                            }}
-                          >
-                            {/* Expand/Collapse Button */}
-                            <button
-                              style={{
-                                background: "none",
-                                border: "none",
-                                padding: "4px",
-                                cursor: "pointer",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                borderRadius: "4px",
-                                color: "var(--theme-text-secondary)",
-                                transition: "all 0.15s ease",
-                                width: "20px",
-                                height: "20px",
-                              }}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                toggleProject(project.id);
-                              }}
-                              onMouseEnter={(e) => {
-                                e.currentTarget.style.background = "var(--theme-bg-secondary)";
-                                e.currentTarget.style.color = "var(--theme-text-primary)";
-                              }}
-                              onMouseLeave={(e) => {
-                                e.currentTarget.style.background = "none";
-                                e.currentTarget.style.color = "var(--theme-text-secondary)";
-                              }}
-                              title={isCollapsed ? "Expand project" : "Collapse project"}
-                            >
-                              <motion.div
-                                animate={{ rotate: isCollapsed ? 0 : 90 }}
-                                transition={{ duration: 0.15, ease: "easeOut" }}
-                                style={{ display: "flex", alignItems: "center", justifyContent: "center" }}
-                              >
-                                <ChevronRight size={12} />
-                              </motion.div>
-                            </button>
-
-                            {/* Project Info Area */}
-                            <div
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "8px",
-                                flex: 1,
-                                padding: "4px",
-                                borderRadius: "4px",
-                                cursor: "pointer",
-                                transition: "background-color 0.15s ease",
-                              }}
-                              role="button"
-                              tabIndex={0}
-                              aria-label={`${project.name}${project.description ? ` - ${project.description}` : ''}`}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                // Optional: Add project selection logic here
-                                // For now, we'll just expand/collapse as well
-                                toggleProject(project.id);
-                              }}
-                              onMouseEnter={(e) => {
-                                e.currentTarget.style.background = "var(--theme-bg-secondary)";
-                                if (project.description?.trim()) {
-                                  const rect = e.currentTarget.getBoundingClientRect();
-                                  setTooltipPosition({
-                                    x: rect.right + 8,
-                                    y: rect.top + rect.height / 2
-                                  });
-                                  setHoveredProject(project);
-                                }
-                              }}
-                              onMouseLeave={(e) => {
-                                e.currentTarget.style.background = "transparent";
-                                setHoveredProject(null);
-                              }}
-                            >
-                              <Folder size={16} color={project.color} fill={project.color} style={{ flexShrink: 0 }} />
-                              <span
-                                style={{
-                                  flex: 1,
-                                  fontWeight: "500",
-                                  overflow: "hidden",
-                                  textOverflow: "ellipsis",
-                                  whiteSpace: "nowrap",
-                                }}
-                              >
-                                {project.name}
-                              </span>
-                              <span
-                                style={{
-                                  fontSize: "12px",
-                                  color: "var(--theme-text-secondary)",
-                                  flexShrink: 0,
-                                }}
-                              >
-                                {projectCanvases.length}
-                              </span>
-                            </div>
-                          </div>
-
-                          <AnimatePresence>
-                            {!isCollapsed && (
-                              <motion.div
-                                initial={{ height: 0, opacity: 0 }}
-                                animate={{ height: "auto", opacity: 1 }}
-                                exit={{ height: 0, opacity: 0 }}
-                                transition={{ duration: 0.2 }}
-                                style={{ overflow: "hidden" }}
-                              >
-                                {projectCanvases.map((canvas) => (
-                                  <div
-                                    key={canvas.id}
-                                    style={{
-                                      display: "flex",
-                                      alignItems: "center",
-                                      gap: "8px",
-                                      padding: "6px 8px",
-                                      marginLeft: "20px",
-                                      borderRadius: "4px",
-                                      cursor: "pointer",
-                                      transition: "background-color 0.2s ease",
-                                      backgroundColor:
-                                        state.selectedCanvasId === canvas.id
-                                          ? "var(--theme-bg-active)"
-                                          : "transparent",
-                                    }}
-                                    onClick={() => handleCanvasSelect(canvas)}
-                                    onContextMenu={(e) =>
-                                      handleCanvasRightClick(e, canvas)
-                                    }
-                                    onMouseEnter={(e) => {
-                                      if (
-                                        state.selectedCanvasId !== canvas.id
-                                      ) {
-                                        e.currentTarget.style.background =
-                                          "var(--theme-bg-hover)";
-                                      }
-                                    }}
-                                    onMouseLeave={(e) => {
-                                      if (
-                                        state.selectedCanvasId !== canvas.id
-                                      ) {
-                                        e.currentTarget.style.background =
-                                          "transparent";
-                                      }
-                                    }}
-                                  >
-                                    <FileText size={12} />
-                                    <span
-                                      style={{
-                                        flex: 1,
-                                        fontSize: "13px",
-                                        overflow: "hidden",
-                                        textOverflow: "ellipsis",
-                                        whiteSpace: "nowrap",
-                                      }}
-                                    >
-                                      {canvas.name}
-                                    </span>
-                                    <span
-                                      style={{
-                                        fontSize: "11px",
-                                        color: "var(--theme-text-secondary)",
-                                        flexShrink: 0,
-                                      }}
-                                    >
-                                      {formatDate(
-                                        canvas.updatedAt || canvas.createdAt,
-                                      )}
-                                    </span>
-                                  </div>
-                                ))}
-                              </motion.div>
-                            )}
-                          </AnimatePresence>
-                        </div>
-                      );
-                          })}
-
-                          {/* Show More/Less button */}
-                          {hasMoreProjects && (
-                            <button
-                              onClick={() => setShowAllProjects(!showAllProjects)}
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                gap: "6px",
-                                width: "100%",
-                                padding: "6px 12px",
-                                marginTop: "4px",
-                                background: "transparent",
-                                border: "1px dashed var(--theme-border-secondary, rgba(0, 0, 0, 0.15))",
-                                borderRadius: "6px",
-                                color: "var(--theme-text-secondary)",
-                                fontSize: "11px",
-                                fontWeight: "500",
-                                cursor: "pointer",
-                                transition: "all 0.2s ease",
-                              }}
-                              onMouseEnter={(e) => {
-                                e.currentTarget.style.background = "var(--theme-bg-hover, rgba(0, 0, 0, 0.05))";
-                                e.currentTarget.style.borderColor = "var(--theme-border-primary)";
-                                e.currentTarget.style.borderStyle = "solid";
-                              }}
-                              onMouseLeave={(e) => {
-                                e.currentTarget.style.background = "transparent";
-                                e.currentTarget.style.borderColor = "var(--theme-border-secondary, rgba(0, 0, 0, 0.15))";
-                                e.currentTarget.style.borderStyle = "dashed";
-                              }}
-                            >
-                              {showAllProjects ? (
-                                <>
-                                  Show Less ({sortedProjects.length - PROJECT_SORT_CONSTANTS.DEFAULT_PAGINATION_LIMIT} hidden)
-                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                    <path d="m18 15-6-6-6 6"/>
-                                  </svg>
-                                </>
-                              ) : (
-                                <>
-                                  Show More ({sortedProjects.length - PROJECT_SORT_CONSTANTS.DEFAULT_PAGINATION_LIMIT} more)
-                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                    <path d="m6 9 6 6 6-6"/>
-                                  </svg>
-                                </>
-                              )}
-                            </button>
-                          )}
-                    </>
-                  </div>
-                )}
+                <ComponentErrorBoundary 
+                  fallback={ProjectSectionErrorFallback}
+                  componentName="ProjectSection"
+                >
+                  <ProjectSection
+                    projects={state.projects}
+                    sortedProjects={sortedProjects}
+                    projectsToShow={projectsToShow}
+                    hasMoreProjects={hasMoreProjects}
+                    showAllProjects={showAllProjects}
+                    onShowAllProjectsToggle={() => setShowAllProjects(!showAllProjects)}
+                    collapsedProjects={state.collapsedProjects}
+                    selectedCanvasId={state.selectedCanvasId}
+                    getCanvasesForProject={getCanvasesForProject}
+                    onToggleProject={toggleProject}
+                    onProjectRightClick={handleProjectRightClick}
+                    onCanvasSelect={handleCanvasSelect}
+                    onCanvasRightClick={handleCanvasRightClick}
+                    formatDate={formatDate}
+                    hoveredProject={hoveredProject}
+                    onProjectHover={(project, position) => {
+                      setHoveredProject(project);
+                      if (position) {
+                        setTooltipPosition(position);
+                      }
+                    }}
+                  />
+                </ComponentErrorBoundary>
 
                 {/* Recent Canvases Section */}
-                <div style={{ marginBottom: "24px" }}>
-                  <div
-                    style={{
-                      fontSize: "12px",
-                      fontWeight: "600",
-                      textTransform: "uppercase",
-                      color: "var(--theme-text-secondary)",
-                      marginBottom: "8px",
-                      letterSpacing: "0.5px",
-                    }}
-                  >
-                    Recent
-                  </div>
-
-                  {getUnorganizedCanvases().length > 0 ? (
-                    getUnorganizedCanvases()
-                      .sort(
-                        (a, b) =>
-                          new Date(b.updatedAt || b.createdAt).getTime() -
-                          new Date(a.updatedAt || a.createdAt).getTime(),
-                      )
-                      .map((canvas) => (
-                        <div
-                          key={canvas.id}
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "8px",
-                            padding: "8px",
-                            borderRadius: "6px",
-                            cursor: "pointer",
-                            transition: "background-color 0.2s ease",
-                            backgroundColor:
-                              state.selectedCanvasId === canvas.id
-                                ? "var(--theme-bg-active)"
-                                : "transparent",
-                          }}
-                          onClick={() => handleCanvasSelect(canvas)}
-                          onContextMenu={(e) =>
-                            handleCanvasRightClick(e, canvas)
-                          }
-                          onMouseEnter={(e) => {
-                            if (state.selectedCanvasId !== canvas.id) {
-                              e.currentTarget.style.background =
-                                "var(--theme-bg-hover)";
-                            }
-                          }}
-                          onMouseLeave={(e) => {
-                            if (state.selectedCanvasId !== canvas.id) {
-                              e.currentTarget.style.background = "transparent";
-                            }
-                          }}
-                        >
-                          <FileText size={16} />
-                          <span
-                            style={{
-                              flex: 1,
-                              fontWeight: "500",
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            {canvas.name}
-                          </span>
-                          <span
-                            style={{
-                              fontSize: "12px",
-                              color: "var(--theme-text-secondary)",
-                              flexShrink: 0,
-                            }}
-                          >
-                            {formatDate(canvas.updatedAt || canvas.createdAt)}
-                          </span>
-                        </div>
-                      ))
-                  ) : (
-                    <div
-                      style={{
-                        textAlign: "center",
-                        padding: "32px 16px",
-                        color: "var(--theme-text-secondary)",
-                      }}
-                    >
-                      <FileText
-                        size={48}
-                        style={{ opacity: 0.5, marginBottom: "12px" }}
-                      />
-                      <div style={{ fontWeight: "500", marginBottom: "4px" }}>
-                        No canvases yet
-                      </div>
-                      <div style={{ fontSize: "12px" }}>
-                        Create your first canvas to get started
-                      </div>
-                    </div>
-                  )}
-                </div>
+                <ComponentErrorBoundary 
+                  fallback={CanvasSectionErrorFallback}
+                  componentName="CanvasSection"
+                >
+                  <CanvasSection
+                    unorganizedCanvases={getUnorganizedCanvases()}
+                    selectedCanvasId={state.selectedCanvasId}
+                    onCanvasSelect={handleCanvasSelect}
+                    onCanvasRightClick={handleCanvasRightClick}
+                    formatDate={formatDate}
+                  />
+                </ComponentErrorBoundary>
               </div>
 
               {/* Footer */}
-              <div
-                style={{
-                  borderTop: `1px solid var(--theme-border-primary)`,
-                  padding: "12px 16px",
-                  flexShrink: 0,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: "8px",
-                }}
+              <ComponentErrorBoundary 
+                fallback={PanelErrorFallback}
+                componentName="PanelFooter"
               >
-                <a
-                  href="https://github.com/805karansaini/excali-org"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "6px",
-                    color: "var(--theme-text-secondary)",
-                    textDecoration: "none",
-                    fontSize: "12px",
-                    padding: "4px 6px",
-                    borderRadius: "4px",
-                    transition: "all 0.2s ease",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = "var(--theme-bg-hover)";
-                    e.currentTarget.style.color = "var(--theme-text-primary)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = "transparent";
-                    e.currentTarget.style.color = "var(--theme-text-secondary)";
-                  }}
-                  title="Visit GitHub Profile"
-                >
-                  <Github size={14} />
-                  <span>GitHub</span>
-                </a>
-
-                <button
-                  style={{
-                    background: "transparent",
-                    border: "none",
-                    color: "var(--theme-text-secondary)",
-                    cursor: "pointer",
-                    padding: "4px",
-                    borderRadius: "4px",
-                    display: "flex",
-                    alignItems: "center",
-                    transition: "all 0.2s ease",
-                  }}
-                  onClick={() =>
-                    dispatch({ type: "SET_HELP_MODAL_OPEN", payload: true })
-                  }
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = "var(--theme-bg-hover)";
-                    e.currentTarget.style.color = "var(--theme-text-primary)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = "transparent";
-                    e.currentTarget.style.color = "var(--theme-text-secondary)";
-                  }}
-                  title="Show Keyboard Shortcuts (F1)"
-                >
-                  <HelpCircle size={16} />
-                </button>
-              </div>
+                <PanelFooter
+                  onHelpOpen={() => dispatch({ type: "SET_HELP_MODAL_OPEN", payload: true })}
+                />
+              </ComponentErrorBoundary>
             </motion.div>
           )}
         </AnimatePresence>

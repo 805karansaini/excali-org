@@ -75,7 +75,6 @@ export function useKeyboardShortcuts({
           currentItemFontSize: 20,
           currentItemStrokeColor: "#000000",
         },
-        lastModified: new Date().toISOString(),
       };
 
       const createdCanvas = await createCanvas(newCanvas);
