@@ -19,6 +19,12 @@ import { PanelHeader } from "./PanelHeader";
 import { PanelFooter } from "./PanelFooter";
 import { ProjectSection } from "./ProjectSection";
 import { CanvasSection } from "./CanvasSection";
+import { 
+  ComponentErrorBoundary, 
+  PanelErrorFallback, 
+  ProjectSectionErrorFallback, 
+  CanvasSectionErrorFallback 
+} from "./ErrorBoundary";
 import { UnifiedCanvas, UnifiedProject } from "../../shared/types";
 import { canvasOperations, settingsOperations } from "../../shared/unified-db";
 import { v4 as uuidv4 } from "uuid";
@@ -728,14 +734,19 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
               <div style={widthIndicatorStyle}>{state.panelWidth}px</div>
 
               {/* Header */}
-              <PanelHeader
-                isPanelPinned={state.isPanelPinned}
-                onTogglePin={togglePin}
-                onNewCanvas={handleNewCanvasEnhanced}
-                onNewProject={() => setShowProjectModal(true)}
-                onSearchOpen={() => dispatch({ type: "SET_SEARCH_MODAL_OPEN", payload: true })}
-                shortcuts={shortcuts}
-              />
+              <ComponentErrorBoundary 
+                fallback={PanelErrorFallback}
+                componentName="PanelHeader"
+              >
+                <PanelHeader
+                  isPanelPinned={state.isPanelPinned}
+                  onTogglePin={togglePin}
+                  onNewCanvas={handleNewCanvasEnhanced}
+                  onNewProject={() => setShowProjectModal(true)}
+                  onSearchOpen={() => dispatch({ type: "SET_SEARCH_MODAL_OPEN", payload: true })}
+                  shortcuts={shortcuts}
+                />
+              </ComponentErrorBoundary>
 
               {/* Content */}
               <div
@@ -746,44 +757,59 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
                 }}
               >
                 {/* Projects Section */}
-                <ProjectSection
-                  projects={state.projects}
-                  sortedProjects={sortedProjects}
-                  projectsToShow={projectsToShow}
-                  hasMoreProjects={hasMoreProjects}
-                  showAllProjects={showAllProjects}
-                  onShowAllProjectsToggle={() => setShowAllProjects(!showAllProjects)}
-                  collapsedProjects={state.collapsedProjects}
-                  selectedCanvasId={state.selectedCanvasId}
-                  getCanvasesForProject={getCanvasesForProject}
-                  onToggleProject={toggleProject}
-                  onProjectRightClick={handleProjectRightClick}
-                  onCanvasSelect={handleCanvasSelect}
-                  onCanvasRightClick={handleCanvasRightClick}
-                  formatDate={formatDate}
-                  hoveredProject={hoveredProject}
-                  onProjectHover={(project, position) => {
-                    setHoveredProject(project);
-                    if (position) {
-                      setTooltipPosition(position);
-                    }
-                  }}
-                />
+                <ComponentErrorBoundary 
+                  fallback={ProjectSectionErrorFallback}
+                  componentName="ProjectSection"
+                >
+                  <ProjectSection
+                    projects={state.projects}
+                    sortedProjects={sortedProjects}
+                    projectsToShow={projectsToShow}
+                    hasMoreProjects={hasMoreProjects}
+                    showAllProjects={showAllProjects}
+                    onShowAllProjectsToggle={() => setShowAllProjects(!showAllProjects)}
+                    collapsedProjects={state.collapsedProjects}
+                    selectedCanvasId={state.selectedCanvasId}
+                    getCanvasesForProject={getCanvasesForProject}
+                    onToggleProject={toggleProject}
+                    onProjectRightClick={handleProjectRightClick}
+                    onCanvasSelect={handleCanvasSelect}
+                    onCanvasRightClick={handleCanvasRightClick}
+                    formatDate={formatDate}
+                    hoveredProject={hoveredProject}
+                    onProjectHover={(project, position) => {
+                      setHoveredProject(project);
+                      if (position) {
+                        setTooltipPosition(position);
+                      }
+                    }}
+                  />
+                </ComponentErrorBoundary>
 
                 {/* Recent Canvases Section */}
-                <CanvasSection
-                  unorganizedCanvases={getUnorganizedCanvases()}
-                  selectedCanvasId={state.selectedCanvasId}
-                  onCanvasSelect={handleCanvasSelect}
-                  onCanvasRightClick={handleCanvasRightClick}
-                  formatDate={formatDate}
-                />
+                <ComponentErrorBoundary 
+                  fallback={CanvasSectionErrorFallback}
+                  componentName="CanvasSection"
+                >
+                  <CanvasSection
+                    unorganizedCanvases={getUnorganizedCanvases()}
+                    selectedCanvasId={state.selectedCanvasId}
+                    onCanvasSelect={handleCanvasSelect}
+                    onCanvasRightClick={handleCanvasRightClick}
+                    formatDate={formatDate}
+                  />
+                </ComponentErrorBoundary>
               </div>
 
               {/* Footer */}
-              <PanelFooter
-                onHelpOpen={() => dispatch({ type: "SET_HELP_MODAL_OPEN", payload: true })}
-              />
+              <ComponentErrorBoundary 
+                fallback={PanelErrorFallback}
+                componentName="PanelFooter"
+              >
+                <PanelFooter
+                  onHelpOpen={() => dispatch({ type: "SET_HELP_MODAL_OPEN", payload: true })}
+                />
+              </ComponentErrorBoundary>
             </motion.div>
           )}
         </AnimatePresence>
