@@ -214,7 +214,6 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
         },
         createdAt: new Date(),
         updatedAt: new Date(),
-        lastModified: new Date().toISOString(), // Backward compatibility
         projectId: undefined,
       };
 
@@ -1201,9 +1200,9 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
                                         flexShrink: 0,
                                       }}
                                     >
-                                      {formatDate(
-                                        canvas.updatedAt || canvas.createdAt,
-                                      )}
+                                      {formatDate(canvas.createdAt)}
+                                      {/* TODO LATER COMMENTED: Show last edit time instead of creation time */}
+                                      {/* {formatDate(canvas.lastEditedAt || canvas.createdAt)} */}
                                     </span>
                                   </div>
                                 ))}
@@ -1286,8 +1285,11 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
                     getUnorganizedCanvases()
                       .sort(
                         (a, b) =>
-                          new Date(b.updatedAt || b.createdAt).getTime() -
-                          new Date(a.updatedAt || a.createdAt).getTime(),
+                          // Sort by creation time (newest first) for stable, predictable order
+                          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+                          // TODO LATERCOMMENTED: Sort by last edit time (canvases move when edited)
+                          // new Date(b.lastEditedAt || b.createdAt).getTime() -
+                          // new Date(a.lastEditedAt || a.createdAt).getTime(),
                       )
                       .map((canvas) => (
                         <div
@@ -1340,7 +1342,9 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
                               flexShrink: 0,
                             }}
                           >
-                            {formatDate(canvas.updatedAt || canvas.createdAt)}
+                            {formatDate(canvas.createdAt)}
+                            {/* COMMENTED: Show last edit time instead of creation time */}
+                            {/* {formatDate(canvas.lastEditedAt || canvas.createdAt)} */}
                           </span>
                         </div>
                       ))

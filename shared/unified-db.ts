@@ -1,5 +1,4 @@
-// Clean, unified database implementation using Dexie for the new architecture
-// No migration logic needed - fresh start approach
+// Clean, unified database implementation using Dexie
 
 import Dexie, { Table } from "dexie";
 import { UnifiedCanvas, UnifiedProject } from "./types";
@@ -30,7 +29,7 @@ export class UnifiedDexie extends Dexie {
 
     this.version(1).stores({
       // Canvases table with indexes for performance
-      canvases: "id, name, projectId, createdAt, updatedAt, lastModified",
+      canvases: "id, name, projectId, createdAt, updatedAt, lastEditedAt",
 
       // Projects table with indexes (name is unique)
       projects: "id, &name, createdAt, updatedAt, color, description",
@@ -84,7 +83,6 @@ export const canvasOperations = {
       const now = new Date();
       if (!canvas.createdAt) canvas.createdAt = now;
       if (!canvas.updatedAt) canvas.updatedAt = now;
-      if (!canvas.lastModified) canvas.lastModified = now.toISOString();
 
       await unifiedDb.canvases.add(canvas);
     } catch (error) {
@@ -100,20 +98,19 @@ export const canvasOperations = {
     try {
       // Update timestamp
       canvas.updatedAt = new Date();
-      canvas.lastModified = canvas.updatedAt.toISOString();
 
       // Atomic update with version checking for concurrent modification detection
       await unifiedDb.transaction('rw', unifiedDb.canvases, async () => {
         const existingCanvas = await unifiedDb.canvases.get(canvas.id);
 
-        // Check if canvas was modified by another operation
-        if (existingCanvas && existingCanvas.lastModified !== canvas.lastModified) {
-          const existingTime = new Date(existingCanvas.lastModified).getTime();
-          const incomingTime = new Date(canvas.lastModified).getTime();
+        // Check if canvas was modified by another operation using updatedAt timestamps
+        if (existingCanvas && existingCanvas.updatedAt) {
+          const existingTime = new Date(existingCanvas.updatedAt).getTime();
+          const incomingTime = new Date(canvas.updatedAt).getTime();
 
           // Only warn if the existing version is significantly newer (>1 second)
           if (existingTime > incomingTime + 1000) {
-            console.warn(`Canvas ${canvas.id} may have been modified concurrently. Existing: ${existingCanvas.lastModified}, Incoming: ${canvas.lastModified}`);
+            console.warn(`Canvas ${canvas.id} may have been modified concurrently. Existing: ${existingCanvas.updatedAt.toISOString()}, Incoming: ${canvas.updatedAt.toISOString()}`);
           }
         }
 
@@ -387,7 +384,7 @@ export const projectOperations = {
   },
 
   /**
-   * Rename project with validation (backward compatibility)
+   * Rename project with validation
    */
   async renameProject(projectId: string, newName: string): Promise<UnifiedProject> {
     return this.updateProjectFields(projectId, { name: newName });
@@ -638,7 +635,6 @@ export const bulkOperations = {
       const processedCanvases = canvases.map((canvas) => {
         if (!canvas.createdAt) canvas.createdAt = now;
         if (!canvas.updatedAt) canvas.updatedAt = now;
-        if (!canvas.lastModified) canvas.lastModified = now.toISOString();
         return canvas;
       });
 

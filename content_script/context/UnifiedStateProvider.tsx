@@ -503,7 +503,7 @@ export function UnifiedStateProvider({
           id: `canvas_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
           createdAt: now,
           updatedAt: now,
-          lastModified: now.toISOString(),
+          lastEditedAt: now, // Initialize lastEditedAt for new canvases
         };
 
         await canvasOperations.addCanvas(canvas);
@@ -523,7 +523,7 @@ export function UnifiedStateProvider({
     try {
       // Check if we're deleting the currently active canvas
       const isDeletingActiveCanvas = state.currentWorkingCanvasId === canvasId;
-      
+
       if (isDeletingActiveCanvas && createReplacementFn) {
         console.log("Deleting currently active canvas - creating replacement canvas first");
         await createReplacementFn();
@@ -532,7 +532,7 @@ export function UnifiedStateProvider({
       // Now proceed with deleting the original canvas
       await canvasOperations.deleteCanvas(canvasId);
       dispatch({ type: "DELETE_CANVAS", payload: canvasId });
-      
+
       console.log("Canvas deleted successfully:", canvasId);
     } catch (error) {
       console.error("Failed to delete canvas:", error);
@@ -689,14 +689,14 @@ export function UnifiedStateProvider({
 
         // Capture current working canvas at time of event
         const targetCanvasId = canvasId || state.currentWorkingCanvasId;
-        
+
         // Only save if we have a target canvas
         if (!targetCanvasId) {
           console.log("No target canvas for auto-save - skipping");
           return;
         }
 
-        // Validate canvas context consistency 
+        // Validate canvas context consistency
         if (canvasId && state.currentWorkingCanvasId !== canvasId) {
           console.log(
             `Canvas context mismatch: sync for ${canvasId} but current working canvas is ${state.currentWorkingCanvasId} - aborting auto-save`,
@@ -731,40 +731,134 @@ export function UnifiedStateProvider({
           return;
         }
 
-        // Check if the elements have actually changed to avoid unnecessary updatedAt updates
+        // Enhanced change detection for actual content edits vs visits
         const newElements = elements || [];
-        const hasElementsChanged = () => {
+
+        // Detect if this is a real content edit or just a visit
+        const hasContentChanges = () => {
           if (newElements.length !== existingElements.length) {
             return true;
           }
-          
-          // Compare elements by stringifying them (simple but effective for detecting changes)
-          try {
-            return JSON.stringify(newElements) !== JSON.stringify(existingElements);
-          } catch {
-            // If JSON.stringify fails, assume there are changes to be safe
-            return true;
+
+          // Create maps for efficient comparison
+          const newElementsMap = new Map(newElements.map(el => [el.id, el]));
+          const existingElementsMap = new Map(existingElements.map(el => [el.id, el]));
+
+          // Check for new or removed elements
+          for (const id of newElementsMap.keys()) {
+            if (!existingElementsMap.has(id)) {
+              return true; // New element added
+            }
           }
+
+          for (const id of existingElementsMap.keys()) {
+            if (!newElementsMap.has(id)) {
+              return true; // Element removed
+            }
+          }
+
+          // Deep comparison of element properties that indicate actual content changes
+          for (const [id, newElement] of newElementsMap) {
+            const existingElement = existingElementsMap.get(id);
+            if (!existingElement) continue;
+
+            // Properties that indicate actual content edits (not just clicks, selections, or visits)
+            // Be very conservative - only track changes that actually modify the drawing
+            const contentProperties = [
+              'text', 'rawText', 'originalText', // Text content changes
+              'x', 'y', 'width', 'height', // Position/size changes (dragging/resizing)
+              'angle', // Rotation changes
+              'strokeColor', 'backgroundColor', 'fillStyle', // Color/style changes
+              'strokeWidth', 'strokeStyle', 'roughness', 'opacity', // Visual property changes
+              'points', // Shape point changes (for drawings)
+              'isDeleted', 'locked' // State changes
+              // EXCLUDED: seed, updated, versionNonce (these change on simple interactions)
+            ];
+
+            for (const prop of contentProperties) {
+              const newValue = (newElement as Record<string, unknown>)[prop];
+              const existingValue = (existingElement as Record<string, unknown>)[prop];
+
+              // For arrays (like points), do deep comparison
+              if (Array.isArray(newValue) && Array.isArray(existingValue)) {
+                if (JSON.stringify(newValue) !== JSON.stringify(existingValue)) {
+                  return true;
+                }
+              } else if (newValue !== existingValue) {
+                return true;
+              }
+            }
+          }
+
+          return false;
         };
 
-        const elementsChanged = hasElementsChanged();
-        
-        // Only update timestamps if elements have actually changed
-        const shouldUpdateTimestamp = elementsChanged;
-        
-        console.log(
-          `Auto-save for canvas ${targetCanvasId}: elements changed = ${elementsChanged}, updating timestamp = ${shouldUpdateTimestamp}`,
-        );
+        // Check for app state changes that indicate content edits
+        const hasAppStateContentChanges = () => {
+          if (!appState || !currentCanvas.appState) return false;
+
+          // Only very specific app state changes that affect the actual drawing content
+          // Be VERY conservative - most app state changes are just navigation/UI
+          const contentStateProps = ['viewBackgroundColor']; // Only background color affects saved content
+          // EXCLUDED: theme, gridSize, zoom, scroll, selection, editing state, etc.
+
+          for (const prop of contentStateProps) {
+            const newValue = (appState as Record<string, unknown>)[prop];
+            const existingValue = (currentCanvas.appState as Record<string, unknown>)[prop];
+            if (newValue !== existingValue) {
+              console.log(`App state content change detected: ${prop} changed from ${existingValue} to ${newValue}`);
+              return true;
+            }
+          }
+
+          return false;
+        };
+
+        const elementChanges = hasContentChanges();
+        const appStateChanges = hasAppStateContentChanges();
+        const hasRealContentChanges = elementChanges || appStateChanges;
+        // Only detect "any changes" if we have real content changes
+        // Don't use the fallback JSON comparison as it's too sensitive to minor property changes
+        const hasAnyChanges = hasRealContentChanges;
+
+        // Update timestamps differently based on type of change
+        const shouldUpdateTimestamp = hasAnyChanges; // Always update updatedAt for any change
+        const shouldUpdateEditTimestamp = hasRealContentChanges; // Only update lastEditedAt for real content changes
+
+        // TODO LATER NOTE: Change detection logic is preserved but not used for sorting anymore
+        // Canvases now sort by creation time for stable order (see EnhancedAutoHidePanel.tsx)
+        // This logic could be useful for other features like activity tracking, notifications, etc.
+
+        // Enhanced logging to debug what's triggering updates (can be removed if not needed)
+        if (hasRealContentChanges) {
+          console.log(
+            `CONTENT EDIT detected for canvas ${targetCanvasId}:`,
+            `elements=${elementChanges}, appState=${appStateChanges}`,
+            `-> lastEditedAt updated (but not used for sorting)`
+          );
+        } else if (hasAnyChanges) {
+          console.log(
+            `VISIT/NAVIGATION for canvas ${targetCanvasId}:`,
+            `minor changes detected but no real content edits`,
+            `-> only updatedAt updated`
+          );
+        } else {
+          console.log(`NO CHANGES for canvas ${targetCanvasId}`);
+        }
 
         // Create updated canvas with new data
+        const now = new Date();
         const updatedCanvas: UnifiedCanvas = {
           ...currentCanvas,
           elements: newElements,
           appState: appState || currentCanvas.appState || {},
-          // Only update timestamps if content actually changed
+          // Always update updatedAt for any change (visits, navigation, etc.)
           ...(shouldUpdateTimestamp ? {
-            updatedAt: new Date(),
-            lastModified: new Date().toISOString(),
+            updatedAt: now,
+          } : {}),
+          // Only update lastEditedAt for real content changes (drawing, editing text, etc.)
+          ...(shouldUpdateEditTimestamp ? {
+            lastEditedAt: now,
           } : {}),
         };
 
