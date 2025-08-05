@@ -1,13 +1,9 @@
 /// <reference types="chrome"/>
 
-const registerEventListeners = () => {
-  chrome.tabs.onUpdated.addListener((/*tabId, changeInfo, tab*/) => {
-    // if (changeInfo.status === "complete" && tab.url) {
-    // TODO: Implement if needed
-    // }
-  });
-};
+// Minimal background service worker for Chrome extension
+// Currently no background functionality is needed
 
 (() => {
-  registerEventListeners();
+  // Extension initialized
+  console.log('Excali Organizer background script loaded');
 })();
