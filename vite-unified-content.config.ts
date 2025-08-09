@@ -4,6 +4,10 @@ import { resolve } from "path";
 
 export default defineConfig({
   plugins: [react()],
+  // Ensure output uses only ASCII characters so Chrome treats it as UTF-8-safe
+  esbuild: {
+    charset: "ascii",
+  },
 
   build: {
     target: "esnext",
@@ -37,7 +41,7 @@ export default defineConfig({
     },
 
     // Optimization settings
-    minify: false, // Disable minification to avoid encoding issues
+    minify: true, // Enable minification to reduce bundle size
     sourcemap: false, // Disable source maps to avoid encoding issues
 
     // CSS handling
@@ -94,7 +98,7 @@ export default defineConfig({
 
   // Dependency optimization
   optimizeDeps: {
-    include: ["react", "react-dom", "@reduxjs/toolkit", "react-redux", "dexie"],
+    include: ["react", "react-dom", "dexie"],
 
     // Force optimization of specific dependencies
     force: process.env.NODE_ENV === "development",
