@@ -82,7 +82,7 @@ export function useKeyboardShortcuts({
       dispatch({ type: "SET_SELECTED_CANVAS", payload: createdCanvas.id });
 
       eventBus.emit(InternalEventTypes.CANVAS_CREATED, createdCanvas);
-      eventBus.emit(InternalEventTypes.LOAD_CANVAS_TO_EXCALIDRAW, createdCanvas);
+      eventBus.emit(InternalEventTypes.CANVAS_SELECTED, createdCanvas);
     } catch (error) {
       console.error("Error creating new canvas via keyboard shortcut:", error);
       dispatch({
@@ -154,7 +154,7 @@ export function useKeyboardShortcuts({
         appState: canvas.appState,
       });
       eventBus.emit(InternalEventTypes.CANVAS_CREATED, newCanvas);
-      eventBus.emit(InternalEventTypes.LOAD_CANVAS_TO_EXCALIDRAW, newCanvas);
+      eventBus.emit(InternalEventTypes.CANVAS_SELECTED, newCanvas);
       dispatch({ type: "SET_SELECTED_CANVAS", payload: newCanvas.id });
     } catch (error) {
       console.error(

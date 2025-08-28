@@ -54,6 +54,7 @@ export class ExcalidrawDataBridge {
   private storageEventQueue: StorageEvent[] = [];
   private processingQueue: boolean = false;
   private syncInProgress: boolean = false;
+  private autoSyncSuspended: boolean = false;
 
   // Canvas operation coordination
   private pendingOperations: Map<string, PendingOperation> = new Map();
@@ -138,6 +139,38 @@ export class ExcalidrawDataBridge {
     if (this.themeUnsubscribe) {
       this.themeUnsubscribe();
       this.themeUnsubscribe = null;
+    }
+  }
+
+  /**
+   * Temporarily suspend autosync and storage-driven sync
+   */
+  suspendAutoSync(reason: string = ""): void {
+    try {
+      this.autoSyncSuspended = true;
+      if (this.syncInterval) {
+        clearInterval(this.syncInterval);
+        this.syncInterval = null;
+      }
+      this.cancelAllPendingOperations();
+      console.log(`[ExcalidrawDataBridge] Auto-sync suspended${reason ? ` (${reason})` : ""}`);
+    } catch (e) {
+      console.warn("[ExcalidrawDataBridge] Failed to suspend autosync:", e);
+    }
+  }
+
+  /**
+   * Resume autosync if previously suspended
+   */
+  resumeAutoSync(reason: string = ""): void {
+    try {
+      this.autoSyncSuspended = false;
+      if (this.options.autoSave && !this.syncInterval) {
+        this.startAutoSync();
+      }
+      console.log(`[ExcalidrawDataBridge] Auto-sync resumed${reason ? ` (${reason})` : ""}`);
+    } catch (e) {
+      console.warn("[ExcalidrawDataBridge] Failed to resume autosync:", e);
     }
   }
 
@@ -770,7 +803,7 @@ export class ExcalidrawDataBridge {
     }
 
     this.syncInterval = setInterval(() => {
-      if (!this.isLoading && this.hasDataChanged()) {
+      if (!this.isLoading && !this.autoSyncSuspended && this.hasDataChanged()) {
         this.debouncedSync();
       }
     }, this.options.syncInterval);
@@ -786,7 +819,7 @@ export class ExcalidrawDataBridge {
    */
   private debouncedSync(): void {
     // Only sync if we have a valid canvas context and not loading
-    if (!this.currentCanvasContext || this.isLoading) {
+    if (!this.currentCanvasContext || this.isLoading || this.autoSyncSuspended) {
       console.log("[ExcalidrawDataBridge] Skipping sync - no canvas context or loading in progress");
       return;
     }
@@ -835,7 +868,7 @@ export class ExcalidrawDataBridge {
    */
   private async performSyncForCanvas(canvasId: string, operationId?: string): Promise<void> {
     // Atomic check-and-set to prevent race condition
-    if (this.syncInProgress) {
+    if (this.syncInProgress || this.autoSyncSuspended) {
       console.log("[ExcalidrawDataBridge] Sync already in progress, skipping");
       return;
     }
@@ -1028,6 +1061,10 @@ export class ExcalidrawDataBridge {
    */
   private handleStorageChange = (event: StorageEvent): void => {
     if (event.key === "excalidraw" || event.key === "excalidraw-state") {
+      if (this.autoSyncSuspended) {
+        // Skip processing during suspended window to avoid race conditions
+        return;
+      }
       console.log("[ExcalidrawDataBridge] Storage change detected:", event.key);
 
       // Queue the event for processing

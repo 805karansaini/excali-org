@@ -46,6 +46,7 @@ import {
 } from "../shared/unified-db";
 import { ExcalidrawIntegration } from "./excalidraw-integration";
 import { ExcalidrawDataBridge } from "./bridges/ExcalidrawDataBridge";
+import { CanvasSwitchOrchestrator } from "./services/CanvasSwitchOrchestrator";
 import { UnifiedStateProvider } from "./context/UnifiedStateProvider";
 import {
   globalEventBus,
@@ -60,6 +61,7 @@ import { EnhancedAutoHidePanel } from "./components/EnhancedAutoHidePanel";
 let panelRoot: Root | null = null;
 let excalidrawIntegration: ExcalidrawIntegration | null = null;
 let dataBridge: ExcalidrawDataBridge | null = null;
+let switchOrchestrator: CanvasSwitchOrchestrator | null = null;
 
 /**
  * Initialize the unified content script application
@@ -87,6 +89,10 @@ async function initializeUnifiedApp(): Promise<void> {
       debounceDelay: 200,
     });
     dataBridge.initialize();
+
+    // Initialize the orchestrator to coordinate save-before-switch
+    switchOrchestrator = new CanvasSwitchOrchestrator(dataBridge);
+    switchOrchestrator.initialize();
 
     // 4. Initialize Excalidraw integration
     excalidrawIntegration = new ExcalidrawIntegration();
@@ -511,6 +517,7 @@ if (typeof window !== "undefined") {
     panelRoot,
     excalidrawIntegration,
     dataBridge,
+    switchOrchestrator,
     eventBus: globalEventBus,
     getStats: () => ({
       isInitialized: panelRoot !== null,
