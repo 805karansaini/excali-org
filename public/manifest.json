@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Excali Organizer",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Organize your Excalidraw files and projects.",
   "icons": {
     "64": "icon-64.png",
@@ -11,8 +11,12 @@
   },
   "content_scripts": [
     {
-      "js": ["assets/content-unified.js"],
-      "matches": ["https://excalidraw.com/*"],
+      "js": [
+        "assets/content-unified.js"
+      ],
+      "matches": [
+        "https://excalidraw.com/*"
+      ],
       "run_at": "document_end",
       "all_frames": false
     }
@@ -23,10 +27,20 @@
   },
   "web_accessible_resources": [
     {
-      "matches": ["https://excalidraw.com/*"],
-      "resources": ["assets/*", "icon-64.png", "icon-128.png", "icon-256.png", "icon-512.png"]
+      "matches": [
+        "https://excalidraw.com/*"
+      ],
+      "resources": [
+        "assets/*",
+        "icon-64.png",
+        "icon-128.png",
+        "icon-256.png",
+        "icon-512.png"
+      ]
     }
   ],
   "permissions": [],
-  "host_permissions": ["https://excalidraw.com/*"]
+  "host_permissions": [
+    "https://excalidraw.com/*"
+  ]
 }
