@@ -54,21 +54,10 @@ export class CanvasSwitchOrchestrator {
     this.isSwitching = true;
 
     try {
-      // Suspend autosync to avoid races from storage events during switch
-      this.bridge.suspendAutoSync("switch");
-
       // Determine the current working canvas id from settings
       const currentId = await settingsOperations.getSetting<string>("currentWorkingCanvasId");
 
-      // No-op if selecting the already-active canvas
-      if (currentId && currentId === target.id) {
-        this.isSwitching = false;
-        this.pendingTarget = null;
-        this.bridge.resumeAutoSync("switch");
-        return;
-      }
-
-      // Attempt explicit save of current canvas before switching
+      // Attempt explicit save of current canvas BEFORE suspending autosync to ensure listener is active
       if (currentId) {
         const snapshot = this.bridge.getExcalidrawData();
         if (snapshot) {
@@ -78,6 +67,17 @@ export class CanvasSwitchOrchestrator {
             snapshot.appState as import("../../shared/excalidraw-types").AppState,
           );
         }
+      }
+
+      // Suspend autosync to avoid races from storage events during switch
+      this.bridge.suspendAutoSync("switch");
+
+      // No-op if selecting the already-active canvas
+      if (currentId && currentId === target.id) {
+        this.isSwitching = false;
+        this.pendingTarget = null;
+        this.bridge.resumeAutoSync("switch");
+        return;
       }
 
       // If a newer target arrived while we were saving, prefer the latest
@@ -106,11 +106,23 @@ export class CanvasSwitchOrchestrator {
     elements: UnifiedCanvas["elements"],
     appState: import("../../shared/excalidraw-types").AppState,
   ): Promise<void> {
-    // Await the full persistence path to guarantee save-before-switch
-    await globalEventBus.emit(InternalEventTypes.SYNC_EXCALIDRAW_DATA, {
-      elements,
-      appState,
-      canvasId,
-    });
+    // Await the full persistence path with acknowledgment to guarantee save-before-switch
+    const result = await globalEventBus.emitWithAck(
+      InternalEventTypes.SYNC_EXCALIDRAW_DATA,
+      {
+        elements,
+        appState,
+        canvasId,
+      },
+      { requireListener: true, timeoutMs: 1500 },
+    );
+
+    if (!result.ok) {
+      await globalEventBus.emit(InternalEventTypes.ERROR_OCCURRED, {
+        error: "Canvas save failed before switch",
+        details: result.errors,
+      });
+      throw new Error("Explicit save failed; aborting canvas switch");
+    }
   }
 }

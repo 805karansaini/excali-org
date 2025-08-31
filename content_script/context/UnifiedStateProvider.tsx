@@ -904,6 +904,8 @@ export function UnifiedStateProvider({
           type: "SET_ERROR",
           payload: "Failed to auto-save canvas changes.",
         });
+        // Rethrow so emitWithAck callers can detect failure and abort operations safely
+        throw error;
       }
     };
 

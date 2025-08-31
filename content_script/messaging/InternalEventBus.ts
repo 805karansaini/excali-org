@@ -286,6 +286,103 @@ export class InternalEventBus {
   }
 
   /**
+   * Emit an event and collect handler outcomes.
+   * Returns ok=false if any handler (regular or once) throws or rejects.
+   */
+  async emitWithAck<T extends InternalEventTypes>(
+    eventType: T,
+    payload: EventPayloads[T],
+    options?: { requireListener?: boolean; timeoutMs?: number },
+  ): Promise<{ ok: boolean; errors: unknown[] }> {
+    if (this.debugMode) {
+      console.log(`[EventBus] Emitting (ack) ${eventType}`, payload);
+    }
+
+    const errors: unknown[] = [];
+    const regularCount = this.listeners.get(eventType)?.size || 0;
+    const onceCount = this.onceListeners.get(eventType)?.size || 0;
+    const listenerCount = regularCount + onceCount;
+
+    if (options?.requireListener && listenerCount === 0) {
+      errors.push(new Error(`No listeners for ${String(eventType)}`));
+      return { ok: false, errors };
+    }
+
+    // Collect promises from both regular and once listeners
+    const handlerPromises: Promise<void>[] = [];
+
+    // Regular listeners
+    const handlers = this.listeners.get(eventType);
+    if (handlers) {
+      handlers.forEach((handler) => {
+        try {
+          const result = handler(payload);
+          if (result instanceof Promise) {
+            handlerPromises.push(result);
+          }
+        } catch (error) {
+          console.error(`[EventBus] Error in ${eventType} handler:`, error);
+          errors.push(error);
+        }
+      });
+    }
+
+    // Once listeners
+    const onceHandlers = this.onceListeners.get(eventType);
+    if (onceHandlers) {
+      const handlersToRemove = Array.from(onceHandlers);
+
+      handlersToRemove.forEach((handler) => {
+        try {
+          const result = handler(payload);
+          if (result instanceof Promise) {
+            handlerPromises.push(result);
+          }
+        } catch (error) {
+          console.error(`[EventBus] Error in ${eventType} once handler:`, error);
+          errors.push(error);
+        }
+      });
+
+      // Remove once handlers
+      this.onceListeners.delete(eventType);
+    }
+
+    // Await all promises with optional timeout
+    if (handlerPromises.length > 0) {
+      const awaitAllSettled = async () => {
+        const settled = await Promise.allSettled(handlerPromises);
+        settled.forEach((res) => {
+          if (res.status === "rejected") {
+            errors.push(res.reason);
+          }
+        });
+      };
+
+      if (options?.timeoutMs && options.timeoutMs > 0) {
+        const timeoutPromise = new Promise<"timeout">((resolve) =>
+          setTimeout(() => resolve("timeout"), options.timeoutMs),
+        );
+        const raced = await Promise.race([
+          awaitAllSettled().then(() => "settled" as const),
+          timeoutPromise,
+        ]);
+        if (raced === "timeout") {
+          errors.push(
+            new Error(
+              `Ack timed out for ${String(eventType)} after ${options.timeoutMs}ms`,
+            ),
+          );
+        }
+      } else {
+        await awaitAllSettled();
+      }
+    }
+
+    return { ok: errors.length === 0, errors };
+  }
+
+  /**
    * Remove all listeners for a specific event type
    */
   removeAllListeners(eventType?: InternalEventTypes): void {
@@ -346,7 +443,7 @@ export const eventBus = new InternalEventBus(
 );
 
 // Export convenience functions
-export const { on, once, off, emit, removeAllListeners } = eventBus;
+export const { on, once, off, emit, emitWithAck, removeAllListeners } = eventBus;
 
 // Keep backward compatibility
 export const globalEventBus = eventBus;
