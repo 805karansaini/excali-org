@@ -6,7 +6,7 @@
   **A powerful Chrome extension that transforms your Excalidraw experience**
 
   [![License: MIT*](https://img.shields.io/badge/License-MIT%2A-yellow.svg)](LICENSE)
-  [![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](public/manifest.json)
+  [![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)](public/manifest.json)
   [![Website](https://img.shields.io/badge/Website-excali.org-blue.svg)](https://excali.org)
   [![Chrome Extension](https://img.shields.io/badge/Chrome-Extension-green.svg)](https://chromewebstore.google.com/detail/excali-organizer/ofhbmolegnmdaoblohnojkdmijemmohe)
   [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/805karansaini/excali-org)
