@@ -226,9 +226,9 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
       dispatch({ type: "ADD_CANVAS", payload: newCanvas });
       dispatch({ type: "SET_SELECTED_CANVAS", payload: newCanvas.id });
 
-      // Emit events
+      // Emit events (let orchestrator handle loading)
       eventBus.emit(InternalEventTypes.CANVAS_CREATED, newCanvas);
-      eventBus.emit(InternalEventTypes.LOAD_CANVAS_TO_EXCALIDRAW, newCanvas);
+      eventBus.emit(InternalEventTypes.CANVAS_SELECTED, newCanvas);
 
       // Call the original handler for any additional logic
       onNewCanvas();
@@ -609,11 +609,9 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
       console.log("Selecting canvas:", canvas.name);
 
       dispatch({ type: "SET_SELECTED_CANVAS", payload: canvas.id });
-      dispatch({ type: "SET_CURRENT_WORKING_CANVAS", payload: canvas.id });
 
-      // Emit events
+      // Emit selection only; orchestrator will save-before-switch and load
       eventBus.emit(InternalEventTypes.CANVAS_SELECTED, canvas);
-      eventBus.emit(InternalEventTypes.LOAD_CANVAS_TO_EXCALIDRAW, canvas);
 
       // Call callback
       onCanvasSelect(canvas);

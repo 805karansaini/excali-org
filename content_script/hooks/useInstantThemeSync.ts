@@ -25,7 +25,7 @@ export function useInstantThemeSync({
       const excalidrawTheme = localStorage.getItem("excalidraw-theme");
       if (excalidrawTheme === "dark") return "dark";
       if (excalidrawTheme === "light") return "light";
-      
+
       // Secondary: Check excalidraw-state for theme
       const excalidrawState = localStorage.getItem("excalidraw-state");
       if (excalidrawState) {
@@ -37,7 +37,7 @@ export function useInstantThemeSync({
     } catch {
       // Silently handle localStorage access errors
     }
-    
+
     // Fallback: system preference
     return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
   }, []);

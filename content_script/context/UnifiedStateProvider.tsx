@@ -904,6 +904,8 @@ export function UnifiedStateProvider({
           type: "SET_ERROR",
           payload: "Failed to auto-save canvas changes.",
         });
+        // Rethrow so emitWithAck callers can detect failure and abort operations safely
+        throw error;
       }
     };
 
@@ -917,34 +919,33 @@ export function UnifiedStateProvider({
     return unsubscribe;
   }, [state.currentWorkingCanvasId, state.canvases]);
 
-  // Setup event listener for canvas selection
+  // Setup event listener for canvas loaded (authoritative current canvas)
   useEffect(() => {
-    const handleCanvasSelected = async (canvas: UnifiedCanvas) => {
+    const handleCanvasLoaded = async (canvas: UnifiedCanvas) => {
       try {
-        console.log("Canvas selected:", canvas.name);
+        console.log("Canvas loaded:", canvas.name);
 
-        // Set as current working canvas
+        // Set as current working canvas only after successful load
         dispatch({ type: "SET_CURRENT_WORKING_CANVAS", payload: canvas.id });
 
-        // Save to settings for persistence across reloads
+        // Persist current canvas across reloads
         await settingsOperations.setSetting(
           "currentWorkingCanvasId",
           canvas.id,
         );
 
-        console.log("Current working canvas updated to:", canvas.id);
+        console.log("Current working canvas persisted:", canvas.id);
       } catch (error) {
-        console.error("Failed to set current working canvas:", error);
+        console.error("Failed to persist current working canvas:", error);
       }
     };
 
-    // Subscribe to canvas selection events
+    // Subscribe to canvas loaded events
     const unsubscribe = globalEventBus.on(
-      InternalEventTypes.CANVAS_SELECTED,
-      handleCanvasSelected,
+      InternalEventTypes.CANVAS_LOADED,
+      handleCanvasLoaded,
     );
 
-    // Return cleanup function
     return unsubscribe;
   }, []);
 
