@@ -236,7 +236,6 @@ export function ContextMenu({ x, y, canvas, onClose }: Props) {
 
   const handleLoadCanvas = () => {
     eventBus.emit(InternalEventTypes.CANVAS_SELECTED, canvas);
-    eventBus.emit(InternalEventTypes.LOAD_CANVAS_TO_EXCALIDRAW, canvas);
     dispatch({ type: "SET_SELECTED_CANVAS", payload: canvas.id });
     onClose();
   };

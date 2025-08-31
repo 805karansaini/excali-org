@@ -1115,13 +1115,8 @@ export class ExcalidrawDataBridge {
    * Setup event listeners
    */
   private setupEventListeners(): void {
-    // Listen for load canvas events
-    globalEventBus.on(
-      InternalEventTypes.LOAD_CANVAS_TO_EXCALIDRAW,
-      async (canvas) => {
-        await this.loadCanvasToExcalidraw(canvas, true);
-      },
-    );
+    // Intentionally left blank. Canvas loading is orchestrated centrally by
+    // CanvasSwitchOrchestrator to ensure save-before-switch and prevent races.
   }
 
   /**

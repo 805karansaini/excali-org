@@ -13,7 +13,7 @@ import { settingsOperations } from "../../shared/unified-db";
 export class CanvasSwitchOrchestrator {
   private bridge: ExcalidrawDataBridge;
   private debounceMs = 250; // coalesce rapid clicks
-  private saveTimeoutMs = 900; // explicit save upper bound
+  // explicit save awaits fully to avoid stale writes
 
   private isSwitching = false;
   private pendingTarget: UnifiedCanvas | null = null;
@@ -60,11 +60,23 @@ export class CanvasSwitchOrchestrator {
       // Determine the current working canvas id from settings
       const currentId = await settingsOperations.getSetting<string>("currentWorkingCanvasId");
 
+      // No-op if selecting the already-active canvas
+      if (currentId && currentId === target.id) {
+        this.isSwitching = false;
+        this.pendingTarget = null;
+        this.bridge.resumeAutoSync("switch");
+        return;
+      }
+
       // Attempt explicit save of current canvas before switching
       if (currentId) {
         const snapshot = this.bridge.getExcalidrawData();
         if (snapshot) {
-          await this.saveWithTimeout(currentId, snapshot.elements, snapshot.appState as import("../../shared/excalidraw-types").AppState);
+          await this.saveExplicit(
+            currentId,
+            snapshot.elements,
+            snapshot.appState as import("../../shared/excalidraw-types").AppState,
+          );
         }
       }
 
@@ -89,22 +101,16 @@ export class CanvasSwitchOrchestrator {
     }
   }
 
-  private async saveWithTimeout(
+  private async saveExplicit(
     canvasId: string,
     elements: UnifiedCanvas["elements"],
     appState: import("../../shared/excalidraw-types").AppState,
   ): Promise<void> {
-    const savePromise = globalEventBus.emit(InternalEventTypes.SYNC_EXCALIDRAW_DATA, {
+    // Await the full persistence path to guarantee save-before-switch
+    await globalEventBus.emit(InternalEventTypes.SYNC_EXCALIDRAW_DATA, {
       elements,
       appState,
       canvasId,
     });
-
-    const timeout = new Promise<void>((resolve) => {
-      setTimeout(resolve, this.saveTimeoutMs);
-    });
-
-    // Race: proceed after first settles (explicit save or timeout)
-    await Promise.race([savePromise.then(() => undefined), timeout]);
   }
 }

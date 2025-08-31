@@ -144,20 +144,7 @@ async function initializeUnifiedApp(): Promise<void> {
  * Setup event handlers for the application
  */
 function setupEventHandlers(): void {
-  // Handle canvas selection events
-  globalEventBus.on(InternalEventTypes.CANVAS_SELECTED, async (canvas) => {
-    try {
-      if (dataBridge) {
-        await dataBridge.loadCanvasToExcalidraw(canvas);
-      }
-    } catch (error) {
-      console.error("Failed to load canvas:", error);
-      await globalEventBus.emit(InternalEventTypes.ERROR_OCCURRED, {
-        error: "Failed to load canvas",
-        details: error,
-      });
-    }
-  });
+  // Canvas selection is handled by CanvasSwitchOrchestrator.
 
   // Handle canvas updates (including renames)
   globalEventBus.on(InternalEventTypes.CANVAS_UPDATED, async (canvas) => {

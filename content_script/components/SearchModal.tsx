@@ -213,7 +213,6 @@ export function SearchModal() {
         const canvas = result.item as UnifiedCanvas;
         dispatch({ type: "SET_SELECTED_CANVAS", payload: canvas.id });
         eventBus.emit(InternalEventTypes.CANVAS_SELECTED, canvas);
-        eventBus.emit(InternalEventTypes.LOAD_CANVAS_TO_EXCALIDRAW, canvas);
         dispatch({ type: "SET_SEARCH_MODAL_OPEN", payload: false });
       } else {
         const project = result.item as UnifiedProject;
