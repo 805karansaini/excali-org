@@ -7,6 +7,7 @@
     "build": "vite build --config vite-unified-content.config.ts && vite build --config vite-background.config.ts",
     "package": "cd dist && zip -r ../excali-org.zip .",
     "lint": "eslint . --report-unused-disable-directives --max-warnings 0",
+    "fix": "eslint . --fix",
     "typecheck": "tsc --noEmit",
     "analyze": "vite build --config vite-unified-content.config.ts --mode analyze",
     "watch": "vite build --config vite-unified-content.config.ts --watch"
