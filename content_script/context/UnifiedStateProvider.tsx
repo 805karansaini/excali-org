@@ -155,7 +155,8 @@ function unifiedStateReducer(
       return {
         ...state,
         canvases: [action.payload, ...state.canvases],
-        currentWorkingCanvasId: action.payload.id,
+        // Do NOT change currentWorkingCanvasId here. It will be set authoritatively
+        // on CANVAS_LOADED after the orchestrated switch completes.
       };
 
     case "UPDATE_CANVAS":
