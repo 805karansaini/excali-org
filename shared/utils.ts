@@ -58,3 +58,50 @@ export const sortProjectsByActivity = (
       return a.name.localeCompare(b.name);
     });
 };
+
+export const slugifyPathSegment = (name: string, fallback = "untitled"): string =>
+  name
+    .trim()
+    .replace(/[^a-z0-9]+/gi, "_")
+    .replace(/^_+|_+$/g, "")
+    .toLowerCase() || fallback;
+
+export const makeUniquePathSegment = (
+  usedSegments: Set<string>,
+  desiredName: string,
+  fallback = "untitled",
+): string => {
+  const base = slugifyPathSegment(desiredName, fallback);
+  let candidate = base;
+  let counter = 2;
+
+  while (usedSegments.has(candidate)) {
+    candidate = `${base}_${counter}`;
+    counter += 1;
+  }
+
+  usedSegments.add(candidate);
+  return candidate;
+};
+
+export const makeUniqueFilename = (
+  usedFilenames: Set<string>,
+  desiredBaseName: string,
+  extension: string,
+  fallbackBaseName = "untitled",
+): string => {
+  const normalizedExt = extension.startsWith(".") ? extension.slice(1) : extension;
+  const base = slugifyPathSegment(desiredBaseName, fallbackBaseName);
+  const suffix = normalizedExt ? `.${normalizedExt}` : "";
+
+  let candidate = `${base}${suffix}`;
+  let counter = 2;
+
+  while (usedFilenames.has(candidate)) {
+    candidate = `${base}_${counter}${suffix}`;
+    counter += 1;
+  }
+
+  usedFilenames.add(candidate);
+  return candidate;
+};

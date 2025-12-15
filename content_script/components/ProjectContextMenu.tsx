@@ -13,6 +13,7 @@ import { eventBus, InternalEventTypes } from "../messaging/InternalEventBus";
 import { ProjectFormModal } from "./ProjectFormModal";
 import { UnifiedProject } from "../../shared/types";
 import { projectOperations } from "../../shared/unified-db";
+import { makeUniqueFilename, slugifyPathSegment } from "../../shared/utils";
 
 interface Props {
   x: number;
@@ -211,6 +212,7 @@ export function ProjectContextMenu({ x, y, project, onClose }: Props) {
       }
 
       // Add each canvas as an individual .excalidraw file
+      const usedCanvasFilenames = new Set<string>();
       exportData.canvases.forEach((canvas) => {
         const canvasData = {
           type: "excalidraw",
@@ -242,7 +244,11 @@ export function ProjectContextMenu({ x, y, project, onClose }: Props) {
           files: {},
         };
 
-        const filename = `canvas-${canvas.id}.excalidraw`;
+        const filename = makeUniqueFilename(
+          usedCanvasFilenames,
+          canvas.name || canvas.id,
+          "excalidraw",
+        );
         canvasesFolder.file(filename, JSON.stringify(canvasData, null, 2));
       });
 
@@ -272,9 +278,7 @@ export function ProjectContextMenu({ x, y, project, onClose }: Props) {
       const url = URL.createObjectURL(zipBlob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${project.name
-        .replace(/[^a-z0-9]/gi, "_")
-        .toLowerCase()}_project.zip`;
+      a.download = `${slugifyPathSegment(project.name || project.id)}_project.zip`;
       a.click();
       URL.revokeObjectURL(url);
 

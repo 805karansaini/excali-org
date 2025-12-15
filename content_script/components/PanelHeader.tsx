@@ -1,4 +1,4 @@
-import { Plus, Search, Pin, PinOff, FolderPlus } from "lucide-react";
+import { Plus, Search, Pin, PinOff, FolderPlus, Download } from "lucide-react";
 
 interface PanelHeaderProps {
   isPanelPinned: boolean;
@@ -7,6 +7,8 @@ interface PanelHeaderProps {
   onNewProject: () => void;
   onSearchOpen: () => void;
   shortcuts: Record<string, string>;
+  onExportAll: () => void;
+  isExportingAll: boolean;
 }
 
 export function PanelHeader({
@@ -16,6 +18,8 @@ export function PanelHeader({
   onNewProject,
   onSearchOpen,
   shortcuts,
+  onExportAll,
+  isExportingAll,
 }: PanelHeaderProps) {
   return (
     <div
@@ -202,6 +206,39 @@ export function PanelHeader({
         >
           {shortcuts["New Project"]}
         </span>
+      </button>
+
+      <button
+        style={{
+          background: "var(--theme-bg-active)",
+          color: "var(--theme-text-secondary)",
+          border: `1px solid var(--theme-border-primary)`,
+          padding: "8px 12px",
+          borderRadius: "6px",
+          fontSize: "14px",
+          cursor: isExportingAll ? "wait" : "pointer",
+          display: "flex",
+          alignItems: "center",
+          gap: "6px",
+          width: "100%",
+          marginBottom: "8px",
+          opacity: isExportingAll ? 0.6 : 1,
+          transition: "background-color 0.2s ease",
+          pointerEvents: isExportingAll ? "none" : "auto",
+        }}
+        onClick={onExportAll}
+        disabled={isExportingAll}
+        onMouseEnter={(e) => {
+          if (isExportingAll) return;
+          e.currentTarget.style.background = "var(--theme-bg-hover)";
+        }}
+        onMouseLeave={(e) => {
+          if (isExportingAll) return;
+          e.currentTarget.style.background = "var(--theme-bg-active)";
+        }}
+      >
+        <Download size={16} />
+        <span>{isExportingAll ? "Exporting..." : "Export all"}</span>
       </button>
 
       <button
