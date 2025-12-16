@@ -232,21 +232,23 @@ export const ProjectFormModal = React.memo(function ProjectFormModal(props: Prop
     left: 0,
     right: 0,
     bottom: 0,
-    background: "var(--theme-bg-primary, #ffffff)",
+    background: "rgba(0, 0, 0, 0.6)",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    zIndex: 9999999,
+    zIndex: 10000000,
     pointerEvents: "auto",
+    padding: "20px",
+    backdropFilter: "blur(4px)",
   };
 
   const modalStyles: React.CSSProperties = {
-    width: "calc(100vw - 32px)",
+    width: "100%",
     maxWidth: "500px",
     background: "var(--theme-bg-primary, #ffffff)",
     border: "1px solid var(--theme-border-primary, rgba(0, 0, 0, 0.1))",
     borderRadius: "16px",
-    boxShadow: "var(--theme-shadow-lg, 0 20px 40px rgba(0, 0, 0, 0.1))",
+    boxShadow: "var(--theme-shadow-lg, 0 20px 40px rgba(0, 0, 0, 0.15))",
     overflow: "hidden",
     margin: "0 auto",
   };

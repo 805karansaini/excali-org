@@ -1,13 +1,23 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-// Pin and PinOff imports moved to PanelHeader component
 import { useUnifiedState } from "../context/UnifiedStateProvider";
 import { eventBus, InternalEventTypes } from "../messaging/InternalEventBus";
-import { sortProjectsByActivity, PROJECT_SORT_CONSTANTS } from "../../shared/utils";
+import {
+  sortProjectsByActivity,
+  PROJECT_SORT_CONSTANTS,
+  makeUniqueFilename,
+  makeUniquePathSegment,
+} from "../../shared/utils";
 import {
   useKeyboardShortcuts,
   getExtensionShortcuts,
 } from "../hooks/useKeyboardShortcuts";
+import { useEventBusListener } from "../hooks/useEventBusListener";
+import { usePanelVisibility, usePanelResize } from "../hooks/usePanelLayout";
+import { PANEL_CONSTANTS } from "../../shared/constants";
+import { createDefaultCanvas } from "../../shared/canvasFactory";
+import { backupOperations, canvasOperations, settingsOperations } from "../../shared/unified-db";
+import JSZip from "jszip";
 import { SearchModal } from "./SearchModal";
 import { HelpOverlay } from "./HelpOverlay";
 import CanvasDeleteModal from "./CanvasDeleteModal";
@@ -26,39 +36,103 @@ import {
   CanvasSectionErrorFallback 
 } from "./ErrorBoundary";
 import { UnifiedCanvas, UnifiedProject } from "../../shared/types";
-import { canvasOperations, settingsOperations } from "../../shared/unified-db";
-import { v4 as uuidv4 } from "uuid";
+import { ImportAllModal } from "./ImportAllModal";
+import { ExportAllModal } from "./ExportAllModal";
+import {
+  detectConflicts,
+  importBackupZip,
+  parseBackupZip,
+  type ConflictReport,
+  type ImportMode,
+  type ImportResult,
+  type ParsedBackupZip,
+} from "../services/backupImportAll";
 
 interface Props {
   onNewCanvas: () => void;
   onCanvasSelect: (canvas: UnifiedCanvas) => void;
 }
 
-const MIN_WIDTH = 200;
-const MAX_WIDTH = 600;
-
 export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
   const {
     state,
     dispatch,
     updatePanelSettings,
+    loadInitialData,
     getCanvasesForProject,
     getUnorganizedCanvases,
     removeCanvas,
     saveCanvas,
   } = useUnifiedState();
-  const [isResizing, setIsResizing] = useState(false);
-  const [showWidthIndicator, setShowWidthIndicator] = useState(false);
   const [showProjectModal, setShowProjectModal] = useState(false);
-  const [isMouseOverPanel, setIsMouseOverPanel] = useState(false);
   const [hoveredProject, setHoveredProject] = useState<UnifiedProject | null>(null);
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
   const [showAllProjects, setShowAllProjects] = useState(false);
+  const [isExportingAll, setIsExportingAll] = useState(false);
+  const [isExportAllModalOpen, setIsExportAllModalOpen] = useState(false);
+  const [exportPhase, setExportPhase] = useState<"idle" | "exporting" | "done" | "error">("idle");
+  const [exportProgressMessage, setExportProgressMessage] = useState<string | undefined>(undefined);
+  const [exportErrorMessage, setExportErrorMessage] = useState<string | null>(null);
+  const [exportCounts, setExportCounts] = useState<{ canvases: number; projects: number; settings: number } | undefined>(
+    undefined,
+  );
+  const [isImportAllModalOpen, setIsImportAllModalOpen] = useState(false);
+  const [importMode, setImportMode] = useState<ImportMode>("merge");
+  const [importPhase, setImportPhase] = useState<
+    "idle" | "parsing" | "ready" | "importing" | "done" | "error"
+  >("idle");
+  const [importFileName, setImportFileName] = useState<string | undefined>(undefined);
+  const [importParsed, setImportParsed] = useState<ParsedBackupZip | undefined>(undefined);
+  const [importConflicts, setImportConflicts] = useState<ConflictReport | undefined>(undefined);
+  const [importProgressMessage, setImportProgressMessage] = useState<string | undefined>(undefined);
+  const [importResult, setImportResult] = useState<ImportResult | undefined>(undefined);
+  const [importErrorMessage, setImportErrorMessage] = useState<string | null>(null);
+  const panelRef = React.useRef<HTMLDivElement>(null);
+  const importInputRef = React.useRef<HTMLInputElement>(null);
+  const importOpIdRef = React.useRef(0);
 
-  const panelRef = useRef<HTMLDivElement>(null);
-  const timeoutRef = useRef<number>();
-  const resizeStartX = useRef<number>(0);
-  const resizeStartWidth = useRef<number>(0);
+  const isImportingAll = importPhase === "parsing" || importPhase === "importing";
+
+  const yieldToBrowser = () =>
+    new Promise((resolve) => setTimeout(resolve, 0));
+
+  const toExcalidrawFile = (canvas: UnifiedCanvas) => ({
+    type: "excalidraw",
+    version: 2,
+    source: "https://excalidraw.com",
+    elements: canvas.elements || [],
+    appState:
+      canvas.appState || {
+        theme: "light",
+        viewBackgroundColor: "#ffffff",
+        currentItemStrokeColor: "#000000",
+        currentItemBackgroundColor: "transparent",
+        currentItemFillStyle: "hachure",
+        currentItemStrokeWidth: 1,
+        currentItemStrokeStyle: "solid",
+        currentItemRoughness: 1,
+        currentItemOpacity: 100,
+        currentItemFontSize: 20,
+        currentItemFontFamily: 1,
+        currentItemTextAlign: "left",
+        currentItemStartArrowhead: null,
+        currentItemEndArrowhead: "arrow",
+        scrollX: 0,
+        scrollY: 0,
+        zoom: { value: 1 },
+        currentItemLinearStrokeSharpness: "round",
+        gridSize: null,
+        colorPalette: {},
+      },
+    files: {},
+    metadata: {
+      id: canvas.id,
+      name: canvas.name,
+      createdAt: canvas.createdAt,
+      updatedAt: canvas.updatedAt,
+      projectId: canvas.projectId,
+    },
+  });
 
   // Stabilize the canvas count function for memoization
   const getCanvasCount = useCallback(
@@ -87,166 +161,423 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
     setShowProjectModal(true);
   }, []);
 
-  // Handle panel toggle with VS Code-like pin/unpin behavior
-  const handleTogglePanel = useCallback(() => {
-    // If panel is hidden, show and pin it
-    if (!state.isPanelVisible) {
-      dispatch({ type: "SET_PANEL_VISIBLE", payload: true });
-      dispatch({ type: "SET_PANEL_PINNED", payload: true });
-      updatePanelSettings({ isPinned: true });
-
-      eventBus.emit(InternalEventTypes.PANEL_VISIBILITY_CHANGED, {
-        isVisible: true,
-      });
-      eventBus.emit(InternalEventTypes.PANEL_PINNED_CHANGED, {
-        isPinned: true,
-      });
-    }
-    // If panel is visible and pinned, unpin it (allowing auto-hide)
-    else if (state.isPanelVisible && state.isPanelPinned) {
-      dispatch({ type: "SET_PANEL_PINNED", payload: false });
-      updatePanelSettings({ isPinned: false });
-
-      eventBus.emit(InternalEventTypes.PANEL_PINNED_CHANGED, {
-        isPinned: false,
-      });
-
-      // If mouse is not over panel, start auto-hide timer
-      if (!isMouseOverPanel) {
-        timeoutRef.current = setTimeout(() => {
-          dispatch({ type: "SET_PANEL_VISIBLE", payload: false });
-          eventBus.emit(InternalEventTypes.PANEL_VISIBILITY_CHANGED, {
-            isVisible: false,
-          });
-        }, 300);
-      }
-    }
-    // If panel is visible but not pinned, pin it
-    else if (state.isPanelVisible && !state.isPanelPinned) {
-      dispatch({ type: "SET_PANEL_PINNED", payload: true });
-      updatePanelSettings({ isPinned: true });
-
-      eventBus.emit(InternalEventTypes.PANEL_PINNED_CHANGED, {
-        isPinned: true,
-      });
-
-      // Clear any pending auto-hide timer
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-        timeoutRef.current = undefined;
-      }
-    }
-  }, [state.isPanelVisible, state.isPanelPinned, isMouseOverPanel, dispatch, updatePanelSettings]);
-
   const shortcuts = getExtensionShortcuts().shortcuts;
 
-  // Enhanced canvas creation with better naming
+  const {
+    isResizing,
+    showWidthIndicator,
+    handleMouseResizeStart,
+    handleTouchResizeStart,
+    handleKeyboardResize,
+  } = usePanelResize({
+    panelWidth: state.panelWidth,
+    dispatch,
+    updatePanelSettings,
+  });
+
+  const {
+    handleMouseEnter,
+    handleMouseLeave,
+    handleTogglePanel,
+  } = usePanelVisibility({
+    isPanelPinned: state.isPanelPinned,
+    isPanelVisible: state.isPanelVisible,
+    contextMenuOpen: Boolean(state.contextMenu),
+    projectContextMenuOpen: Boolean(state.projectContextMenu),
+    dispatch,
+    updatePanelSettings,
+    suppressAutoHide: isResizing || isExportingAll || isImportingAll,
+  });
+
+  // Enhanced canvas creation with shared defaults
   const handleNewCanvasEnhanced = useCallback(async () => {
     try {
-      console.log("Creating new canvas...");
+      const newCanvas = createDefaultCanvas({
+        existingNames: state.canvases.map((c) => c.name),
+        width: window.innerWidth,
+        height: window.innerHeight,
+        theme: state.theme ?? "light",
+      });
 
-      const existingNames = state.canvases.map((c) => c.name);
-      const baseName = "Untitled Canvas";
-      let counter = 1;
-      let finalName = baseName;
-
-      // Find unique name
-      while (existingNames.includes(finalName)) {
-        finalName = `${baseName} ${counter}`;
-        counter++;
-      }
-
-      const newCanvas: UnifiedCanvas = {
-        id: uuidv4(),
-        name: finalName,
-        elements: [
-          // Add a simple test element so we can verify loading works
-          {
-            id: uuidv4(),
-            type: "text",
-            x: 100,
-            y: 100,
-            width: 250,
-            height: 50,
-            angle: 0,
-            strokeColor: "#000000",
-            backgroundColor: "transparent",
-            fillStyle: "hachure",
-            strokeWidth: 1,
-            strokeStyle: "solid",
-            roughness: 1,
-            opacity: 100,
-            text: `Welcome to ${finalName}!`,
-            fontSize: 20,
-            fontFamily: 1,
-            textAlign: "left",
-            verticalAlign: "top",
-            containerId: null,
-            originalText: `Welcome to ${finalName}!`,
-            lineHeight: 1.25,
-            // Required ExcalidrawElement properties
-            version: 1,
-            versionNonce: Math.floor(Math.random() * 2147483647),
-            isDeleted: false,
-            groupIds: [],
-            frameId: null,
-            roundness: null,
-            boundElements: null,
-            updated: Date.now(),
-            link: null,
-            locked: false,
-          },
-        ],
-        appState: {
-          zoom: { value: 1 },
-          scrollX: 0,
-          scrollY: 0,
-          width: window.innerWidth,
-          height: window.innerHeight,
-          viewBackgroundColor: "#ffffff",
-          theme: "light" as const,
-          selectedElementIds: {},
-          editingGroupId: null,
-          viewModeEnabled: false,
-          currentItemFontSize: 20,
-          currentItemStrokeColor: "#000000",
-        },
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        projectId: undefined,
-      };
-
-      console.log("New canvas created:", newCanvas);
-
-      // Save to database first
       await canvasOperations.addCanvas(newCanvas);
-      console.log("Canvas saved to database");
-
-      // Update state
       dispatch({ type: "ADD_CANVAS", payload: newCanvas });
       dispatch({ type: "SET_SELECTED_CANVAS", payload: newCanvas.id });
 
-      // Emit events (let orchestrator handle loading)
       eventBus.emit(InternalEventTypes.CANVAS_CREATED, newCanvas);
       eventBus.emit(InternalEventTypes.CANVAS_SELECTED, newCanvas);
 
-      // Call the original handler for any additional logic
       onNewCanvas();
-
-      console.log("Canvas creation completed successfully");
     } catch (error) {
       console.error("Error creating new canvas:", error);
-      // Show error to user
       dispatch({
         type: "SET_ERROR",
         payload:
           "Failed to create canvas: " +
           (error instanceof Error ? error.message : String(error)),
       });
-      // Fallback to original handler
       onNewCanvas();
     }
-  }, [state.canvases, dispatch, onNewCanvas]);
+  }, [state.canvases, state.theme, dispatch, onNewCanvas]);
+
+  const handleExportAll = useCallback(async () => {
+    try {
+      setIsExportingAll(true);
+      setIsExportAllModalOpen(true);
+      setExportPhase("exporting");
+      setExportErrorMessage(null);
+      setExportProgressMessage("Collecting data…");
+      const exportData = await backupOperations.exportAllData();
+      const zip = new JSZip();
+      const timestamp = new Date().toISOString();
+
+      // Yield before heavy work
+      await yieldToBrowser();
+
+      setExportCounts({
+        canvases: exportData.canvases.length,
+        projects: exportData.projects.length,
+        settings: exportData.settings?.length ?? 0,
+      });
+
+      setExportProgressMessage("Writing manifest…");
+      const projectById = new Map(exportData.projects.map((p) => [p.id, p]));
+      const canvasById = new Map(exportData.canvases.map((c) => [c.id, c]));
+
+      const projectCanvasIdsByProjectId = new Map<string, Set<string>>();
+      const canvasesInAnyProject = new Set<string>();
+
+      exportData.projects.forEach((project) => {
+        const canvasIds = new Set<string>(project.canvasIds ?? []);
+        projectCanvasIdsByProjectId.set(project.id, canvasIds);
+        canvasIds.forEach((id) => canvasesInAnyProject.add(id));
+      });
+
+      exportData.canvases.forEach((canvas) => {
+        const projectId = canvas.projectId;
+        if (!projectId) return;
+        if (!projectById.has(projectId)) return;
+
+        const canvasIds = projectCanvasIdsByProjectId.get(projectId) ?? new Set<string>();
+        canvasIds.add(canvas.id);
+        projectCanvasIdsByProjectId.set(projectId, canvasIds);
+        canvasesInAnyProject.add(canvas.id);
+      });
+
+      // Root manifest
+      zip.file(
+        "manifest.json",
+        JSON.stringify(
+          {
+            exportVersion: "1.1.0",
+            exportedAt: timestamp,
+            canvasCount: exportData.canvases.length,
+            projectCount: exportData.projects.length,
+            settingsCount: exportData.settings?.length ?? 0,
+            format: "zip",
+            source: "Excali Organizer",
+          },
+          null,
+          2,
+        ),
+      );
+
+      // Settings + raw tables
+      setExportProgressMessage("Adding raw tables…");
+      zip.file("canvases.json", JSON.stringify(exportData.canvases, null, 2));
+      zip.file("projects.json", JSON.stringify(exportData.projects, null, 2));
+      zip.file("settings.json", JSON.stringify(exportData.settings ?? [], null, 2));
+
+      const canvasesFolder = zip.folder("canvases");
+      if (!canvasesFolder) throw new Error("Unable to create canvases folder");
+
+      // Export each canvas as .excalidraw (single canvas download parity)
+      setExportProgressMessage("Packaging canvases…");
+      const usedRootCanvasFilenames = new Set<string>();
+      exportData.canvases
+        .filter((canvas) => {
+          if (canvas.projectId && projectById.has(canvas.projectId)) return false;
+          return !canvasesInAnyProject.has(canvas.id);
+        })
+        .forEach((canvas) => {
+          const filename = makeUniqueFilename(
+            usedRootCanvasFilenames,
+            canvas.name || canvas.id,
+            "excalidraw",
+          );
+          canvasesFolder.file(filename, JSON.stringify(toExcalidrawFile(canvas), null, 2));
+        });
+
+      // Yield again before project packaging
+      await yieldToBrowser();
+
+      const projectsFolder = zip.folder("projects");
+      if (!projectsFolder) throw new Error("Unable to create projects folder");
+
+      setExportProgressMessage("Packaging projects…");
+      const usedProjectFolderNames = new Set<string>();
+      exportData.projects.forEach((project: UnifiedProject) => {
+        const projectFolderName = makeUniquePathSegment(
+          usedProjectFolderNames,
+          project.name || project.id,
+        );
+        const projectFolder = projectsFolder.folder(projectFolderName);
+        if (!projectFolder) return;
+
+        const projectCanvasIds = projectCanvasIdsByProjectId.get(project.id) ?? new Set<string>();
+        const projectCanvases = Array.from(projectCanvasIds)
+          .map((id) => canvasById.get(id))
+          .filter((canvas): canvas is UnifiedCanvas => Boolean(canvas));
+
+        const projectMetadata = {
+          id: project.id,
+          name: project.name,
+          description: project.description || "",
+          color: project.color,
+          createdAt: project.createdAt,
+          updatedAt: project.updatedAt,
+          canvasCount: projectCanvases.length,
+        };
+
+        projectFolder.file("project.json", JSON.stringify(projectMetadata, null, 2));
+
+        const projectCanvasFolder = projectFolder.folder("canvases");
+        if (projectCanvasFolder) {
+          const usedProjectCanvasFilenames = new Set<string>();
+          projectCanvases.forEach((canvas) => {
+            const filename = makeUniqueFilename(
+              usedProjectCanvasFilenames,
+              canvas.name || canvas.id,
+              "excalidraw",
+            );
+            projectCanvasFolder.file(
+              filename,
+              JSON.stringify(toExcalidrawFile(canvas), null, 2),
+            );
+          });
+        }
+
+        const manifest = {
+          exportVersion: "1.0.0",
+          exportedAt: timestamp,
+          exportedBy: "Excali Organizer Extension",
+          projectName: project.name,
+          canvasCount: projectCanvases.length,
+          format: "zip",
+          compatibility: {
+            excalidraw: "^0.18.0",
+            excaliOrganizer: "^1.0.0",
+          },
+        };
+        projectFolder.file("manifest.json", JSON.stringify(manifest, null, 2));
+      });
+
+      // Final yield before generating blob
+      await yieldToBrowser();
+
+      setExportProgressMessage("Compressing zip…");
+      const zipBlob = await zip.generateAsync({
+        type: "blob",
+        compression: "DEFLATE",
+        compressionOptions: { level: 6 },
+      });
+
+      setExportProgressMessage("Starting download…");
+      const url = URL.createObjectURL(zipBlob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `excali-org-backup-${timestamp.slice(0, 10)}.zip`;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      setExportProgressMessage(undefined);
+      setExportPhase("done");
+    } catch (error) {
+      console.error("Failed to export all data:", error);
+      setExportPhase("error");
+      setExportProgressMessage(undefined);
+      setExportErrorMessage(error instanceof Error ? error.message : "Export failed");
+      dispatch({
+        type: "SET_ERROR",
+        payload: "Failed to export data. Please try again.",
+      });
+    } finally {
+      setIsExportingAll(false);
+    }
+  }, [dispatch]);
+
+  const handleExportAllClose = useCallback(() => {
+    if (exportPhase === "exporting") return;
+    setIsExportAllModalOpen(false);
+  }, [exportPhase]);
+
+  const resetExportState = useCallback(() => {
+    if (exportPhase === "exporting") return;
+    setExportPhase("idle");
+    setExportProgressMessage(undefined);
+    setExportErrorMessage(null);
+    setExportCounts(undefined);
+  }, [exportPhase]);
+
+  const resetImportState = useCallback(() => {
+    // Invalidate any in-flight parse/conflict detection so it can't update state after reset.
+    importOpIdRef.current += 1;
+    setImportPhase("idle");
+    setImportFileName(undefined);
+    setImportParsed(undefined);
+    setImportConflicts(undefined);
+    setImportProgressMessage(undefined);
+    setImportResult(undefined);
+    setImportErrorMessage(null);
+  }, []);
+
+  const handleImportAllClick = useCallback(() => {
+    resetImportState();
+    setImportMode("merge");
+    setIsImportAllModalOpen(true);
+  }, [resetImportState]);
+
+  const handleImportAllClose = useCallback(() => {
+    if (isImportingAll) return;
+    setIsImportAllModalOpen(false);
+  }, [isImportingAll]);
+
+  const handleImportAllPickFile = useCallback(() => {
+    if (isImportingAll) return;
+    importInputRef.current?.click();
+  }, [isImportingAll]);
+
+  const handleImportAllModeChange = useCallback(
+    async (mode: ImportMode) => {
+      if (isImportingAll) return;
+      setImportMode(mode);
+      setImportResult(undefined);
+      setImportErrorMessage(null);
+
+      if (!importParsed) {
+        setImportConflicts(undefined);
+        return;
+      }
+
+      if (mode === "replace") {
+        setImportConflicts(undefined);
+        setImportPhase("ready");
+        return;
+      }
+
+      try {
+        setImportPhase("parsing");
+        setImportProgressMessage("Checking for conflicts…");
+        const nextConflicts = await detectConflicts(importParsed, setImportProgressMessage);
+        setImportConflicts(nextConflicts);
+        setImportProgressMessage(undefined);
+        setImportPhase("ready");
+      } catch (error) {
+        setImportPhase("error");
+        setImportErrorMessage(error instanceof Error ? error.message : "Failed to detect conflicts");
+      }
+    },
+    [importParsed, isImportingAll],
+  );
+
+  const startImport = useCallback(async (override?: {
+    parsed?: ParsedBackupZip;
+    mode?: ImportMode;
+    conflicts?: ConflictReport;
+  }) => {
+    const effectiveParsed = override?.parsed ?? importParsed;
+    const effectiveMode = override?.mode ?? importMode;
+    const effectiveConflicts = override?.conflicts ?? importConflicts;
+
+    if (!effectiveParsed) return;
+    if (effectiveMode === "merge" && !effectiveConflicts) return;
+
+    try {
+      setImportPhase("importing");
+      setImportErrorMessage(null);
+      setImportResult(undefined);
+      const result = await importBackupZip({
+        data: effectiveParsed,
+        mode: effectiveMode,
+        onProgress: setImportProgressMessage,
+      });
+      setImportProgressMessage("Refreshing…");
+      await loadInitialData();
+      setImportProgressMessage(undefined);
+      setImportResult(result);
+      setImportPhase("done");
+    } catch (error) {
+      console.error("Failed to import all data:", error);
+      setImportPhase("error");
+      setImportProgressMessage(undefined);
+      setImportErrorMessage(error instanceof Error ? error.message : "Import failed");
+      dispatch({
+        type: "SET_ERROR",
+        payload: "Failed to import backup. Please try again.",
+      });
+    }
+  }, [dispatch, importConflicts, importMode, importParsed, loadInitialData]);
+
+  const handleImportAllFile = useCallback(
+    async (file: File) => {
+      const opId = (importOpIdRef.current += 1);
+      const isCurrent = () => importOpIdRef.current === opId;
+      const setProgress = (message: string | undefined) => {
+        if (!isCurrent()) return;
+        setImportProgressMessage(message);
+      };
+
+      try {
+        if (!isCurrent()) return;
+        setImportErrorMessage(null);
+        setImportResult(undefined);
+        setImportFileName(file.name);
+        setImportPhase("parsing");
+
+        const parsed = await parseBackupZip(file, setProgress);
+        if (!isCurrent()) return;
+        setImportParsed(parsed);
+
+        if (importMode === "merge") {
+          const nextConflicts = await detectConflicts(parsed, setProgress);
+          if (!isCurrent()) return;
+          setImportConflicts(nextConflicts);
+          setProgress(undefined);
+          setImportPhase("ready");
+
+          const hasConflicts =
+            nextConflicts.canvasIds.length > 0 ||
+            nextConflicts.projectIds.length > 0 ||
+            nextConflicts.projectNames.length > 0 ||
+            nextConflicts.settingKeys.length > 0;
+
+          if (!hasConflicts) {
+            await startImport({ parsed, mode: importMode, conflicts: nextConflicts });
+          }
+        } else {
+          setImportConflicts(undefined);
+          setProgress(undefined);
+          setImportPhase("ready");
+        }
+      } catch (error) {
+        if (!isCurrent()) return;
+        console.error("Failed to parse import zip:", error);
+        setImportPhase("error");
+        setImportProgressMessage(undefined);
+        setImportErrorMessage(error instanceof Error ? error.message : "Import failed");
+      }
+    },
+    [importMode, startImport],
+  );
+
+  const handleImportAllFileSelected = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      e.target.value = "";
+      if (!file) return;
+      await handleImportAllFile(file);
+    },
+    [handleImportAllFile],
+  );
 
   // Initialize keyboard shortcuts
   useKeyboardShortcuts({
@@ -255,14 +586,11 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
     onTogglePanel: handleTogglePanel,
   });
 
-  // Listen for new canvas requests
-  useEffect(() => {
-    const unsubscribe = eventBus.on(InternalEventTypes.REQUEST_NEW_CANVAS, () => {
-      handleNewCanvasEnhanced();
-    });
-
-    return unsubscribe;
+  const handleRequestNewCanvas = useCallback(() => {
+    void handleNewCanvasEnhanced();
   }, [handleNewCanvasEnhanced]);
+
+  useEventBusListener(InternalEventTypes.REQUEST_NEW_CANVAS, handleRequestNewCanvas);
 
   // Canvas delete handlers
   const handleConfirmCanvasDelete = useCallback(async () => {
@@ -335,7 +663,7 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
   // Handle window resize and escape key for modals
   useEffect(() => {
     const handleWindowResize = () => {
-      const maxAllowedWidth = Math.min(MAX_WIDTH, window.innerWidth * 0.8);
+      const maxAllowedWidth = Math.min(PANEL_CONSTANTS.MAX_WIDTH, window.innerWidth * 0.8);
       if (state.panelWidth > maxAllowedWidth) {
         updatePanelSettings({ width: maxAllowedWidth });
       }
@@ -356,31 +684,6 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
     };
   }, [state.panelWidth, updatePanelSettings, showProjectModal]);
 
-  // Monitor context menu state changes to resume auto-hide when menus close
-  useEffect(() => {
-    // If context menus open, clear any pending auto-hide timer
-    if ((state.contextMenu || state.projectContextMenu) && timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = undefined;
-    }
-
-    // If context menus were just closed and mouse is not over panel, start auto-hide timer
-    if (!state.contextMenu && !state.projectContextMenu && !state.isPanelPinned && !isResizing && state.isPanelVisible && !isMouseOverPanel) {
-      // Clear any existing timeout first
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-
-      // Start auto-hide timer (same delay as mouse leave)
-      timeoutRef.current = setTimeout(() => {
-        dispatch({ type: "SET_PANEL_VISIBLE", payload: false });
-        eventBus.emit(InternalEventTypes.PANEL_VISIBILITY_CHANGED, {
-          isVisible: false,
-        });
-      }, 300);
-    }
-  }, [state.contextMenu, state.projectContextMenu, state.isPanelPinned, isResizing, state.isPanelVisible, isMouseOverPanel, dispatch]);
-
   // Panel resize keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -393,16 +696,9 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
         return;
       }
 
-      if (e.altKey && (e.key === "ArrowLeft" || e.key === "ArrowRight")) {
+    if (e.altKey && (e.key === "ArrowLeft" || e.key === "ArrowRight")) {
         e.preventDefault();
-        const delta = e.key === "ArrowLeft" ? -20 : 20;
-        const newWidth = Math.max(
-          MIN_WIDTH,
-          Math.min(MAX_WIDTH, state.panelWidth + delta),
-        );
-        updatePanelSettings({ width: newWidth });
-        setShowWidthIndicator(true);
-        setTimeout(() => setShowWidthIndicator(false), 1000);
+        handleKeyboardResize(e.key === "ArrowLeft" ? "left" : "right");
       }
     };
 
@@ -411,152 +707,7 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
   }, [
     state.isPanelVisible,
     state.isPanelPinned,
-    state.panelWidth,
-    updatePanelSettings,
-  ]);
-
-  const handleMouseEnter = () => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-    }
-    setIsMouseOverPanel(true);
-    dispatch({ type: "SET_PANEL_VISIBLE", payload: true });
-    eventBus.emit(InternalEventTypes.PANEL_VISIBILITY_CHANGED, {
-      isVisible: true,
-    });
-  };
-
-  const handleMouseLeave = () => {
-    setIsMouseOverPanel(false);
-    // Don't auto-hide if panel is pinned, currently resizing, or any context menu is open
-    if (!state.isPanelPinned && !isResizing && !state.contextMenu && !state.projectContextMenu) {
-      timeoutRef.current = setTimeout(() => {
-        dispatch({ type: "SET_PANEL_VISIBLE", payload: false });
-        eventBus.emit(InternalEventTypes.PANEL_VISIBILITY_CHANGED, {
-          isVisible: false,
-        });
-      }, 300);
-    }
-  };
-
-  const togglePin = () => {
-    const newPinned = !state.isPanelPinned;
-    dispatch({ type: "SET_PANEL_PINNED", payload: newPinned });
-    updatePanelSettings({ isPinned: newPinned });
-
-    if (newPinned) {
-      dispatch({ type: "SET_PANEL_VISIBLE", payload: true });
-      eventBus.emit(InternalEventTypes.PANEL_VISIBILITY_CHANGED, {
-        isVisible: true,
-      });
-    }
-
-    eventBus.emit(InternalEventTypes.PANEL_PINNED_CHANGED, {
-      isPinned: newPinned,
-    });
-  };
-
-  // Mouse resize handlers
-  const handleResizeStart = useCallback(
-    (e: React.MouseEvent) => {
-      e.preventDefault();
-      setIsResizing(true);
-      setShowWidthIndicator(true);
-      resizeStartX.current = e.clientX;
-      resizeStartWidth.current = state.panelWidth;
-
-      document.body.style.cursor = "col-resize";
-      document.body.style.userSelect = "none";
-    },
-    [state.panelWidth],
-  );
-
-  const handleResizeMove = useCallback(
-    (e: MouseEvent) => {
-      if (!isResizing) return;
-
-      const deltaX = e.clientX - resizeStartX.current;
-      const newWidth = Math.max(
-        MIN_WIDTH,
-        Math.min(MAX_WIDTH, resizeStartWidth.current + deltaX),
-      );
-      dispatch({ type: "SET_PANEL_WIDTH", payload: newWidth });
-    },
-    [isResizing, dispatch],
-  );
-
-  const handleResizeEnd = useCallback(() => {
-    setIsResizing(false);
-    document.body.style.cursor = "";
-    document.body.style.userSelect = "";
-
-    updatePanelSettings({ width: state.panelWidth });
-    setTimeout(() => setShowWidthIndicator(false), 1000);
-    eventBus.emit(InternalEventTypes.PANEL_WIDTH_CHANGED, {
-      width: state.panelWidth,
-    });
-  }, [state.panelWidth, updatePanelSettings]);
-
-  // Touch resize handlers
-  const handleTouchStart = useCallback(
-    (e: React.TouchEvent) => {
-      e.preventDefault();
-      const touch = e.touches[0];
-      if (!touch) return;
-      setIsResizing(true);
-      setShowWidthIndicator(true);
-      resizeStartX.current = touch.clientX;
-      resizeStartWidth.current = state.panelWidth;
-    },
-    [state.panelWidth],
-  );
-
-  const handleTouchMove = useCallback(
-    (e: TouchEvent) => {
-      if (!isResizing) return;
-
-      e.preventDefault();
-      const touch = e.touches[0];
-      if (!touch) return;
-      const deltaX = touch.clientX - resizeStartX.current;
-      const newWidth = Math.max(
-        MIN_WIDTH,
-        Math.min(MAX_WIDTH, resizeStartWidth.current + deltaX),
-      );
-      dispatch({ type: "SET_PANEL_WIDTH", payload: newWidth });
-    },
-    [isResizing, dispatch],
-  );
-
-  const handleTouchEnd = useCallback(() => {
-    setIsResizing(false);
-    updatePanelSettings({ width: state.panelWidth });
-    setTimeout(() => setShowWidthIndicator(false), 1000);
-  }, [state.panelWidth, updatePanelSettings]);
-
-  // Event listeners for resize
-  useEffect(() => {
-    if (isResizing) {
-      document.addEventListener("mousemove", handleResizeMove);
-      document.addEventListener("mouseup", handleResizeEnd);
-      document.addEventListener("touchmove", handleTouchMove, {
-        passive: false,
-      });
-      document.addEventListener("touchend", handleTouchEnd);
-    }
-
-    return () => {
-      document.removeEventListener("mousemove", handleResizeMove);
-      document.removeEventListener("mouseup", handleResizeEnd);
-      document.removeEventListener("touchmove", handleTouchMove);
-      document.removeEventListener("touchend", handleTouchEnd);
-    };
-  }, [
-    isResizing,
-    handleResizeMove,
-    handleResizeEnd,
-    handleTouchMove,
-    handleTouchEnd,
+    handleKeyboardResize,
   ]);
 
   const toggleProject = useCallback(async (projectId: string) => {
@@ -704,6 +855,41 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
 
   return (
     <>
+      <input
+        ref={importInputRef}
+        type="file"
+        accept=".zip,application/zip"
+        style={{ display: "none" }}
+        onChange={handleImportAllFileSelected}
+      />
+      <ImportAllModal
+        isOpen={isImportAllModalOpen}
+        phase={importPhase}
+        mode={importMode}
+        fileName={importFileName}
+        parsed={importParsed}
+        conflicts={importConflicts}
+        progressMessage={importProgressMessage}
+        result={importResult}
+        errorMessage={importErrorMessage}
+        onClose={handleImportAllClose}
+        onPickFile={handleImportAllPickFile}
+        onFileSelected={handleImportAllFile}
+        onModeChange={handleImportAllModeChange}
+        onStartImport={() => startImport()}
+        onReset={resetImportState}
+      />
+      <ExportAllModal
+        isOpen={isExportAllModalOpen}
+        phase={exportPhase}
+        progressMessage={exportProgressMessage}
+        counts={exportCounts}
+        errorMessage={exportErrorMessage}
+        onClose={() => {
+          handleExportAllClose();
+          resetExportState();
+        }}
+      />
       <div style={containerStyle}>
         {/* Trigger area */}
         <div style={triggerStyle} onMouseEnter={handleMouseEnter} />
@@ -724,26 +910,30 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
               {/* Resize Handle */}
               <div
                 style={resizeHandleStyle}
-                onMouseDown={handleResizeStart}
-                onTouchStart={handleTouchStart}
+                onMouseDown={handleMouseResizeStart}
+                onTouchStart={handleTouchResizeStart}
               />
 
               {/* Width Indicator */}
               <div style={widthIndicatorStyle}>{state.panelWidth}px</div>
 
               {/* Header */}
-              <ComponentErrorBoundary 
-                fallback={PanelErrorFallback}
-                componentName="PanelHeader"
-              >
-                <PanelHeader
-                  isPanelPinned={state.isPanelPinned}
-                  onTogglePin={togglePin}
-                  onNewCanvas={handleNewCanvasEnhanced}
-                  onNewProject={() => setShowProjectModal(true)}
-                  onSearchOpen={() => dispatch({ type: "SET_SEARCH_MODAL_OPEN", payload: true })}
-                  shortcuts={shortcuts}
-                />
+                <ComponentErrorBoundary 
+                  fallback={PanelErrorFallback}
+                  componentName="PanelHeader"
+                >
+                  <PanelHeader
+                    isPanelPinned={state.isPanelPinned}
+                    onTogglePin={handleTogglePanel}
+                    onNewCanvas={handleNewCanvasEnhanced}
+                    onNewProject={() => setShowProjectModal(true)}
+                    onSearchOpen={() => dispatch({ type: "SET_SEARCH_MODAL_OPEN", payload: true })}
+                    shortcuts={shortcuts}
+                    onExportAll={handleExportAll}
+                    isExportingAll={isExportingAll}
+                    onImportAll={handleImportAllClick}
+                    isImportingAll={isImportingAll}
+                  />
               </ComponentErrorBoundary>
 
               {/* Content */}

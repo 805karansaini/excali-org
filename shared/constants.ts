@@ -1,0 +1,12 @@
+export const PANEL_CONSTANTS = {
+  MIN_WIDTH: 200,
+  MAX_WIDTH: 600,
+  HIDE_DELAY_MS: 300,
+  WIDTH_INDICATOR_TIMEOUT_MS: 1000,
+} as const;
+
+export const CANVAS_DEFAULTS = {
+  BASE_NAME: "Untitled Canvas",
+  DEFAULT_WIDTH: 1280,
+  DEFAULT_HEIGHT: 720,
+} as const;
