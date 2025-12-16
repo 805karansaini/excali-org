@@ -275,6 +275,7 @@ export function ImportAllModal({
     justifyContent: "center",
     padding: "20px",
     backdropFilter: "blur(4px)",
+    pointerEvents: "auto",
   };
 
   const modalStyles: React.CSSProperties = {

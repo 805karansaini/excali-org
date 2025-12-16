@@ -349,13 +349,17 @@ export function SearchModal() {
     left: 0,
     right: 0,
     bottom: 0,
-    background: "var(--theme-bg-primary, #ffffff)",
+    background: "rgba(0, 0, 0, 0.6)",
     display: "flex",
     alignItems: "flex-start",
     justifyContent: "center",
     paddingTop: "10vh",
-    zIndex: 9999999,
+    paddingLeft: "20px",
+    paddingRight: "20px",
+    paddingBottom: "20px",
+    zIndex: 10000000,
     pointerEvents: "auto",
+    backdropFilter: "blur(4px)",
   };
 
   const modalStyles: React.CSSProperties = {
@@ -364,9 +368,8 @@ export function SearchModal() {
     background: "var(--theme-bg-primary, #ffffff)",
     border: "1px solid var(--theme-border-primary, rgba(0, 0, 0, 0.1))",
     borderRadius: "16px",
-    boxShadow: "var(--theme-shadow-lg, 0 20px 40px rgba(0, 0, 0, 0.1))",
+    boxShadow: "var(--theme-shadow-lg, 0 20px 40px rgba(0, 0, 0, 0.15))",
     overflow: "hidden",
-    margin: "0 16px",
   };
 
   const searchInputStyles: React.CSSProperties = {

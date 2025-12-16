@@ -88,12 +88,13 @@ export function HelpOverlay() {
     left: 0,
     right: 0,
     bottom: 0,
-    background: "rgba(0, 0, 0, 0.5)",
+    background: "rgba(0, 0, 0, 0.6)",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    zIndex: 9999999,
+    zIndex: 10000000,
     pointerEvents: "auto",
+    padding: "20px",
     backdropFilter: "blur(4px)",
   };
 
@@ -104,9 +105,9 @@ export function HelpOverlay() {
     background: "var(--theme-bg-primary, #ffffff)",
     border: "1px solid var(--theme-border-primary, rgba(0, 0, 0, 0.1))",
     borderRadius: "16px",
-    boxShadow: "var(--theme-shadow-lg, 0 20px 40px rgba(0, 0, 0, 0.2))",
+    boxShadow: "var(--theme-shadow-lg, 0 20px 40px rgba(0, 0, 0, 0.15))",
     overflow: "hidden",
-    margin: "0 16px",
+    margin: "0 auto",
     display: "flex",
     flexDirection: "column",
   };
