@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
 import { AlertTriangle, CheckCircle2, ChevronDown, Copy, Upload, X } from "lucide-react";
@@ -224,6 +224,26 @@ export function ImportAllModal({
 
   const canClose = phase !== "importing";
   const canStart = phase === "ready" && Boolean(parsed) && (mode === "replace" || Boolean(conflicts));
+
+  const handleMergeCardKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>) => {
+      if (phase === "importing") return;
+      if (event.key !== "Enter" && event.key !== " " && event.key !== "Spacebar") return;
+      if (event.key === " " || event.key === "Spacebar") event.preventDefault();
+      onModeChange("merge");
+    },
+    [phase, onModeChange],
+  );
+
+  const handleReplaceCardKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>) => {
+      if (phase === "importing") return;
+      if (event.key !== "Enter" && event.key !== " " && event.key !== "Spacebar") return;
+      if (event.key === " " || event.key === "Spacebar") event.preventDefault();
+      onModeChange("replace");
+    },
+    [phase, onModeChange],
+  );
 
   const conflictCounts = useMemo(() => {
     return {
@@ -530,6 +550,7 @@ export function ImportAllModal({
                 tabIndex={0}
                 style={modeCard(mode === "merge")}
                 onClick={() => phase !== "importing" && onModeChange("merge")}
+                onKeyDown={handleMergeCardKeyDown}
               >
                 <div style={{ display: "flex", gap: "10px" }}>
                   <input
@@ -552,6 +573,7 @@ export function ImportAllModal({
                 tabIndex={0}
                 style={modeCard(mode === "replace")}
                 onClick={() => phase !== "importing" && onModeChange("replace")}
+                onKeyDown={handleReplaceCardKeyDown}
               >
                 <div style={{ display: "flex", gap: "10px" }}>
                   <input

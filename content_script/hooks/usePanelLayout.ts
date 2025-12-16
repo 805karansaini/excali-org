@@ -145,6 +145,7 @@ export const usePanelResize = ({
   const [showWidthIndicator, setShowWidthIndicator] = useState(false);
   const resizeStartX = useRef(0);
   const resizeStartWidth = useRef(panelWidth);
+  const lastAppliedWidthRef = useRef(panelWidth);
 
   const clampWidth = useCallback(
     (width: number) =>
@@ -155,6 +156,7 @@ export const usePanelResize = ({
   const applyWidth = useCallback(
     (width: number) => {
       const clamped = clampWidth(width);
+      lastAppliedWidthRef.current = clamped;
       dispatch({ type: "SET_PANEL_WIDTH", payload: clamped });
       setShowWidthIndicator(true);
     },
@@ -167,6 +169,7 @@ export const usePanelResize = ({
       setShowWidthIndicator(true);
       resizeStartX.current = clientX;
       resizeStartWidth.current = panelWidth;
+      lastAppliedWidthRef.current = panelWidth;
       document.body.style.cursor = "col-resize";
       document.body.style.userSelect = "none";
     },
@@ -187,10 +190,11 @@ export const usePanelResize = ({
     setIsResizing(false);
     document.body.style.cursor = "";
     document.body.style.userSelect = "";
-    updatePanelSettings({ width: panelWidth });
+    const finalWidth = lastAppliedWidthRef.current;
+    updatePanelSettings({ width: finalWidth });
     setTimeout(() => setShowWidthIndicator(false), PANEL_CONSTANTS.WIDTH_INDICATOR_TIMEOUT_MS);
-    eventBus.emit(InternalEventTypes.PANEL_WIDTH_CHANGED, { width: panelWidth });
-  }, [isResizing, panelWidth, updatePanelSettings]);
+    eventBus.emit(InternalEventTypes.PANEL_WIDTH_CHANGED, { width: finalWidth });
+  }, [isResizing, updatePanelSettings]);
 
   useEffect(() => {
     if (!isResizing) return;
@@ -238,8 +242,10 @@ export const usePanelResize = ({
   const handleKeyboardResize = useCallback(
     (direction: "left" | "right") => {
       const delta = direction === "left" ? -20 : 20;
-      applyWidth(panelWidth + delta);
-      updatePanelSettings({ width: clampWidth(panelWidth + delta) });
+      const nextWidth = clampWidth(panelWidth + delta);
+      applyWidth(nextWidth);
+      updatePanelSettings({ width: nextWidth });
+      eventBus.emit(InternalEventTypes.PANEL_WIDTH_CHANGED, { width: nextWidth });
       setTimeout(() => setShowWidthIndicator(false), PANEL_CONSTANTS.WIDTH_INDICATOR_TIMEOUT_MS);
     },
     [panelWidth, applyWidth, updatePanelSettings, clampWidth],

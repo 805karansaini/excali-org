@@ -572,9 +572,11 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
     onTogglePanel: handleTogglePanel,
   });
 
-  useEventBusListener(InternalEventTypes.REQUEST_NEW_CANVAS, () => {
-    handleNewCanvasEnhanced();
-  });
+  const handleRequestNewCanvas = useCallback(() => {
+    void handleNewCanvasEnhanced();
+  }, [handleNewCanvasEnhanced]);
+
+  useEventBusListener(InternalEventTypes.REQUEST_NEW_CANVAS, handleRequestNewCanvas);
 
   // Canvas delete handlers
   const handleConfirmCanvasDelete = useCallback(async () => {
