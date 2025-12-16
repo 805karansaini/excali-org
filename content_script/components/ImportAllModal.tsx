@@ -817,7 +817,7 @@ export function ImportAllModal({
               ...buttonStyles,
               background: "transparent",
             }}
-            disabled={phase === "importing"}
+            disabled={phase === "importing" || phase === "parsing"}
           >
             Reset
           </button>

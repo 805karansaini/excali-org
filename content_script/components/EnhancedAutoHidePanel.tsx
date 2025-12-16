@@ -89,6 +89,7 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
   const [importErrorMessage, setImportErrorMessage] = useState<string | null>(null);
   const panelRef = React.useRef<HTMLDivElement>(null);
   const importInputRef = React.useRef<HTMLInputElement>(null);
+  const importOpIdRef = React.useRef(0);
 
   const isImportingAll = importPhase === "parsing" || importPhase === "importing";
 
@@ -418,6 +419,8 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
   }, [exportPhase]);
 
   const resetImportState = useCallback(() => {
+    // Invalidate any in-flight parse/conflict detection so it can't update state after reset.
+    importOpIdRef.current += 1;
     setImportPhase("idle");
     setImportFileName(undefined);
     setImportParsed(undefined);
@@ -516,19 +519,29 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
 
   const handleImportAllFile = useCallback(
     async (file: File) => {
+      const opId = (importOpIdRef.current += 1);
+      const isCurrent = () => importOpIdRef.current === opId;
+      const setProgress = (message: string | undefined) => {
+        if (!isCurrent()) return;
+        setImportProgressMessage(message);
+      };
+
       try {
+        if (!isCurrent()) return;
         setImportErrorMessage(null);
         setImportResult(undefined);
         setImportFileName(file.name);
         setImportPhase("parsing");
 
-        const parsed = await parseBackupZip(file, setImportProgressMessage);
+        const parsed = await parseBackupZip(file, setProgress);
+        if (!isCurrent()) return;
         setImportParsed(parsed);
 
         if (importMode === "merge") {
-          const nextConflicts = await detectConflicts(parsed, setImportProgressMessage);
+          const nextConflicts = await detectConflicts(parsed, setProgress);
+          if (!isCurrent()) return;
           setImportConflicts(nextConflicts);
-          setImportProgressMessage(undefined);
+          setProgress(undefined);
           setImportPhase("ready");
 
           const hasConflicts =
@@ -542,10 +555,11 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
           }
         } else {
           setImportConflicts(undefined);
-          setImportProgressMessage(undefined);
+          setProgress(undefined);
           setImportPhase("ready");
         }
       } catch (error) {
+        if (!isCurrent()) return;
         console.error("Failed to parse import zip:", error);
         setImportPhase("error");
         setImportProgressMessage(undefined);
