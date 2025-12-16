@@ -16,7 +16,7 @@ import { useEventBusListener } from "../hooks/useEventBusListener";
 import { usePanelVisibility, usePanelResize } from "../hooks/usePanelLayout";
 import { PANEL_CONSTANTS } from "../../shared/constants";
 import { createDefaultCanvas } from "../../shared/canvasFactory";
-import { backupOperations } from "../../shared/unified-db";
+import { backupOperations, canvasOperations, settingsOperations } from "../../shared/unified-db";
 import JSZip from "jszip";
 import { SearchModal } from "./SearchModal";
 import { HelpOverlay } from "./HelpOverlay";
@@ -36,7 +36,16 @@ import {
   CanvasSectionErrorFallback 
 } from "./ErrorBoundary";
 import { UnifiedCanvas, UnifiedProject } from "../../shared/types";
-import { canvasOperations, settingsOperations } from "../../shared/unified-db";
+import { ImportAllModal } from "./ImportAllModal";
+import {
+  detectConflicts,
+  importBackupZip,
+  parseBackupZip,
+  type ConflictReport,
+  type ImportMode,
+  type ImportResult,
+  type ParsedBackupZip,
+} from "../services/backupImportAll";
 
 interface Props {
   onNewCanvas: () => void;
@@ -48,6 +57,7 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
     state,
     dispatch,
     updatePanelSettings,
+    loadInitialData,
     getCanvasesForProject,
     getUnorganizedCanvases,
     removeCanvas,
@@ -58,7 +68,21 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
   const [showAllProjects, setShowAllProjects] = useState(false);
   const [isExportingAll, setIsExportingAll] = useState(false);
+  const [isImportAllModalOpen, setIsImportAllModalOpen] = useState(false);
+  const [importMode, setImportMode] = useState<ImportMode>("merge");
+  const [importPhase, setImportPhase] = useState<
+    "idle" | "parsing" | "ready" | "importing" | "done" | "error"
+  >("idle");
+  const [importFileName, setImportFileName] = useState<string | undefined>(undefined);
+  const [importParsed, setImportParsed] = useState<ParsedBackupZip | undefined>(undefined);
+  const [importConflicts, setImportConflicts] = useState<ConflictReport | undefined>(undefined);
+  const [importProgressMessage, setImportProgressMessage] = useState<string | undefined>(undefined);
+  const [importResult, setImportResult] = useState<ImportResult | undefined>(undefined);
+  const [importErrorMessage, setImportErrorMessage] = useState<string | null>(null);
   const panelRef = React.useRef<HTMLDivElement>(null);
+  const importInputRef = React.useRef<HTMLInputElement>(null);
+
+  const isImportingAll = importPhase === "parsing" || importPhase === "importing";
 
   const yieldToBrowser = () =>
     new Promise((resolve) => setTimeout(resolve, 0));
@@ -153,7 +177,7 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
     projectContextMenuOpen: Boolean(state.projectContextMenu),
     dispatch,
     updatePanelSettings,
-    suppressAutoHide: isResizing,
+    suppressAutoHide: isResizing || isExportingAll || isImportingAll,
   });
 
   // Enhanced canvas creation with shared defaults
@@ -349,6 +373,149 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
       setIsExportingAll(false);
     }
   }, [dispatch]);
+
+  const resetImportState = useCallback(() => {
+    setImportPhase("idle");
+    setImportFileName(undefined);
+    setImportParsed(undefined);
+    setImportConflicts(undefined);
+    setImportProgressMessage(undefined);
+    setImportResult(undefined);
+    setImportErrorMessage(null);
+  }, []);
+
+  const handleImportAllClick = useCallback(() => {
+    resetImportState();
+    setImportMode("merge");
+    setIsImportAllModalOpen(true);
+  }, [resetImportState]);
+
+  const handleImportAllClose = useCallback(() => {
+    if (isImportingAll) return;
+    setIsImportAllModalOpen(false);
+  }, [isImportingAll]);
+
+  const handleImportAllPickFile = useCallback(() => {
+    if (isImportingAll) return;
+    importInputRef.current?.click();
+  }, [isImportingAll]);
+
+  const handleImportAllModeChange = useCallback(
+    async (mode: ImportMode) => {
+      if (isImportingAll) return;
+      setImportMode(mode);
+      setImportResult(undefined);
+      setImportErrorMessage(null);
+
+      if (!importParsed) {
+        setImportConflicts(undefined);
+        return;
+      }
+
+      if (mode === "replace") {
+        setImportConflicts(undefined);
+        setImportPhase("ready");
+        return;
+      }
+
+      try {
+        setImportPhase("parsing");
+        setImportProgressMessage("Checking for conflicts…");
+        const nextConflicts = await detectConflicts(importParsed, setImportProgressMessage);
+        setImportConflicts(nextConflicts);
+        setImportProgressMessage(undefined);
+        setImportPhase("ready");
+      } catch (error) {
+        setImportPhase("error");
+        setImportErrorMessage(error instanceof Error ? error.message : "Failed to detect conflicts");
+      }
+    },
+    [importParsed, isImportingAll],
+  );
+
+  const startImport = useCallback(async (override?: {
+    parsed?: ParsedBackupZip;
+    mode?: ImportMode;
+    conflicts?: ConflictReport;
+  }) => {
+    const effectiveParsed = override?.parsed ?? importParsed;
+    const effectiveMode = override?.mode ?? importMode;
+    const effectiveConflicts = override?.conflicts ?? importConflicts;
+
+    if (!effectiveParsed) return;
+    if (effectiveMode === "merge" && !effectiveConflicts) return;
+
+    try {
+      setImportPhase("importing");
+      setImportErrorMessage(null);
+      setImportResult(undefined);
+      const result = await importBackupZip({
+        data: effectiveParsed,
+        mode: effectiveMode,
+        onProgress: setImportProgressMessage,
+      });
+      setImportProgressMessage("Refreshing…");
+      await loadInitialData();
+      setImportProgressMessage(undefined);
+      setImportResult(result);
+      setImportPhase("done");
+    } catch (error) {
+      console.error("Failed to import all data:", error);
+      setImportPhase("error");
+      setImportProgressMessage(undefined);
+      setImportErrorMessage(error instanceof Error ? error.message : "Import failed");
+      dispatch({
+        type: "SET_ERROR",
+        payload: "Failed to import backup. Please try again.",
+      });
+    }
+  }, [dispatch, importConflicts, importMode, importParsed, loadInitialData]);
+
+  const handleImportAllFileSelected = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      e.target.value = "";
+      if (!file) return;
+
+      try {
+        setImportErrorMessage(null);
+        setImportResult(undefined);
+        setImportFileName(file.name);
+        setImportPhase("parsing");
+
+        const parsed = await parseBackupZip(file, setImportProgressMessage);
+        setImportParsed(parsed);
+
+        if (importMode === "merge") {
+          const nextConflicts = await detectConflicts(parsed, setImportProgressMessage);
+          setImportConflicts(nextConflicts);
+          setImportProgressMessage(undefined);
+          setImportPhase("ready");
+
+          const hasConflicts =
+            nextConflicts.canvasIds.length > 0 ||
+            nextConflicts.projectIds.length > 0 ||
+            nextConflicts.projectNames.length > 0 ||
+            nextConflicts.settingKeys.length > 0;
+
+          if (!hasConflicts) {
+            // If merge has no conflicts, proceed immediately.
+            await startImport({ parsed, mode: importMode, conflicts: nextConflicts });
+          }
+        } else {
+          setImportConflicts(undefined);
+          setImportProgressMessage(undefined);
+          setImportPhase("ready");
+        }
+      } catch (error) {
+        console.error("Failed to parse import zip:", error);
+        setImportPhase("error");
+        setImportProgressMessage(undefined);
+        setImportErrorMessage(error instanceof Error ? error.message : "Import failed");
+      }
+    },
+    [importMode, startImport],
+  );
 
   // Initialize keyboard shortcuts
   useKeyboardShortcuts({
@@ -624,6 +791,29 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
 
   return (
     <>
+      <input
+        ref={importInputRef}
+        type="file"
+        accept=".zip,application/zip"
+        style={{ display: "none" }}
+        onChange={handleImportAllFileSelected}
+      />
+      <ImportAllModal
+        isOpen={isImportAllModalOpen}
+        phase={importPhase}
+        mode={importMode}
+        fileName={importFileName}
+        parsed={importParsed}
+        conflicts={importConflicts}
+        progressMessage={importProgressMessage}
+        result={importResult}
+        errorMessage={importErrorMessage}
+        onClose={handleImportAllClose}
+        onPickFile={handleImportAllPickFile}
+        onModeChange={handleImportAllModeChange}
+        onStartImport={() => startImport()}
+        onReset={resetImportState}
+      />
       <div style={containerStyle}>
         {/* Trigger area */}
         <div style={triggerStyle} onMouseEnter={handleMouseEnter} />
@@ -665,6 +855,8 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
                     shortcuts={shortcuts}
                     onExportAll={handleExportAll}
                     isExportingAll={isExportingAll}
+                    onImportAll={handleImportAllClick}
+                    isImportingAll={isImportingAll}
                   />
               </ComponentErrorBoundary>
 
