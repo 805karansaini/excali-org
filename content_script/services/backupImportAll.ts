@@ -23,12 +23,14 @@ export interface ImportResult {
   mode: ImportMode;
   imported: { canvases: number; projects: number; settings: number };
   skipped: {
-    canvasIds: string[];
-    projectIds: string[];
-    projectNames: string[];
-    settingKeys: string[];
+    canvases: Array<{ id: string; incomingName: string; existingName?: string }>;
+    projectsById: Array<{ id: string; incomingName: string; existingName?: string }>;
+    projectsByName: Array<{ id: string; name: string; existingId?: string }>;
+    settings: Array<{ key: string }>;
   };
-  warnings: { canvasIdsOrphanedFromProject: string[] };
+  warnings: {
+    canvasesOrphanedFromProject: Array<{ id: string; name: string; projectId?: string }>;
+  };
 }
 
 const parseDate = (value: unknown, label: string): Date => {
@@ -229,8 +231,8 @@ export const importBackupZip = async ({
         projects: data.projects.length,
         settings: data.settings.length,
       },
-      skipped: { canvasIds: [], projectIds: [], projectNames: [], settingKeys: [] },
-      warnings: { canvasIdsOrphanedFromProject: [] },
+      skipped: { canvases: [], projectsById: [], projectsByName: [], settings: [] },
+      warnings: { canvasesOrphanedFromProject: [] },
     };
   }
 
@@ -241,19 +243,19 @@ export const importBackupZip = async ({
   const conflictProjectNames = new Set(conflicts.projectNames);
   const conflictSettingKeys = new Set(conflicts.settingKeys);
 
-  const skippedCanvasIds: string[] = [];
-  const skippedProjectIds: string[] = [];
-  const skippedProjectNames: string[] = [];
-  const skippedSettingKeys: string[] = [];
-  const canvasIdsOrphanedFromProject: string[] = [];
+  const skippedCanvases: Array<{ id: string; incomingName: string; existingName?: string }> = [];
+  const skippedProjectsById: Array<{ id: string; incomingName: string; existingName?: string }> = [];
+  const skippedProjectsByName: Array<{ id: string; name: string; existingId?: string }> = [];
+  const skippedSettings: Array<{ key: string }> = [];
+  const canvasesOrphanedFromProject: Array<{ id: string; name: string; projectId?: string }> = [];
 
   const projectsToAdd = data.projects.filter((p) => {
     if (conflictProjectIds.has(p.id)) {
-      skippedProjectIds.push(p.id);
+      skippedProjectsById.push({ id: p.id, incomingName: p.name });
       return false;
     }
     if (conflictProjectNames.has(p.name)) {
-      skippedProjectNames.push(p.name);
+      skippedProjectsByName.push({ id: p.id, name: p.name });
       return false;
     }
     return true;
@@ -263,7 +265,7 @@ export const importBackupZip = async ({
 
   const canvasesToAdd = data.canvases.filter((c) => {
     if (conflictCanvasIds.has(c.id)) {
-      skippedCanvasIds.push(c.id);
+      skippedCanvases.push({ id: c.id, incomingName: c.name });
       return false;
     }
     return true;
@@ -271,11 +273,46 @@ export const importBackupZip = async ({
 
   const settingsToAdd = data.settings.filter((s) => {
     if (conflictSettingKeys.has(s.key)) {
-      skippedSettingKeys.push(s.key);
+      skippedSettings.push({ key: s.key });
       return false;
     }
     return true;
   });
+
+  // Enrich skipped entries with existing names/IDs for better user reporting.
+  if (skippedCanvases.length > 0) {
+    const existing = await unifiedDb.canvases.bulkGet(skippedCanvases.map((s) => s.id));
+    const existingNameById = new Map(
+      existing.filter(Boolean).map((c) => [(c as UnifiedCanvas).id, (c as UnifiedCanvas).name]),
+    );
+    skippedCanvases.forEach((s) => {
+      const existingName = existingNameById.get(s.id);
+      if (existingName) s.existingName = existingName;
+    });
+  }
+
+  if (skippedProjectsById.length > 0) {
+    const existing = await unifiedDb.projects.bulkGet(skippedProjectsById.map((s) => s.id));
+    const existingNameById = new Map(
+      existing.filter(Boolean).map((p) => [(p as UnifiedProject).id, (p as UnifiedProject).name]),
+    );
+    skippedProjectsById.forEach((s) => {
+      const existingName = existingNameById.get(s.id);
+      if (existingName) s.existingName = existingName;
+    });
+  }
+
+  if (skippedProjectsByName.length > 0) {
+    const existingByName = await unifiedDb.projects
+      .where("name")
+      .anyOf(skippedProjectsByName.map((s) => s.name))
+      .toArray();
+    const existingIdByName = new Map(existingByName.map((p) => [p.name, p.id]));
+    skippedProjectsByName.forEach((s) => {
+      const existingId = existingIdByName.get(s.name);
+      if (existingId) s.existingId = existingId;
+    });
+  }
 
   // Determine which project IDs exist already (for linking canvases).
   const importedProjectIds = Array.from(new Set(canvasesToAdd.map((c) => c.projectId).filter(Boolean))) as string[];
@@ -295,8 +332,9 @@ export const importBackupZip = async ({
   canvasesToAdd.forEach((canvas) => {
     if (!canvas.projectId) return;
     if (!resultingProjectIds.has(canvas.projectId)) {
+      const orphanedProjectId = canvas.projectId;
       canvas.projectId = undefined;
-      canvasIdsOrphanedFromProject.push(canvas.id);
+      canvasesOrphanedFromProject.push({ id: canvas.id, name: canvas.name, projectId: orphanedProjectId });
     }
   });
 
@@ -351,11 +389,11 @@ export const importBackupZip = async ({
       settings: settingsToAdd.length,
     },
     skipped: {
-      canvasIds: skippedCanvasIds,
-      projectIds: skippedProjectIds,
-      projectNames: skippedProjectNames,
-      settingKeys: skippedSettingKeys,
+      canvases: skippedCanvases,
+      projectsById: skippedProjectsById,
+      projectsByName: skippedProjectsByName,
+      settings: skippedSettings,
     },
-    warnings: { canvasIdsOrphanedFromProject },
+    warnings: { canvasesOrphanedFromProject },
   };
 };

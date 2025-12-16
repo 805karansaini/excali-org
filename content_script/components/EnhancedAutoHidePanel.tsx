@@ -37,6 +37,7 @@ import {
 } from "./ErrorBoundary";
 import { UnifiedCanvas, UnifiedProject } from "../../shared/types";
 import { ImportAllModal } from "./ImportAllModal";
+import { ExportAllModal } from "./ExportAllModal";
 import {
   detectConflicts,
   importBackupZip,
@@ -68,6 +69,13 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
   const [showAllProjects, setShowAllProjects] = useState(false);
   const [isExportingAll, setIsExportingAll] = useState(false);
+  const [isExportAllModalOpen, setIsExportAllModalOpen] = useState(false);
+  const [exportPhase, setExportPhase] = useState<"idle" | "exporting" | "done" | "error">("idle");
+  const [exportProgressMessage, setExportProgressMessage] = useState<string | undefined>(undefined);
+  const [exportErrorMessage, setExportErrorMessage] = useState<string | null>(null);
+  const [exportCounts, setExportCounts] = useState<{ canvases: number; projects: number; settings: number } | undefined>(
+    undefined,
+  );
   const [isImportAllModalOpen, setIsImportAllModalOpen] = useState(false);
   const [importMode, setImportMode] = useState<ImportMode>("merge");
   const [importPhase, setImportPhase] = useState<
@@ -213,6 +221,10 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
   const handleExportAll = useCallback(async () => {
     try {
       setIsExportingAll(true);
+      setIsExportAllModalOpen(true);
+      setExportPhase("exporting");
+      setExportErrorMessage(null);
+      setExportProgressMessage("Collecting data…");
       const exportData = await backupOperations.exportAllData();
       const zip = new JSZip();
       const timestamp = new Date().toISOString();
@@ -220,6 +232,13 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
       // Yield before heavy work
       await yieldToBrowser();
 
+      setExportCounts({
+        canvases: exportData.canvases.length,
+        projects: exportData.projects.length,
+        settings: exportData.settings?.length ?? 0,
+      });
+
+      setExportProgressMessage("Writing manifest…");
       const projectById = new Map(exportData.projects.map((p) => [p.id, p]));
       const canvasById = new Map(exportData.canvases.map((c) => [c.id, c]));
 
@@ -262,6 +281,7 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
       );
 
       // Settings + raw tables
+      setExportProgressMessage("Adding raw tables…");
       zip.file("canvases.json", JSON.stringify(exportData.canvases, null, 2));
       zip.file("projects.json", JSON.stringify(exportData.projects, null, 2));
       zip.file("settings.json", JSON.stringify(exportData.settings ?? [], null, 2));
@@ -270,6 +290,7 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
       if (!canvasesFolder) throw new Error("Unable to create canvases folder");
 
       // Export each canvas as .excalidraw (single canvas download parity)
+      setExportProgressMessage("Packaging canvases…");
       const usedRootCanvasFilenames = new Set<string>();
       exportData.canvases
         .filter((canvas) => {
@@ -291,6 +312,7 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
       const projectsFolder = zip.folder("projects");
       if (!projectsFolder) throw new Error("Unable to create projects folder");
 
+      setExportProgressMessage("Packaging projects…");
       const usedProjectFolderNames = new Set<string>();
       exportData.projects.forEach((project: UnifiedProject) => {
         const projectFolderName = makeUniquePathSegment(
@@ -351,20 +373,28 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
       // Final yield before generating blob
       await yieldToBrowser();
 
+      setExportProgressMessage("Compressing zip…");
       const zipBlob = await zip.generateAsync({
         type: "blob",
         compression: "DEFLATE",
         compressionOptions: { level: 6 },
       });
 
+      setExportProgressMessage("Starting download…");
       const url = URL.createObjectURL(zipBlob);
       const a = document.createElement("a");
       a.href = url;
       a.download = `excali-org-backup-${timestamp.slice(0, 10)}.zip`;
       a.click();
       URL.revokeObjectURL(url);
+
+      setExportProgressMessage(undefined);
+      setExportPhase("done");
     } catch (error) {
       console.error("Failed to export all data:", error);
+      setExportPhase("error");
+      setExportProgressMessage(undefined);
+      setExportErrorMessage(error instanceof Error ? error.message : "Export failed");
       dispatch({
         type: "SET_ERROR",
         payload: "Failed to export data. Please try again.",
@@ -373,6 +403,19 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
       setIsExportingAll(false);
     }
   }, [dispatch]);
+
+  const handleExportAllClose = useCallback(() => {
+    if (exportPhase === "exporting") return;
+    setIsExportAllModalOpen(false);
+  }, [exportPhase]);
+
+  const resetExportState = useCallback(() => {
+    if (exportPhase === "exporting") return;
+    setExportPhase("idle");
+    setExportProgressMessage(undefined);
+    setExportErrorMessage(null);
+    setExportCounts(undefined);
+  }, [exportPhase]);
 
   const resetImportState = useCallback(() => {
     setImportPhase("idle");
@@ -471,12 +514,8 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
     }
   }, [dispatch, importConflicts, importMode, importParsed, loadInitialData]);
 
-  const handleImportAllFileSelected = useCallback(
-    async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      e.target.value = "";
-      if (!file) return;
-
+  const handleImportAllFile = useCallback(
+    async (file: File) => {
       try {
         setImportErrorMessage(null);
         setImportResult(undefined);
@@ -499,7 +538,6 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
             nextConflicts.settingKeys.length > 0;
 
           if (!hasConflicts) {
-            // If merge has no conflicts, proceed immediately.
             await startImport({ parsed, mode: importMode, conflicts: nextConflicts });
           }
         } else {
@@ -515,6 +553,16 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
       }
     },
     [importMode, startImport],
+  );
+
+  const handleImportAllFileSelected = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      e.target.value = "";
+      if (!file) return;
+      await handleImportAllFile(file);
+    },
+    [handleImportAllFile],
   );
 
   // Initialize keyboard shortcuts
@@ -810,9 +858,21 @@ export function EnhancedAutoHidePanel({ onNewCanvas, onCanvasSelect }: Props) {
         errorMessage={importErrorMessage}
         onClose={handleImportAllClose}
         onPickFile={handleImportAllPickFile}
+        onFileSelected={handleImportAllFile}
         onModeChange={handleImportAllModeChange}
         onStartImport={() => startImport()}
         onReset={resetImportState}
+      />
+      <ExportAllModal
+        isOpen={isExportAllModalOpen}
+        phase={exportPhase}
+        progressMessage={exportProgressMessage}
+        counts={exportCounts}
+        errorMessage={exportErrorMessage}
+        onClose={() => {
+          handleExportAllClose();
+          resetExportState();
+        }}
       />
       <div style={containerStyle}>
         {/* Trigger area */}
